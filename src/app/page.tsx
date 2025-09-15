@@ -1,103 +1,186 @@
+"use client";
+
+import {FFmpeg} from "@ffmpeg/ffmpeg";
+import {toBlobURL} from "@ffmpeg/util";
+import {useEffect, useRef, useState} from "react";
+import {downloadMultipleClips, hmsToSecondsOnly} from "@/ClipManager";
 import Image from "next/image";
 
-export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+export default function Home() {
+    const [loaded, setLoaded] = useState(false);
+    const [isRunning, setIsRunning] = useState(false);
+    const [clips, setClips] = useState<{
+        timecode: string,
+        length: string,
+        name: string,
+    }[]>([]);
+    const [gameUUID, setGameUUID] = useState<string>("");
+    const [homeTeamImage, setHomeTeamImage] = useState<string>("/blank.png");
+    const [awayTeamImage, setAwayTeamImage] = useState<string>("/blank.png");
+    const [gameName, setGameName] = useState<string>("Enter a link to load a game");
+    const ffmpegRef = useRef<FFmpeg | null>(null);
+    const messageRef = useRef<HTMLParagraphElement | null>(null);
+    const videoNumberRef = useRef<number>(0);
+    const elapsedTimeRef = useRef<number>(0);
+
+
+    useEffect(() => {
+        ffmpegRef.current = new FFmpeg();
+        load();
+    }, []);
+
+    const clipsRef = useRef(clips);
+    useEffect(() => {
+        clipsRef.current = clips;
+    }, [clips]);
+
+    useEffect(() => {
+        if (gameUUID) {
+            setGameName("Loading...")
+            fetch(`/api/broadcast/${gameUUID}`)
+                .then((res) => res.json())
+                .then((o) => {
+                    setGameName(`${o.competition.name}: ${o.homeTeam.shortName} vs ${o.awayTeam.shortName}`)
+                    setHomeTeamImage(`https://files.livearenasports.com/files/${o.homeTeam.logo.blobId}`);
+                    setAwayTeamImage(`https://files.livearenasports.com/files/${o.awayTeam.logo.blobId}`);
+                })
+                .catch(() => setGameName("Error"));
+        }
+    }, [gameUUID]);
+
+    const load = async () => {
+        setIsRunning(true);
+        const baseURL =
+            "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd";
+        const ffmpeg = ffmpegRef.current;
+        ffmpeg!.on("log", ({message}) => {
+            if (message.includes("time=")) {
+                const timeString = message.split("time=")[1].split(" ")[0]
+                const decimal = +`0.${timeString.split(".")[1]}`;
+                const time = hmsToSecondsOnly(timeString.split(".")[0]) + decimal;
+                if (time < 0 || time > hmsToSecondsOnly(clipsRef.current[videoNumberRef.current - 1].length)) return;
+                if (time < elapsedTimeRef.current!) {
+                    videoNumberRef.current += 1;
+                }
+                elapsedTimeRef.current = time;
+                if (messageRef.current) {
+                    messageRef.current.innerHTML = `Video ${videoNumberRef.current}: ${Math.round(time / hmsToSecondsOnly(clipsRef.current[videoNumberRef.current - 1].length) * 10000) / 100}%`;
+                }
+            }
+        });
+        await ffmpeg!.load({
+            coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
+            wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
+        });
+        setLoaded(true);
+        setIsRunning(false);
+    };
+
+
+    return loaded ? (
+        <div className="fixed top-[50%] left-[50%] translate-x-[-50%] translate-y-[-50%]">
+            <h1>{gameName}</h1>
+            <div>
+                <label htmlFor="link">Link: </label>
+                <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                    <Image src={homeTeamImage} alt="Home team image" width={200} height={200}/>
+                    <Image src={awayTeamImage} alt="Away team image" width={200} height={200}/>
+                </div>
+                <input
+                    id="link"
+                    style={{backgroundColor: "white", color: "black", width: "100%"}}
+                    type="text"
+                    value={gameUUID}
+                    onChange={(e) => setGameUUID(e.target.value.replace(/.*\/game\//, ""))}
+                />
+                <br/>
+                <br/>
+                {clips.map((clip, index) => (
+                    <div key={index} style={{display: "flex", justifyContent: "space-between", width: 600}}>
+                        <div>
+                            <label htmlFor="clipTime">Start Time: </label>
+                            <input id="clipTime" type="text"
+                                   value={clip.timecode}
+                                   style={{backgroundColor: "white", color: "black", maxWidth: 150}}
+                                   onChange={(e) => {
+                                       setClips(clips.map((c, i) => i !== index ? c : {
+                                           length: clip.length,
+                                           timecode: e.target.value,
+                                           name: clip.name
+                                       }))
+                                   }}/>
+                        </div>
+                        <div>
+                            <label htmlFor="clipLength">Length: </label>
+                            <input id="clipLength" type="text"
+                                   value={clip.length}
+                                   style={{backgroundColor: "white", color: "black", maxWidth: 150}}
+                                   onChange={(e) => {
+                                       setClips(clips.map((c, i) => i !== index ? c : {
+                                           length: e.target.value,
+                                           timecode: clip.timecode,
+                                           name: clip.name
+                                       }))
+                                   }}/>
+                        </div>
+                        <div>
+                            <label htmlFor="clipName">Name: </label>
+                            <input id="clipName" type="text"
+                                   value={clip.name}
+                                   style={{backgroundColor: "white", color: "black", maxWidth: 150}}
+                                   onChange={(e) => {
+                                       setClips(clips.map((c, i) => i !== index ? c : {
+                                           length: clip.length,
+                                           timecode: clip.timecode,
+                                           name: e.target.value
+                                       }))
+                                   }}/>
+                        </div>
+                        <br/>
+                        <br/>
+
+                    </div>
+                ))}
+                <br/>
+                <button onClick={() => setClips([...clips].concat({
+                    length: "0",
+                    timecode: "0",
+                    name: `clip ${clips.length}`
+                }))}
+                        className="bg-green-500 hover:bg-green-700 text-white py-3 px-6 rounded"
+                >Add Clip
+                </button>
+                <br/>
+                <br/>
+                <button
+                    disabled={isRunning}
+                    onClick={() => {
+                        setIsRunning(true);
+                        elapsedTimeRef.current = 0;
+                        videoNumberRef.current = 1;
+                        if (messageRef.current) {
+                            messageRef.current.innerHTML = "Searching for video file...";
+                        }
+                        downloadMultipleClips(ffmpegRef.current!, gameUUID, clips).then(blob => {
+                            const link = document.createElement("a")
+                            link.href = URL.createObjectURL(blob)
+                            link.download = "test.zip"
+                            link.click()
+                            link.remove()
+                        }).then(() => {
+                            setIsRunning(false)
+                            messageRef.current!.innerHTML = "Done!"
+                        });
+                    }}
+                    className="bg-green-500 hover:bg-green-700 text-white py-3 px-6 rounded"
+                >
+                    Execute
+                </button>
+                <p ref={messageRef}></p>
+            </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
-  );
+    ) : (
+        <h1>Loading...</h1>
+    );
 }
