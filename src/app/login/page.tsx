@@ -22,12 +22,13 @@ export default function LoginPage() {
                 that you can find me and make me pay if I steal your password!)</i></p>
 
         {understand ? <Center w="100%">
-            <Stack h={500} gap="lg">
-                <TextInput label="Username" value={username} onChange={e => setUsername(e.target.value)} w={500}
+            <Stack h={500} gap="lg" w={"80%"}>
+                <TextInput label="Username" value={username} onChange={e => setUsername(e.target.value)}
+                           w="100%"
                            placeholder="Your LiveHockey email here"></TextInput>
-                <PasswordInput label="Password" w={500} value={password} onChange={e => setPassword(e.target.value)}
+                <PasswordInput label="Password" w="100%" value={password} onChange={e => setPassword(e.target.value)}
                                placeholder="Your LiveHockey password here"></PasswordInput>
-                <Link href="/"><Button bg="green">Go Back!</Button></Link>
+                <Link href="/"><Button bg="green" disabled={!username || !password}>Submit</Button></Link>
             </Stack>
         </Center> : <Button onClick={() => setUnderstand(true)}> I understand!</Button>}
     </Box>

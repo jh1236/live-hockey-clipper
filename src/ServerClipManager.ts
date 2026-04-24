@@ -40,7 +40,6 @@ export async function serverDownloadMultipleClips(
             competitionName: string,
         } = {blob}
         await fs.writeFile('./videos/input/index.m3u8', text)
-        const out = []
         const tasks = []
         const maybeId = await db.connection.selectFrom(tGames).selectOneColumn(tGames.id).where(tGames.blob.equals(blob)).executeSelectNoneOrOne()
         if (maybeId === null) {
@@ -50,18 +49,18 @@ export async function serverDownloadMultipleClips(
                     headers: {'site-id': "AU_FH_AUS"}
                 }
             ).then(it => it.json()).then(it => {
-                gameEntry.competitionName = it.playerLevel.name
+                gameEntry.competitionName = it.competition.playerLevel.name
                 gameEntry.teamOne = it.homeTeam.shortName
                 gameEntry.teamTwo = it.awayTeam.shortName
                 gameEntry.teamOneImage = `https://files.livearenasports.com/files/${it.homeTeam.logo.blobId}`
                 gameEntry.teamTwoImage = `https://files.livearenasports.com/files/${it.awayTeam.logo.blobId}`
             }));
         }
-        await fs.mkdir(`./public/videos/${blob}`, {recursive: true});
+        await fs.mkdir(`./videos/output/${blob}`, {recursive: true});
 
         for (let i = 0; i < clips.length; i++) {
             const clip = clips[i];
-            const output = `./public/videos/${blob}/${clip.name}.mp4`;
+            const output = `./videos/output/${blob}/${clip.name}.mp4`;
             console.log(`ffmpeg ${[
                 "-y",
                 "-protocol_whitelist", "file,http,https,tcp,tls,crypto",
@@ -109,7 +108,7 @@ export async function serverDownloadMultipleClips(
                 name: clip.name!,
                 startTime: hmsToSecondsOnly(clip.timecode),
                 duration: hmsToSecondsOnly(clip.length),
-                link: `/videos/${blob}/${clip.name}.mp4`
+                link: `/api/videos/${blob}/${clip.name}.mp4`
             }
             tasks.push(connection.insertInto(tClips).values(to_add).executeInsert())
         }

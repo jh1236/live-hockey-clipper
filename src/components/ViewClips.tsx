@@ -4,6 +4,7 @@ import {useEffect, useState} from "react";
 import {Button, Card, Flex, Grid, Text, Title} from "@mantine/core";
 import {hmsToSecondsOnly, secondsToHMS} from "@/utils";
 import Link from "next/link";
+import {redirect} from "next/navigation";
 
 interface ViewClipsParams {
     blob: string;
@@ -37,7 +38,7 @@ export function ViewClips({blob}: ViewClipsParams) {
     return <Flex h="100svh" w="100svw" justify="center" align="center" direction="column">
         <Title p={20}>{game ? `${game.competitionName}: ${game.teamOne} vs ${game.teamTwo}`: "Loading"}</Title>
         <Grid flex={9} w="100%" p={20}>
-            {clips?.map((it, i) => <Grid.Col key={it.name} span={6}>
+            {clips?.map((it) => <Grid.Col key={it.name} span={6}>
                 <Card shadow="sm" padding="lg" withBorder>
                     <Card.Section>
                         <video src={it.link} controls></video>
@@ -56,5 +57,6 @@ export function ViewClips({blob}: ViewClipsParams) {
                 </Card>
             </Grid.Col>)}
         </Grid>
+        <Button onClick={() => redirect('/')}>Go Back</Button>
     </Flex>
 }

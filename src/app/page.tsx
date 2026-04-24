@@ -1,20 +1,20 @@
 "use client";
 
 import {useEffect, useState} from "react";
-import {useBoolean, useInterval, useLocalStorage} from "react-use";
-import {ActionIcon, Box, Button, Card, Flex, Grid, Group, Modal, Text, TextInput, Title} from "@mantine/core";
+import {useBoolean, useInterval, useLocalStorage, useSessionStorage} from "react-use";
+import {ActionIcon, Box, Button, Card, Flex, Grid, Group, Modal, Popover, Stack, Text, TextInput} from "@mantine/core";
 import {hmsToSecondsOnly, secondsToHMS} from "@/utils";
-import {FaMinus} from "react-icons/fa";
+import {FaMinus, FaUndo} from "react-icons/fa";
 import {redirect} from "next/navigation";
 
 const PRIOR_CLIP_RECORDING = 10;
 export default function Home() {
-    const [clips, setClips] = useLocalStorage<{
+    const [clips, setClips] = useSessionStorage<{
         timecode: string,
         length: string,
         name: string,
         link?: string,
-    }[]>("clips", [], {raw: false, serializer: JSON.stringify, deserializer: JSON.parse});
+    }[]>("clips", [], false);
     const [isLoading, setIsLoading] = useState(false);
     const [openExport, setOpenExport] = useBoolean(false);
     const [openAddClips, setOpenAddClips] = useBoolean(false);
@@ -23,7 +23,7 @@ export default function Home() {
     const [durationToClip, setDurationToClip] = useState<string>('00:00:00');
     const [timeToClip, setTimeToClip] = useState<string>('00:00:00');
     const [currentTime, setCurrentTime] = useState<number>(-1);
-    const [startTime, setStartTime] = useLocalStorage<number>("startTime", -1);
+    const [startTime, setStartTime] = useSessionStorage<number>("startTime", -1);
     const [editIndex, setEditIndex] = useState<number>(-1);
     const [username] = useLocalStorage<string | null>("username", null);
     const [password] = useLocalStorage<string | null>("password", null);
@@ -48,9 +48,16 @@ export default function Home() {
     // }, [setStartTime, startTime]);
 
 
+    if (!username) {
+        return <Flex h="100svh" w="100svw" justify="center" align="center" direction="column">
+            <Text><i>To use this site, you must be logged into live hockey</i></Text>
+            <Button bg="red" size="xl" w="80%" h="30%" m={30} onClick={() => redirect('/login')}>Login</Button>
+        </Flex>
+    }
+
     if (!startTime || startTime <= 0) {
         return <Flex h="100svh" w="100svw" justify="center" align="center" direction="column">
-            <Text><i>Press this button when the first quarter starts</i> {startTime}</Text>
+            <Text><i>Press this button when the first quarter starts</i></Text>
             <Button size="xl" w="80%" h="30%" m={30} onClick={() => setStartTime(Date.now())}>Start Timer</Button>
         </Flex>
     }
@@ -62,7 +69,7 @@ export default function Home() {
     return <Box>
         {/*By using isLoading as our value of setOpenBox, the box won't close whilst it's downloading*/}
         <Modal opened={openExport} onClose={() => setOpenExport(isLoading)} title="Download Clips" centered>
-            <Text>This will take a while, do</Text>
+            <Text fz="1.3em">This will take a while, do not close this tab!</Text>
             <TextInput mt={10} mb={10} label="Game Blob"
                        description="Paste in the link to the game on LiveHockey"
                        value={gameBlob}
@@ -128,7 +135,24 @@ export default function Home() {
         </Modal>
 
         <Flex h="100svh" w="100svw" justify="space-around" align="center" direction="column">
-            <Text p={20} fz="2em"><b>Clip Time:</b> {secondsToHMS(Math.round((currentTime - startTime) / 1000))}</Text>
+            <Group><Text p={20} fz="2em"><b>Clip Time:</b> {secondsToHMS(Math.round((currentTime - startTime) / 1000))}
+            </Text>
+                <Popover>
+                    <Popover.Target>
+                        <ActionIcon size="xl" bg="gray"><FaUndo size={20}/></ActionIcon>
+                    </Popover.Target>
+                    <Popover.Dropdown>
+                        <Stack align="center">
+                            <Text>Are you sure you want to reset? <br/>All clip times will be removed!</Text>
+                            <Button bg="red"
+                                    onClick={() => {
+                                        setClips([])
+                                        setStartTime(-1)
+                                    }}>Yes</Button>
+                        </Stack>
+                    </Popover.Dropdown>
+                </Popover>
+            </Group>
             <Button size="xl" w="60%" m={30} onClick={() => {
                 setTimeToClip(
                     secondsToHMS(Math.max(Math.round((currentTime - startTime) / 1000) - PRIOR_CLIP_RECORDING, 0))
@@ -138,24 +162,20 @@ export default function Home() {
                 setEditIndex(-1)
                 setOpenAddClips(true);
             }}>Add Clip</Button>
-            <Button bg="red" p={10} m={20} size="lg" onClick={() => {
-                setTimeToClip("00:00:00")
-                setOpenExport(true)
-            }}>Export</Button>
             <Grid flex={3} w="100%" p={20}>
                 {clips?.map((it, i) => <Grid.Col key={it.name} span={6}>
                     <Card shadow="sm" padding="lg" withBorder>
                         <Card.Section>
-                            <Group>
+                            <Group justify="space-between">
                                 <Text fw={500} p={10}>{it.name}</Text>
-                                <ActionIcon m={5} onClick={() => setClips(it => it!.filter((_, idx) => idx !== i))}>
+                                <ActionIcon m={5} onClick={() => setClips(clips!.filter((_, idx) => idx !== i))}>
                                     <FaMinus size={20}/>
                                 </ActionIcon> </Group>
                         </Card.Section>
 
 
                         <Text size="sm" c="dimmed">
-                            Starts: {it.timecode} {'\n'}
+                            Starts: {it.timecode} <br/>
                             Ends: {secondsToHMS(hmsToSecondsOnly(it.timecode) + hmsToSecondsOnly(it.length))}
                         </Text>
 
@@ -171,7 +191,12 @@ export default function Home() {
                     </Card>
                 </Grid.Col>)}
             </Grid>
-
+            <Button bg="red" p={10} m={20} size="lg"
+                    disabled={clips.length === 0}
+                    onClick={() => {
+                setTimeToClip("00:00:00")
+                setOpenExport(true)
+            }}>Done</Button>
         </Flex>
     </Box>;
 }
