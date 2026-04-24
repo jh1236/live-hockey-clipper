@@ -1,186 +1,177 @@
 "use client";
 
-import {FFmpeg} from "@ffmpeg/ffmpeg";
-import {toBlobURL} from "@ffmpeg/util";
-import {useEffect, useRef, useState} from "react";
-import {downloadMultipleClips, hmsToSecondsOnly} from "@/ClipManager";
-import Image from "next/image";
+import {useEffect, useState} from "react";
+import {useBoolean, useInterval, useLocalStorage} from "react-use";
+import {ActionIcon, Box, Button, Card, Flex, Grid, Group, Modal, Text, TextInput, Title} from "@mantine/core";
+import {hmsToSecondsOnly, secondsToHMS} from "@/utils";
+import {FaMinus} from "react-icons/fa";
+import {redirect} from "next/navigation";
 
-
+const PRIOR_CLIP_RECORDING = 10;
 export default function Home() {
-    const [loaded, setLoaded] = useState(false);
-    const [isRunning, setIsRunning] = useState(false);
-    const [clips, setClips] = useState<{
+    const [clips, setClips] = useLocalStorage<{
         timecode: string,
         length: string,
         name: string,
-    }[]>([]);
-    const [gameUUID, setGameUUID] = useState<string>("");
-    const [homeTeamImage, setHomeTeamImage] = useState<string>("/blank.png");
-    const [awayTeamImage, setAwayTeamImage] = useState<string>("/blank.png");
-    const [gameName, setGameName] = useState<string>("Enter a link to load a game");
-    const ffmpegRef = useRef<FFmpeg | null>(null);
-    const messageRef = useRef<HTMLParagraphElement | null>(null);
-    const videoNumberRef = useRef<number>(0);
-    const elapsedTimeRef = useRef<number>(0);
+        link?: string,
+    }[]>("clips", [], {raw: false, serializer: JSON.stringify, deserializer: JSON.parse});
+    const [isLoading, setIsLoading] = useState(false);
+    const [openExport, setOpenExport] = useBoolean(false);
+    const [openAddClips, setOpenAddClips] = useBoolean(false);
+    const [gameBlob, setGameBlob] = useState<string>("");
+    const [nameOfNewClip, setNameOfNewClip] = useState<string>("Clip 1");
+    const [durationToClip, setDurationToClip] = useState<string>('00:00:00');
+    const [timeToClip, setTimeToClip] = useState<string>('00:00:00');
+    const [currentTime, setCurrentTime] = useState<number>(-1);
+    const [startTime, setStartTime] = useLocalStorage<number>("startTime", -1);
+    const [editIndex, setEditIndex] = useState<number>(-1);
+    const [username] = useLocalStorage<string | null>("username", null);
+    const [password] = useLocalStorage<string | null>("password", null);
 
+    useInterval(
+        () => {
+            setCurrentTime(Date.now());
+        },
+        (startTime ?? 0) > 0 ? 500 : null
+    )
 
     useEffect(() => {
-        ffmpegRef.current = new FFmpeg();
-        load();
-    }, []);
+        setCurrentTime(Date.now());
+    }, [startTime]);
 
-    const clipsRef = useRef(clips);
-    useEffect(() => {
-        clipsRef.current = clips;
-    }, [clips]);
-
-    useEffect(() => {
-        if (gameUUID) {
-            setGameName("Loading...")
-            fetch(`/api/broadcast/${gameUUID}`)
-                .then((res) => res.json())
-                .then((o) => {
-                    setGameName(`${o.competition.name}: ${o.homeTeam.shortName} vs ${o.awayTeam.shortName}`)
-                    setHomeTeamImage(`https://files.livearenasports.com/files/${o.homeTeam.logo.blobId}`);
-                    setAwayTeamImage(`https://files.livearenasports.com/files/${o.awayTeam.logo.blobId}`);
-                })
-                .catch(() => setGameName("Error"));
-        }
-    }, [gameUUID]);
-
-    const load = async () => {
-        setIsRunning(true);
-        const baseURL =
-            "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd";
-        const ffmpeg = ffmpegRef.current;
-        ffmpeg!.on("log", ({message}) => {
-            if (message.includes("time=")) {
-                const timeString = message.split("time=")[1].split(" ")[0]
-                const decimal = +`0.${timeString.split(".")[1]}`;
-                const time = hmsToSecondsOnly(timeString.split(".")[0]) + decimal;
-                if (time < 0 || time > hmsToSecondsOnly(clipsRef.current[videoNumberRef.current - 1].length)) return;
-                if (time < elapsedTimeRef.current!) {
-                    videoNumberRef.current += 1;
-                }
-                elapsedTimeRef.current = time;
-                if (messageRef.current) {
-                    messageRef.current.innerHTML = `Video ${videoNumberRef.current}: ${Math.round(time / hmsToSecondsOnly(clipsRef.current[videoNumberRef.current - 1].length) * 10000) / 100}%`;
-                }
-            }
-        });
-        await ffmpeg!.load({
-            coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
-            wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
-        });
-        setLoaded(true);
-        setIsRunning(false);
-    };
+    // useEffect(() => {
+    //     // if our timer goes over 2 hours, then the game we were doing is probably finished
+    //     if (startTime! > 0 && currentTime - startTime! > hmsToSecondsOnly("2:30:00")) {
+    //         setStartTime(0)
+    //         setClips([])
+    //     }
+    // }, [setStartTime, startTime]);
 
 
-    return loaded ? (
-        <div className="fixed top-[50%] left-[50%] translate-x-[-50%] translate-y-[-50%]">
-            <h1>{gameName}</h1>
-            <div>
-                <label htmlFor="link">Link: </label>
-                <div style={{display: 'flex', justifyContent: 'space-between'}}>
-                    <Image src={homeTeamImage} alt="Home team image" width={200} height={200}/>
-                    <Image src={awayTeamImage} alt="Away team image" width={200} height={200}/>
-                </div>
-                <input
-                    id="link"
-                    style={{backgroundColor: "white", color: "black", width: "100%"}}
-                    type="text"
-                    value={gameUUID}
-                    onChange={(e) => setGameUUID(e.target.value.replace(/.*\/game\//, ""))}
-                />
-                <br/>
-                <br/>
-                {clips.map((clip, index) => (
-                    <div key={index} style={{display: "flex", justifyContent: "space-between", width: 600}}>
-                        <div>
-                            <label htmlFor="clipTime">Start Time: </label>
-                            <input id="clipTime" type="text"
-                                   value={clip.timecode}
-                                   style={{backgroundColor: "white", color: "black", maxWidth: 150}}
-                                   onChange={(e) => {
-                                       setClips(clips.map((c, i) => i !== index ? c : {
-                                           length: clip.length,
-                                           timecode: e.target.value,
-                                           name: clip.name
-                                       }))
-                                   }}/>
-                        </div>
-                        <div>
-                            <label htmlFor="clipLength">Length: </label>
-                            <input id="clipLength" type="text"
-                                   value={clip.length}
-                                   style={{backgroundColor: "white", color: "black", maxWidth: 150}}
-                                   onChange={(e) => {
-                                       setClips(clips.map((c, i) => i !== index ? c : {
-                                           length: e.target.value,
-                                           timecode: clip.timecode,
-                                           name: clip.name
-                                       }))
-                                   }}/>
-                        </div>
-                        <div>
-                            <label htmlFor="clipName">Name: </label>
-                            <input id="clipName" type="text"
-                                   value={clip.name}
-                                   style={{backgroundColor: "white", color: "black", maxWidth: 150}}
-                                   onChange={(e) => {
-                                       setClips(clips.map((c, i) => i !== index ? c : {
-                                           length: clip.length,
-                                           timecode: clip.timecode,
-                                           name: e.target.value
-                                       }))
-                                   }}/>
-                        </div>
-                        <br/>
-                        <br/>
+    if (!startTime || startTime <= 0) {
+        return <Flex h="100svh" w="100svw" justify="center" align="center" direction="column">
+            <Text><i>Press this button when the first quarter starts</i> {startTime}</Text>
+            <Button size="xl" w="80%" h="30%" m={30} onClick={() => setStartTime(Date.now())}>Start Timer</Button>
+        </Flex>
+    }
 
-                    </div>
-                ))}
-                <br/>
-                <button onClick={() => setClips([...clips].concat({
-                    length: "0",
-                    timecode: "0",
-                    name: `clip ${clips.length}`
-                }))}
-                        className="bg-green-500 hover:bg-green-700 text-white py-3 px-6 rounded"
-                >Add Clip
-                </button>
-                <br/>
-                <br/>
-                <button
-                    disabled={isRunning}
+    const durationError = !/^(\d?\d:)?(\d\d:)?\d\d$/.test(durationToClip);
+    const clipNameError = !nameOfNewClip || (clips?.filter((_, i) => i !== editIndex)?.map(it => it.name).includes(nameOfNewClip));
+    const timeToClipError = !/^(\d?\d:)?(\d\d:)?\d\d$/.test(timeToClip);
+
+    return <Box>
+        {/*By using isLoading as our value of setOpenBox, the box won't close whilst it's downloading*/}
+        <Modal opened={openExport} onClose={() => setOpenExport(isLoading)} title="Download Clips" centered>
+            <Text>This will take a while, do</Text>
+            <TextInput mt={10} mb={10} label="Game Blob"
+                       description="Paste in the link to the game on LiveHockey"
+                       value={gameBlob}
+                       onChange={(e) => setGameBlob(e.target.value.replace(/.*\/game\//, ""))}/>
+            <TextInput mt={10} mb={10} label="Offset"
+                       description={`Set this to the livestream timestamp that the first quarter began.`}
+                       value={timeToClip}
+                       error={timeToClipError ? 'Malformed Timestamp!' : undefined}
+                       onChange={e => setTimeToClip(e.target.value)}/>
+            <Button bg="green" mt={10} mb={10}
+                    disabled={!gameBlob || timeToClipError}
+                    loading={isLoading}
                     onClick={() => {
-                        setIsRunning(true);
-                        elapsedTimeRef.current = 0;
-                        videoNumberRef.current = 1;
-                        if (messageRef.current) {
-                            messageRef.current.innerHTML = "Searching for video file...";
-                        }
-                        downloadMultipleClips(ffmpegRef.current!, gameUUID, clips).then(blob => {
-                            const link = document.createElement("a")
-                            link.href = URL.createObjectURL(blob)
-                            link.download = "test.zip"
-                            link.click()
-                            link.remove()
+                        setIsLoading(true)
+                        fetch('/api/clips/create', {
+                            method: "POST", body: JSON.stringify({
+                                clips,
+                                username,
+                                password,
+                                gameBlob
+                            })
                         }).then(() => {
-                            setIsRunning(false)
-                            messageRef.current!.innerHTML = "Done!"
-                        });
-                    }}
-                    className="bg-green-500 hover:bg-green-700 text-white py-3 px-6 rounded"
-                >
-                    Execute
-                </button>
-                <p ref={messageRef}></p>
-            </div>
-        </div>
-    ) : (
-        <h1>Loading...</h1>
-    );
+                            setClips([])
+                            setStartTime(-1)
+                            redirect(`/${gameBlob}`)
+                        })
+                    }}>Download Clips</Button>
+        </Modal>
+        <Modal opened={openAddClips} onClose={() => setOpenAddClips(false)} title="Add Clip" centered>
+            <TextInput mt={10} mb={10} label="Clip title"
+                       placeholder={`clip ${clips?.length ?? 1}`}
+                       value={nameOfNewClip}
+                       onChange={e => setNameOfNewClip(e.target.value)}/>
+            <TextInput mt={10} mb={10} label="Clip Start"
+                       description={`Defaults to ${PRIOR_CLIP_RECORDING} seconds before the button was pressed`}
+                       value={timeToClip}
+                       error={timeToClipError ? 'Malformed Timestamp!' : undefined}
+                       onChange={e => setTimeToClip(e.target.value)}/>
+            <TextInput mt={10} mb={10} label="Clip Duration"
+                       value={durationToClip}
+                       error={durationError ? 'Malformed Timestamp!' : undefined}
+                       onChange={e => setDurationToClip(e.target.value)}/>
+            <Button bg="green" mt={10} mb={10}
+                    disabled={durationError || timeToClipError || clipNameError}
+                    onClick={() => {
+                        if (editIndex < 0) {
+                            setClips([...clips!, {
+                                timecode: timeToClip,
+                                length: durationToClip,
+                                name: nameOfNewClip!,
+                            }])
+                        } else {
+                            setClips(clips?.map((it, i) =>
+                                i !== editIndex ? it :
+                                    {
+                                        timecode: timeToClip,
+                                        length: durationToClip,
+                                        name: nameOfNewClip!,
+                                    }))
+                        }
+                        setOpenAddClips(false)
+                    }}>Save Clip</Button>
+        </Modal>
+
+        <Flex h="100svh" w="100svw" justify="space-around" align="center" direction="column">
+            <Text p={20} fz="2em"><b>Clip Time:</b> {secondsToHMS(Math.round((currentTime - startTime) / 1000))}</Text>
+            <Button size="xl" w="60%" m={30} onClick={() => {
+                setTimeToClip(
+                    secondsToHMS(Math.max(Math.round((currentTime - startTime) / 1000) - PRIOR_CLIP_RECORDING, 0))
+                );
+                setDurationToClip(secondsToHMS(PRIOR_CLIP_RECORDING * 2, false));
+                setNameOfNewClip(`Clip ${clips?.length ?? 1}`)
+                setEditIndex(-1)
+                setOpenAddClips(true);
+            }}>Add Clip</Button>
+            <Button bg="red" p={10} m={20} size="lg" onClick={() => {
+                setTimeToClip("00:00:00")
+                setOpenExport(true)
+            }}>Export</Button>
+            <Grid flex={3} w="100%" p={20}>
+                {clips?.map((it, i) => <Grid.Col key={it.name} span={6}>
+                    <Card shadow="sm" padding="lg" withBorder>
+                        <Card.Section>
+                            <Group>
+                                <Text fw={500} p={10}>{it.name}</Text>
+                                <ActionIcon m={5} onClick={() => setClips(it => it!.filter((_, idx) => idx !== i))}>
+                                    <FaMinus size={20}/>
+                                </ActionIcon> </Group>
+                        </Card.Section>
+
+
+                        <Text size="sm" c="dimmed">
+                            Starts: {it.timecode} {'\n'}
+                            Ends: {secondsToHMS(hmsToSecondsOnly(it.timecode) + hmsToSecondsOnly(it.length))}
+                        </Text>
+
+                        <Button color="blue" fullWidth mt="md" onClick={() => {
+                            setEditIndex(i)
+                            setTimeToClip(it.timecode);
+                            setDurationToClip(it.length);
+                            setNameOfNewClip(it.name)
+                            setOpenAddClips(true);
+                        }}>
+                            Edit
+                        </Button>
+                    </Card>
+                </Grid.Col>)}
+            </Grid>
+
+        </Flex>
+    </Box>;
 }

@@ -1,0 +1,126 @@
+import fs from 'node:fs/promises'
+import {execFile} from "node:child_process";
+import {promisify} from "node:util";
+import path from "node:path";
+import {hmsToSecondsOnly} from "@/utils";
+import {getDbSession, tClips, tGames} from "@/database/database";
+
+const execFileAsync = promisify(execFile)
+
+export async function getLinkFromBlob(blob: string, token: string): Promise<string> {
+    return await fetch(
+        `https://api.livearenasports.com/broadcast/video/${blob}?video-format=HLS`,
+        {headers: {Authorization: `Bearer ${token}`, 'site-id': 'AU_FH_AUS'}}
+    ).then(res => res.json()).then(data => data.videoUrl as string)
+}
+
+export type Clip = {
+    timecode: string,
+    length: string,
+    name?: string,
+};
+
+export async function serverDownloadMultipleClips(
+    blob: string,
+    token: string,
+    clips: Clip[]): Promise<void> {
+    try {
+        const link: string = await getLinkFromBlob(blob, token)
+        const indexFile = await fetch(link);
+        const text = await indexFile.text();
+            await using db = await getDbSession()
+        const {connection} = db;
+        // @ts-expect-error I haven't put these values in, but this is the easier way to type this.
+        const gameEntry: {
+            blob: string,
+            teamOne: string,
+            teamTwo: string,
+            teamOneImage: string,
+            teamTwoImage: string,
+            competitionName: string,
+        } = {blob}
+        await fs.writeFile('./videos/input/index.m3u8', text)
+        const out = []
+        const tasks = []
+        const maybeId = await db.connection.selectFrom(tGames).selectOneColumn(tGames.id).where(tGames.blob.equals(blob)).executeSelectNoneOrOne()
+        if (maybeId === null) {
+            tasks.push(await fetch(
+                `https://api.livearenasports.com/broadcast/${blob}`,
+                {
+                    headers: {'site-id': "AU_FH_AUS"}
+                }
+            ).then(it => it.json()).then(it => {
+                gameEntry.competitionName = it.playerLevel.name
+                gameEntry.teamOne = it.homeTeam.shortName
+                gameEntry.teamTwo = it.awayTeam.shortName
+                gameEntry.teamOneImage = `https://files.livearenasports.com/files/${it.homeTeam.logo.blobId}`
+                gameEntry.teamTwoImage = `https://files.livearenasports.com/files/${it.awayTeam.logo.blobId}`
+            }));
+        }
+        await fs.mkdir(`./public/videos/${blob}`, {recursive: true});
+
+        for (let i = 0; i < clips.length; i++) {
+            const clip = clips[i];
+            const output = `./public/videos/${blob}/${clip.name}.mp4`;
+            console.log(`ffmpeg ${[
+                "-y",
+                "-protocol_whitelist", "file,http,https,tcp,tls,crypto",
+                "-ss", (Math.max(hmsToSecondsOnly(clip.timecode) - 10, 0)).toString(),
+                "-copyts",
+                "-i", './videos/input/index.m3u8',
+                "-ss", (hmsToSecondsOnly(clip.timecode)).toString(),
+                "-t", clip.length.toString(),
+                "-c:v", "libx264",
+                "-c:a", "aac",
+                "-preset", "veryfast",
+                "-crf", "23",
+                "-fflags", "+genpts",
+                "-f", "mp4",
+                output].join(' ')}`)
+
+            tasks.push(execFileAsync("ffmpeg", [
+                "-y",
+                "-protocol_whitelist", "file,http,https,tcp,tls,crypto",
+                "-ss", (Math.max(hmsToSecondsOnly(clip.timecode) - 10, 0)).toString(),
+                "-copyts",
+                "-i", './videos/input/index.m3u8',
+                "-ss", (hmsToSecondsOnly(clip.timecode)).toString(),
+                "-t", clip.length.toString(),
+                "-c:v", "libx264",
+                "-c:a", "aac",
+                "-preset", "veryfast",
+                "-crf", "23",
+                "-fflags", "+genpts",
+                "-f", "mp4",
+                output
+            ]));
+        }
+        await Promise.all(tasks)
+        let gameId;
+        if (maybeId === null) {
+            gameId = await connection.insertInto(tGames).values(gameEntry).returningLastInsertedId().executeInsert();
+        } else {
+            gameId = maybeId;
+        }
+        const newTasks: Promise<never>[] = []
+        for (const clip of clips) {
+            const to_add = {
+                gameId,
+                name: clip.name!,
+                startTime: hmsToSecondsOnly(clip.timecode),
+                duration: hmsToSecondsOnly(clip.length),
+                link: `/videos/${blob}/${clip.name}.mp4`
+            }
+            tasks.push(connection.insertInto(tClips).values(to_add).executeInsert())
+        }
+        await Promise.all(newTasks)
+    } catch (e) {
+        throw e
+    } finally {
+        const tasks: Promise<void>[] = []
+        for (const file of await fs.readdir('./videos/input')) {
+            tasks.push(fs.unlink(path.join('./videos/input', file)));
+        }
+        await Promise.all(tasks)
+    }
+}

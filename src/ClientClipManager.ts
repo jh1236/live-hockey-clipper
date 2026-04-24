@@ -1,24 +1,12 @@
 import {FFmpeg} from "@ffmpeg/ffmpeg";
 import {fetchFile} from "@ffmpeg/util";
 import {downloadZip} from "client-zip";
+import {Clip, getLinkFromBlob} from "@/ServerClipManager";
+import {hmsToSecondsOnly} from "@/utils";
 
-export function hmsToSecondsOnly(str: string) {
-    const p = str.split(':');
-    let s = 0, m = 1;
-
-    while (p.length > 0) {
-        s += m * parseInt(p.pop()!, 10);
-        m *= 60;
-    }
-
-    return s;
-}
-
-export async function downloadOneClip(ffmpeg: FFmpeg, guid: string, timecode: string, length: string): Promise<string> {
-    const BASE = "https://lasvideoblobs1prod-highvol.b-cdn.net/vods/blobs1/";
-    const link = BASE + guid;
-
-    const index = await fetch(link + "/index.m3u8");
+export async function downloadOneClip(ffmpeg: FFmpeg, blob: string, token: string, timecode: string, length: string): Promise<string> {
+    const link = await getLinkFromBlob(blob, token)
+    const index = await fetch(link);
     const text = await index.text();
 
     let prevTime = 0;
@@ -35,7 +23,7 @@ export async function downloadOneClip(ffmpeg: FFmpeg, guid: string, timecode: st
                 firstTime = prevTime;
             }
             if (line.trim().length > 0 && !line.startsWith("#")) {
-                files.push(`${link}/${line}`);
+                files.push(line);
             }
         }
     }
@@ -74,23 +62,15 @@ export async function downloadOneClip(ffmpeg: FFmpeg, guid: string, timecode: st
     );
 }
 
-export async function downloadMultipleClips(ffmpeg: FFmpeg, guid: string, clips: {
-    timecode: string,
-    length: string,
-    name?: string,
-}[]): Promise<Blob> {
-    let passed = false;
-    let link: string = null!;
-    let indexFile: Response = null!;
-    let count = 1;
-    while (!passed && count <= 5) {
-        const base = `https://lasvideoblobs${count}prod-highvol.b-cdn.net/vods/blobs${count}/`
-        link = base + guid;
-        indexFile = await fetch(link + "/index.m3u8");
-        passed = indexFile.ok;
-        count++;
-    }
 
+export async function downloadMultipleClips(
+    ffmpeg: FFmpeg,
+    blob: string,
+    token: string,
+    clips: Clip[],
+    filename: string = 'clips'): Promise<Blob> {
+    const link: string = await getLinkFromBlob(blob, token)
+    const indexFile = await fetch(link);
     const text = await indexFile.text();
 
 
@@ -116,7 +96,7 @@ export async function downloadMultipleClips(ffmpeg: FFmpeg, guid: string, clips:
             }
         }
         if (clipUsed) {
-            allFiles.push(`${link}/${line}`);
+            allFiles.push(line);
         }
 
     }
@@ -125,20 +105,22 @@ export async function downloadMultipleClips(ffmpeg: FFmpeg, guid: string, clips:
         const name = `file${i}.ts`;
         return {url, name};
     });
-
+    const tasks = []
     for (const f of listFile) {
         const data = await fetchFile(f.url);
-        await ffmpeg.writeFile(f.name, data);
+        tasks.push(ffmpeg.writeFile(f.name, data));
     }
+    await Promise.all(tasks)
     const out = []
     for (let i = 0; i < clips.length; i++) {
         const clip = clips[i];
         const myFiles = filesForClip[i];
         if (myFiles.length === 0) continue;
         const concatTxt = myFiles.map((j) => `file 'file${j}.ts'`).join("\n");
+        console.log(0)
         await ffmpeg.writeFile(`list${i}.txt`, concatTxt);
-
         // Run ffmpeg (use exec instead of run)
+        console.log(1)
         await ffmpeg.exec([
             "-f", "concat",
             "-safe", "0",
@@ -146,19 +128,17 @@ export async function downloadMultipleClips(ffmpeg: FFmpeg, guid: string, clips:
             "-c", "copy",
             "concat.ts",
         ]);
+        console.log(2)
         await ffmpeg.readFile("concat.ts");
-// Step 2: trim the concatenated file
+        console.log(3)
         await ffmpeg.exec([
             "-i", "concat.ts",
             "-ss", (hmsToSecondsOnly(clip.timecode) % 6).toString(),
             "-t", hmsToSecondsOnly(clip.length).toString(),
-            "-c:v", "libx264",
-            "-c:a", "aac",
-            "-preset", "veryfast",
-            "-crf", "23",
-            "-fflags", "+genpts",
+            "-c", "copy",
             `output${i}.mp4`,
         ]);
+        console.log(4)
 
         const data = await ffmpeg.readFile(`output${i}.mp4`) as any;
         out.push({name: `${clip.name ?? `clip${i}`}.mp4`, input: data});
