@@ -1,5 +1,5 @@
 import fs from "node:fs/promises";
-import {NextRequest} from "next/server";
+import {after, NextRequest} from "next/server";
 
 export async function GET(req: NextRequest, {
     params
@@ -9,5 +9,8 @@ export async function GET(req: NextRequest, {
     const {blob, clip} = await params;
     const fileHandle = await fs.open(`./videos/output/${blob}/${clip}`);
     const stream = fileHandle.readableWebStream({type: "bytes"})
+    after(async () => {
+        await fileHandle.close();
+    })
     return new Response(stream as ReadableStream<any>)
 }

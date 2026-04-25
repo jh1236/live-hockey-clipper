@@ -15,12 +15,12 @@ export async function GET(req: NextRequest) {
         competitionName: tGames.competitionName,
     }).where(tGames.blob.equals(blob)).executeSelectOne()
 
-    const clips = await connection.selectFrom(tClips).select({
+    const clips = await connection.selectFrom(tClips).innerJoin(tGames).on(tClips.gameId.equals(tGames.id)).select({
         name: tClips.name,
         length: tClips.duration,
         timecode: tClips.startTime,
         link: tClips.link,
-    }).where(tClips.gameId.equals(game.id)).executeSelectMany()
+    }).where(tClips.gameId.equals(tGames.id)).executeSelectMany()
 
     return Response.json({
         game,

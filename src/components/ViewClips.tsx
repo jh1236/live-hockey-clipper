@@ -1,10 +1,13 @@
 "use client";
 
 import {useEffect, useState} from "react";
-import {Button, Card, Flex, Grid, Text, Title} from "@mantine/core";
+import {ActionIcon, Button, Card, Flex, Grid, Group, Text, Title} from "@mantine/core";
 import {hmsToSecondsOnly, secondsToHMS} from "@/utils";
 import Link from "next/link";
+
+import {FaFileDownload} from "react-icons/fa";
 import {redirect} from "next/navigation";
+import {FaArrowUpRightFromSquare} from "react-icons/fa6";
 
 interface ViewClipsParams {
     blob: string;
@@ -45,15 +48,28 @@ export function ViewClips({blob}: ViewClipsParams) {
                     </Card.Section>
                     <Text fw={500} p={10}>{it.name}</Text>
                     <Text size="sm" c="dimmed">
-                        Starts: {it.timecode} {'\n'}
-                        Ends: {secondsToHMS(hmsToSecondsOnly(it.timecode) + hmsToSecondsOnly(it.length))}
+                        <b>Starts:</b> {it.timecode} <br/>
+                        <b>Ends:</b> {secondsToHMS(hmsToSecondsOnly(it.timecode) + hmsToSecondsOnly(it.length))}
                     </Text>
 
-                    <Link href={it.link!} target="_blank">
-                        <Button color="blue" fullWidth mt="md">
-                            Open in new tab
-                        </Button>
-                    </Link>
+                    <Group w="100%" justify="space-around">
+                        <Link href={it.link!} target="_blank">
+                            <ActionIcon hiddenFrom="md" size="lg" color="blue" mt="md">
+                                <FaArrowUpRightFromSquare/>
+                            </ActionIcon>
+                            <Button visibleFrom="md" color="blue" mt="md">
+                                Open in new tab
+                            </Button>
+                        </Link>
+                        <Link download href={it.link!} target="_blank">
+                            <ActionIcon hiddenFrom="md" size="lg" color="blue" mt="md">
+                                <FaFileDownload/>
+                            </ActionIcon>
+                            <Button visibleFrom="md" color="blue" mt="md">
+                                Download
+                            </Button>
+                        </Link>
+                    </Group>
                 </Card>
             </Grid.Col>)}
         </Grid>

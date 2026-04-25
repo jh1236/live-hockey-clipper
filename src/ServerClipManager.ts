@@ -23,7 +23,7 @@ export type Clip = {
 export async function serverDownloadMultipleClips(
     blob: string,
     token: string,
-    clips: Clip[]): Promise<void> {
+    clips: Clip[], addToDatabase: boolean = true): Promise<void> {
     try {
         const link: string = await getLinkFromBlob(blob, token)
         const indexFile = await fetch(link);
@@ -42,7 +42,7 @@ export async function serverDownloadMultipleClips(
         await fs.writeFile('./videos/input/index.m3u8', text)
         const tasks = []
         const maybeId = await db.connection.selectFrom(tGames).selectOneColumn(tGames.id).where(tGames.blob.equals(blob)).executeSelectNoneOrOne()
-        if (maybeId === null) {
+        if (addToDatabase && maybeId === null) {
             tasks.push(await fetch(
                 `https://api.livearenasports.com/broadcast/${blob}`,
                 {
@@ -61,23 +61,8 @@ export async function serverDownloadMultipleClips(
         for (let i = 0; i < clips.length; i++) {
             const clip = clips[i];
             const output = `./videos/output/${blob}/${clip.name}.mp4`;
-            console.log(`ffmpeg ${[
-                "-y",
-                "-protocol_whitelist", "file,http,https,tcp,tls,crypto",
-                "-ss", (Math.max(hmsToSecondsOnly(clip.timecode) - 10, 0)).toString(),
-                "-copyts",
-                "-i", './videos/input/index.m3u8',
-                "-ss", (hmsToSecondsOnly(clip.timecode)).toString(),
-                "-t", clip.length.toString(),
-                "-c:v", "libx264",
-                "-c:a", "aac",
-                "-preset", "veryfast",
-                "-crf", "23",
-                "-fflags", "+genpts",
-                "-f", "mp4",
-                output].join(' ')}`)
 
-            tasks.push(execFileAsync("ffmpeg", [
+            const args = [
                 "-y",
                 "-protocol_whitelist", "file,http,https,tcp,tls,crypto",
                 "-ss", (Math.max(hmsToSecondsOnly(clip.timecode) - 10, 0)).toString(),
@@ -88,36 +73,42 @@ export async function serverDownloadMultipleClips(
                 "-c:v", "libx264",
                 "-c:a", "aac",
                 "-preset", "veryfast",
-                "-crf", "23",
+                "-crf", "30",
                 "-fflags", "+genpts",
                 "-f", "mp4",
                 output
-            ]));
+            ];
+
+            console.log(`ffmpeg ${args.join(' ')}`)
+            tasks.push(execFileAsync("ffmpeg", args));
         }
         await Promise.all(tasks)
-        let gameId;
-        if (maybeId === null) {
-            gameId = await connection.insertInto(tGames).values(gameEntry).returningLastInsertedId().executeInsert();
-        } else {
-            gameId = maybeId;
-        }
-        const newTasks: Promise<never>[] = []
-        for (const clip of clips) {
-            const to_add = {
-                gameId,
-                name: clip.name!,
-                startTime: hmsToSecondsOnly(clip.timecode),
-                duration: hmsToSecondsOnly(clip.length),
-                link: `/api/videos/${blob}/${clip.name}.mp4`
+        if (addToDatabase) {
+            let gameId;
+            if (maybeId === null) {
+                gameId = await connection.insertInto(tGames).values(gameEntry).returningLastInsertedId().executeInsert();
+            } else {
+                gameId = maybeId;
             }
-            tasks.push(connection.insertInto(tClips).values(to_add).executeInsert())
+            const newTasks: Promise<never>[] = []
+            for (const clip of clips) {
+                const to_add = {
+                    gameId,
+                    name: clip.name!,
+                    startTime: hmsToSecondsOnly(clip.timecode),
+                    duration: hmsToSecondsOnly(clip.length),
+                    link: `/api/videos/${blob}/${clip.name}.mp4`
+                }
+                tasks.push(connection.insertInto(tClips).values(to_add).executeInsert())
+            }
+            await Promise.all(newTasks)
         }
-        await Promise.all(newTasks)
     } catch (e) {
         throw e
     } finally {
         const tasks: Promise<void>[] = []
         for (const file of await fs.readdir('./videos/input')) {
+            if (file === '.gitkeep') continue;
             tasks.push(fs.unlink(path.join('./videos/input', file)));
         }
         await Promise.all(tasks)

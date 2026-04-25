@@ -1,14 +1,5 @@
 import {NextRequest, NextResponse} from "next/server";
 import {serverDownloadMultipleClips} from "@/ServerClipManager";
-import {getDbSession, tGames} from "@/database/database";
-
-export async function GET() {
-    await using db = await getDbSession()
-    const {connection} = db;
-    const out = await connection.selectFrom(tGames).select({id: tGames.id}).executeSelectNoneOrOne()
-    console.log(out)
-    return Response.json(out)
-}
 
 
 export async function POST(
