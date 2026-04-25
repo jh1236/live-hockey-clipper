@@ -29,6 +29,7 @@ export default function RootLayout({
         <html lang="en" {...mantineHtmlProps}>
         <head>
             <ColorSchemeScript/>
+            <title>Live Hockey Clipper</title>
         </head>
         <body
             className={`${geistSans.variable} ${geistMono.variable} antialiased`}
