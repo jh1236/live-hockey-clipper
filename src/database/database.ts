@@ -34,7 +34,7 @@ export const tClips = new class TClips extends Table<DBConnection, 'TClips'> {
     startTime = this.optionalColumn('start_time', 'int');
     duration = this.column('duration', 'int');
     link = this.column('link', 'string');
-    comment = this.column('comment', 'string');
+    comment = this.optionalColumn('comment', 'string');
 
     constructor() {
         super('clips'); // table name in the database

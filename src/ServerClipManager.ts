@@ -17,7 +17,9 @@ export async function getLinkFromBlob(blob: string, token: string): Promise<stri
 export type Clip = {
     timecode: string,
     length: string,
-    name?: string,
+    name: string,
+    link?: string,
+    comment?: string,
 };
 
 export async function serverDownloadMultipleClips(
@@ -73,7 +75,7 @@ export async function serverDownloadMultipleClips(
                 "-c:v", "libx264",
                 "-c:a", "aac",
                 "-preset", "veryfast",
-                "-crf", "30",
+                "-crf", "32",
                 "-fflags", "+genpts",
                 "-f", "mp4",
                 output
@@ -97,7 +99,8 @@ export async function serverDownloadMultipleClips(
                     name: clip.name!,
                     startTime: hmsToSecondsOnly(clip.timecode),
                     duration: hmsToSecondsOnly(clip.length),
-                    link: `/api/videos/${blob}/${clip.name}.mp4`
+                    link: `/api/videos/${blob}/${clip.name}.mp4`,
+                    comment: clip.comment,
                 }
                 tasks.push(connection.insertInto(tClips).values(to_add).executeInsert())
             }

@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
         length: tClips.duration,
         timecode: tClips.startTime,
         link: tClips.link,
+        comment: tClips.comment,
     }).where(tClips.gameId.equals(tGames.id)).executeSelectMany()
 
     return Response.json({
