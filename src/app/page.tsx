@@ -75,10 +75,12 @@ export default function Home() {
 
     return <Box>
         <LoadingOverlay visible={isLoading} zIndex={1000} overlayProps={{radius: "sm", blur: 2}}
-                        loaderProps={{children: <Stack>
-                                This will take a while, do not close this tab!
-                                <Loader color="blue" />
-                            </Stack>}}/>
+                        loaderProps={{
+                            children: <Stack align="center">
+                                <Text fz="1.2em" c="white" fw={600}>This will take a while, do not close this tab!</Text>
+                                <Loader color="blue"/>
+                            </Stack>
+                        }}/>
         <Modal opened={openExport} onClose={() => setOpenExport(isLoading)} title="Download Clips" centered>
             <TextInput mt={10} mb={10} label="Game link"
                        description="Paste in the link to the game on LiveHockey"
@@ -201,11 +203,11 @@ export default function Home() {
                     base: 6,
                     md: 3
                 }}>
-                    <Card shadow="sm" padding="lg" withBorder>
-                        <Box w="100%" h={0}>
+                    <Card shadow="sm" withBorder>
+                        <Box w="100%" h={5} display="block">
                             <Popover>
                                 <Popover.Target>
-                                    <ActionIcon style={{float: 'right'}} m={5}>
+                                    <ActionIcon style={{zIndex: 99, float: 'right'}} top={0} right={0} m={-10}>
                                         <FaMinus size={20}/>
                                     </ActionIcon>
                                 </Popover.Target>
@@ -222,7 +224,7 @@ export default function Home() {
                             </Popover>
                         </Box>
                         <Card.Section p={10}>
-                            <Center>
+                            <Center ta="center">
                                 <Text fz="1.2em" fw={600}>{it.name}</Text>
                             </Center>
                         </Card.Section>
