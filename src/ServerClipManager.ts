@@ -41,7 +41,7 @@ export async function serverDownloadMultipleClips(
             teamTwoImage: string,
             competitionName: string,
         } = {blob}
-        await fs.writeFile('./videos/input/index.m3u8', text)
+        await fs.writeFile(`./videos/input/${blob}.m3u8`, text)
         const tasks = []
         const maybeId = await db.connection.selectFrom(tGames).selectOneColumn(tGames.id).where(tGames.blob.equals(blob)).executeSelectNoneOrOne()
         if (addToDatabase && maybeId === null) {
@@ -69,7 +69,7 @@ export async function serverDownloadMultipleClips(
                 "-protocol_whitelist", "file,http,https,tcp,tls,crypto",
                 "-ss", (Math.max(hmsToSecondsOnly(clip.timecode) - 10, 0)).toString(),
                 "-copyts",
-                "-i", './videos/input/index.m3u8',
+                "-i", `./videos/input/${blob}.m3u8`,
                 "-ss", (hmsToSecondsOnly(clip.timecode)).toString(),
                 "-t", clip.length.toString(),
                 "-c:v", "libx264",
