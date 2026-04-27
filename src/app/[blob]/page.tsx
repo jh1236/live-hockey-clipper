@@ -1,4 +1,4 @@
-import {ViewClips} from "@/components/ViewClips";
+import {Clipper} from "@/components/Clipper";
 
 
 export default async function Home({
@@ -7,5 +7,5 @@ export default async function Home({
     params: Promise<{ blob: string }>
 }) {
     const {blob} = await params;
-    return <ViewClips blob={blob}></ViewClips>
+    return <Clipper blob={blob}></Clipper>
 }

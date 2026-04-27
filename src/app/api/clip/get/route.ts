@@ -4,8 +4,8 @@ import {secondsToHMS} from "@/utils";
 
 export async function GET(req: NextRequest) {
     const blob = req.nextUrl.searchParams.get("blob")!;
-        await using db = await getDbSession();
-    const {connection} = db;
+        const connection = await getDbSession();
+
     const game = await connection.selectFrom(tGames).select({
         id: tGames.id,
         teamOne: tGames.teamOne,

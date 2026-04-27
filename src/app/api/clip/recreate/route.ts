@@ -1,5 +1,5 @@
 import {NextRequest, NextResponse} from "next/server";
-import {serverDownloadMultipleClips} from "@/ServerClipManager";
+import {serverDownloadMultipleClips} from "@/LiveHockeyManager";
 import {getDbSession, tClips, tGames} from "@/database/database";
 import {secondsToHMS} from "@/utils";
 
@@ -10,8 +10,7 @@ export async function POST(
     console.log("Request")
     const {gameBlob, username, password} = await req.json();
 
-        await using db = await getDbSession();
-    const {connection} = db;
+    const connection = await getDbSession();
 
     const token = await fetch("https://api.livearenasports.com/user/login", {
         method: "POST",
@@ -32,6 +31,10 @@ export async function POST(
         link: tClips.link,
     }).where(tClips.gameId.equals(tGames.id)).executeSelectMany()
 
-    await serverDownloadMultipleClips(gameBlob, token!, clips.map(it => ({...it, length: secondsToHMS(it.length), timecode: secondsToHMS(it.length)})))
+    await serverDownloadMultipleClips(gameBlob, token!, clips.map(it => ({
+        ...it,
+        length: secondsToHMS(it.length),
+        timecode: secondsToHMS(it.length)
+    })))
     return NextResponse.json({ok: true});
 }
