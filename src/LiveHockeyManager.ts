@@ -214,7 +214,7 @@ export async function serverDownloadSingleClip(
         "-c:v", "libx264",
         "-c:a", "aac",
         "-preset", "veryfast",
-        "-crf", `${15 + 4 * (quality)}`,
+        "-crf", `${40 - 2 * (quality)}`,
         "-fflags", "+genpts",
         "-f", "mp4",
         output

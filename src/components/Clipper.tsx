@@ -16,7 +16,8 @@ import {
     Modal,
     Paper,
     Popover,
-    Skeleton, Slider,
+    Skeleton,
+    Slider,
     Stack,
     Text,
     TextInput,
@@ -30,14 +31,13 @@ import Link from "next/link";
 import Image from "next/image";
 import {FaArrowUpRightFromSquare} from "react-icons/fa6";
 import {usePathname} from "next/navigation";
-import classes from '@/components/Clipper.module.css'
 
 interface ClipperProps {
     blob: string;
 }
 
 // the max length a game can be considered going for is 2 hours and 15 minutes (completely arbitrary)
-const MAX_GAME_LENGTH = (2 * 60 + 15) * 60 * 60 * 1000;
+// const MAX_GAME_LENGTH = (2 * 60 + 15) * 60 * 60 * 1000;
 
 const PRIOR_CLIP_RECORDING = 10;
 
@@ -171,86 +171,105 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
 
     return <Box>
         <Modal opened={openAddClips} onClose={() => setOpenAddClips(false)} title="Add Clip" centered>
-            <TextInput
-                mt={10}
-                mb={10}
-                label="Clip title"
-                description="File name for this clip"
-                error={!nameOfNewClip ?
-                    "You must provide a name for the clip! " :
-                    clipNameError ? `The name '${nameOfNewClip}' is already in use!` : undefined}
-                value={nameOfNewClip}
-                onChange={e => setNameOfNewClip(e.target.value)}/>
-            <TextInput
-                mt={10}
-                mb={10}
-                label="Clip Comments"
-                description="Details about the clip"
-                placeholder="Your comment here"
-                value={commentForNewClip}
-                onChange={e => setCommentForNewClip(e.target.value)}/>
-            <TextInput
-                mt={10}
-                mb={10}
-                label="Clip Start"
-                description={`Defaults to ${PRIOR_CLIP_RECORDING} seconds before the button was pressed`}
-                value={timeToClip}
-                placeholder="--:--:--"
-                error={timeToClipError ? 'Malformed Timestamp!' : undefined}
-                onChange={e => setTimeToClip(e.target.value)}/>
-            <TextInput
-                mt={10}
-                mb={10}
-                label="Clip Duration"
-                description="How long the clip will record for"
-                placeholder="--:--:--"
-                value={durationToClip}
-                error={durationError ? 'Malformed Timestamp!' : undefined}
-                onChange={e => setDurationToClip(e.target.value)}/>
-            <Slider
-                mt={10} mb={10}
-                label="Clip Quality"
-                marks={[
-                    {value: 0, label: 'Quicker Download'},
-                    {value: 5, label: 'Balanced'},
-                    {value: 10, label: 'Higher Quality'},
-                ]}
-                min={0}
-                max={10}
-                value={clipQuality}
-                onChange={setClipQuality}
-            />
-            <Tooltip label={<>
-                {!nameOfNewClip ?
-                    <>You must provide a name for the clip!<br/></> :
-                    clipNameError && <>The name &apos;{nameOfNewClip}&apos; is already in use!<br/></>}
-                {timeToClipError && <>The Clip Start timestamp ({timeToClip}) is not valid!<br/></>}
-                {durationError && <>The Duration timestamp ({timeToClip}) is not valid!<br/></>}
-            </>} disabled={!durationError && !timeToClipError && !clipNameError}>
-                <Button bg="green" mt={10} mb={10}
-                        disabled={durationError || timeToClipError || clipNameError}
-                        onClick={() => {
-                            const newClip = {
-                                name: nameOfNewClip!,
-                                timecode: timeToClip,
-                                length: durationToClip,
-                                comment: commentForNewClip,
-                            };
-                            setClips([...clips!, newClip])
-                            fetch('/api/clip/add', {
-                                method: "POST",
-                                body: JSON.stringify({
-                                    gameBlob,
-                                    clip: newClip,
-                                    quality: clipQuality
-                                })
+            <Box ml={10} mr={10} style={{overflow: 'hidden'}}>
+                <TextInput
+                    mb={10}
+                    label="Clip title"
+                    description="File name for this clip"
+                    error={!nameOfNewClip ?
+                        "You must provide a name for the clip! " :
+                        clipNameError ? `The name '${nameOfNewClip}' is already in use!` : undefined}
+                    value={nameOfNewClip}
+                    onChange={e => setNameOfNewClip(e.target.value)}/>
+                <TextInput
+                    mt={10}
+                    mb={10}
+                    label="Clip Comments"
+                    description="Details about the clip"
+                    placeholder="Your comment here"
+                    value={commentForNewClip}
+                    onChange={e => setCommentForNewClip(e.target.value)}/>
+                <TextInput
+                    mt={10}
+                    mb={10}
+                    label="Clip Start"
+                    description={`Defaults to ${PRIOR_CLIP_RECORDING} seconds before the button was pressed`}
+                    value={timeToClip}
+                    placeholder="--:--:--"
+                    error={timeToClipError ? 'Malformed Timestamp!' : undefined}
+                    onChange={e => setTimeToClip(e.target.value)}/>
+                <TextInput
+                    mt={10}
+                    mb={10}
+                    label="Clip Duration"
+                    description="How long the clip will record for"
+                    placeholder="--:--:--"
+                    value={durationToClip}
+                    error={durationError ? 'Malformed Timestamp!' : undefined}
+                    onChange={e => setDurationToClip(e.target.value)}/>
+                <Text mt={10} fz="sm" fw={600}>Clip Quality</Text>
+                <Center mt={10} mb={10}>
+                    <Slider
+                        w="70%"
+                        label={it => {
+                            switch (it) {
+                                case 10:
+                                    return 'High'
+                                case 5:
+                                    return 'Balanced'
+                                case 0:
+                                    return 'Low'
+                                default:
+                                    return it
+                            }
+                        }}
+                        marks={[
+                            {value: 0, label: 'Quicker Download'},
+                            {value: 5, label: 'Balanced'},
+                            {value: 10, label: 'Higher Quality'},
+                        ]}
+                        min={0}
+                        max={10}
+                        value={clipQuality}
+                        onChange={setClipQuality}
+                    />
+                </Center>
+                <Center>
+                    <Box mt={25}>
+                        <Tooltip label={<>
+                            {!nameOfNewClip ?
+                                <>You must provide a name for the clip!<br/></> :
+                                clipNameError && <>The name &apos;{nameOfNewClip}&apos; is already in use!<br/></>}
+                            {timeToClipError && <>The Clip Start timestamp ({timeToClip}) is not valid!<br/></>}
+                            {durationError && <>The Duration timestamp ({timeToClip}) is not valid!<br/></>}
+                        </>} disabled={!durationError && !timeToClipError && !clipNameError}>
+                            <Button bg="green"
+                                    disabled={durationError || timeToClipError || clipNameError}
+                                    onClick={() => {
+                                        const newClip = {
+                                            name: nameOfNewClip!,
+                                            timecode: timeToClip,
+                                            length: durationToClip,
+                                            comment: commentForNewClip,
+                                        };
+                                        setClips([...clips!, newClip])
+                                        fetch('/api/clip/add', {
+                                            method: "POST",
+                                            body: JSON.stringify({
+                                                gameBlob,
+                                                clip: newClip,
+                                                quality: clipQuality
+                                            })
 
-                            }).then(it => it.json()).then(({clip}) => {
-                                setClips(prev => prev!.map((it, idx) => it.name === clip.name ? clip : it))
-                            })
-                            setOpenAddClips(false)
-                        }}>Save Clip</Button>
-            </Tooltip>
+                                        }).then(it => it.json()).then(({clip}) => {
+                                            setClips(prev => prev!.map((it, idx) => it.name === clip.name ? clip : it))
+                                        })
+                                        setOpenAddClips(false)
+                                    }}>Save Clip</Button>
+                        </Tooltip>
+                    </Box>
+                </Center>
+            </Box>
         </Modal>
 
         <Flex h="100svh" w="100svw" justify="space-around" align="center" direction="column">
