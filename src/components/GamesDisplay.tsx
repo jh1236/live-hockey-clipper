@@ -1,7 +1,13 @@
-import {AspectRatio, Card, Center, Flex, Grid, Group, Paper, Skeleton, Text} from "@mantine/core";
+import {AspectRatio, Box, Card, Center, Flex, Grid, Group, Paper, Skeleton, Text} from "@mantine/core";
 import Link from "next/link";
 import Image from "next/image";
 import {Game} from "@/database/database";
+import classes from '@/components/GamesDisplay.module.css'
+import {HTMLAttributes} from "react";
+
+function PulsingDot(props: HTMLAttributes<HTMLDivElement>) {
+    return <span className={classes.statusdot} {...props}></span>
+}
 
 interface GamesDisplayProps {
     games: Game[] | null;
@@ -35,15 +41,15 @@ function getDateString(it: number) {
     } else {
         const s = dateToRender.toLocaleTimeString().replace(/:\d\d\s/, ' ');
         if (dateToRender.getDate() === today.getDate() - 1) {
-                return `Yesterday, ${s}`
-            } else if (dateToRender.getDate() === today.getDate() + 1) {
-                return `Tomorrow, ${s}`
-            } else if (dateToRender.getDate() === today.getDate()) {
-                return `${s}`
-            } else if (Math.abs(dateToRender.getTime() - today.getTime()) / WEEKS_TO_MS < 1) {
-                const prefix = dateToRender.getTime() > today.getTime() ? 'Next' : 'Last'
-                return `${prefix} ${DAYS[dateToRender.getDay()]}, ${s}`
-            }
+            return `Yesterday, ${s}`
+        } else if (dateToRender.getDate() === today.getDate() + 1) {
+            return `Tomorrow, ${s}`
+        } else if (dateToRender.getDate() === today.getDate()) {
+            return `${s}`
+        } else if (Math.abs(dateToRender.getTime() - today.getTime()) / WEEKS_TO_MS < 1) {
+            const prefix = dateToRender.getTime() > today.getTime() ? 'Next' : 'Last'
+            return `${prefix} ${DAYS[dateToRender.getDay()]}, ${s}`
+        }
     }
     return dateToRender.toLocaleString()
 }
@@ -93,6 +99,9 @@ export function GamesDisplay({games, missingMessage, createLink = it => `/${it.b
                 }}>
                     <Link href={createLink(it)}>
                         <Card shadow="sm" padding="xs" withBorder>
+                            {it.isLive && <Box h={0}>
+                                <PulsingDot style={{float: 'right', margin: 5}}/>
+                            </Box>}
                             <Card.Section pt={10}>
                                 <Text fz="1.4em" ta="center" fw={600}>{it.teamOne} vs {it.teamTwo}</Text>
                                 <Text fz="1em" ta="center"><i>{it.competitionName}</i></Text>

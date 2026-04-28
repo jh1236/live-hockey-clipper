@@ -16,7 +16,7 @@ import {
     Modal,
     Paper,
     Popover,
-    Skeleton,
+    Skeleton, Slider,
     Stack,
     Text,
     TextInput,
@@ -30,6 +30,7 @@ import Link from "next/link";
 import Image from "next/image";
 import {FaArrowUpRightFromSquare} from "react-icons/fa6";
 import {usePathname} from "next/navigation";
+import classes from '@/components/Clipper.module.css'
 
 interface ClipperProps {
     blob: string;
@@ -49,6 +50,7 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
     const [nameOfNewClip, setNameOfNewClip] = useState<string>("Clip 1");
     const [durationToClip, setDurationToClip] = useState<string>('00:00:00');
     const [timeToClip, setTimeToClip] = useState<string>('00:00:00');
+    const [clipQuality, setClipQuality] = useState<number>(4);
     const [currentTime, setCurrentTime] = useState<number>(-1);
     const [editIndex, setEditIndex] = useState<number>(-1);
     const [username] = useLocalStorage<string | null>("username", null);
@@ -169,30 +171,55 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
 
     return <Box>
         <Modal opened={openAddClips} onClose={() => setOpenAddClips(false)} title="Add Clip" centered>
-            <TextInput mt={10} mb={10} label="Clip title"
-                       description="File name for this clip"
-                       error={!nameOfNewClip ?
-                           "You must provide a name for the clip! " :
-                           clipNameError ? `The name '${nameOfNewClip}' is already in use!` : undefined}
-                       value={nameOfNewClip}
-                       onChange={e => setNameOfNewClip(e.target.value)}/>
-            <TextInput mt={10} mb={10} label="Clip Comments"
-                       description="Details about the clip"
-                       placeholder="Your comment here"
-                       value={commentForNewClip}
-                       onChange={e => setCommentForNewClip(e.target.value)}/>
-            <TextInput mt={10} mb={10} label="Clip Start"
-                       description={`Defaults to ${PRIOR_CLIP_RECORDING} seconds before the button was pressed`}
-                       value={timeToClip}
-                       placeholder="--:--:--"
-                       error={timeToClipError ? 'Malformed Timestamp!' : undefined}
-                       onChange={e => setTimeToClip(e.target.value)}/>
-            <TextInput mt={10} mb={10} label="Clip Duration"
-                       description="How long the clip will record for"
-                       placeholder="--:--:--"
-                       value={durationToClip}
-                       error={durationError ? 'Malformed Timestamp!' : undefined}
-                       onChange={e => setDurationToClip(e.target.value)}/>
+            <TextInput
+                mt={10}
+                mb={10}
+                label="Clip title"
+                description="File name for this clip"
+                error={!nameOfNewClip ?
+                    "You must provide a name for the clip! " :
+                    clipNameError ? `The name '${nameOfNewClip}' is already in use!` : undefined}
+                value={nameOfNewClip}
+                onChange={e => setNameOfNewClip(e.target.value)}/>
+            <TextInput
+                mt={10}
+                mb={10}
+                label="Clip Comments"
+                description="Details about the clip"
+                placeholder="Your comment here"
+                value={commentForNewClip}
+                onChange={e => setCommentForNewClip(e.target.value)}/>
+            <TextInput
+                mt={10}
+                mb={10}
+                label="Clip Start"
+                description={`Defaults to ${PRIOR_CLIP_RECORDING} seconds before the button was pressed`}
+                value={timeToClip}
+                placeholder="--:--:--"
+                error={timeToClipError ? 'Malformed Timestamp!' : undefined}
+                onChange={e => setTimeToClip(e.target.value)}/>
+            <TextInput
+                mt={10}
+                mb={10}
+                label="Clip Duration"
+                description="How long the clip will record for"
+                placeholder="--:--:--"
+                value={durationToClip}
+                error={durationError ? 'Malformed Timestamp!' : undefined}
+                onChange={e => setDurationToClip(e.target.value)}/>
+            <Slider
+                mt={10} mb={10}
+                label="Clip Quality"
+                marks={[
+                    {value: 0, label: 'Quicker Download'},
+                    {value: 5, label: 'Balanced'},
+                    {value: 10, label: 'Higher Quality'},
+                ]}
+                min={0}
+                max={10}
+                value={clipQuality}
+                onChange={setClipQuality}
+            />
             <Tooltip label={<>
                 {!nameOfNewClip ?
                     <>You must provide a name for the clip!<br/></> :
@@ -214,7 +241,8 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                                 method: "POST",
                                 body: JSON.stringify({
                                     gameBlob,
-                                    clip: newClip
+                                    clip: newClip,
+                                    quality: clipQuality
                                 })
 
                             }).then(it => it.json()).then(({clip}) => {
@@ -256,6 +284,7 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                     game.isLive ?
                         secondsToHMS(Math.max(Math.round((currentTime - game?.startTime) / 1000) - PRIOR_CLIP_RECORDING, 0)) : '00:00:00'
                 );
+                setClipQuality(5)
                 setDurationToClip(secondsToHMS(PRIOR_CLIP_RECORDING * 2, false));
                 setNameOfNewClip(`Clip ${clips?.length ?? 1}`)
                 setEditIndex(-1)

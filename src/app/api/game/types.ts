@@ -1,3 +1,25 @@
+export type LiveHockeyTeam = {
+    id: string
+    name: string
+    parentId: string
+    level1: string
+    extIds: {
+        id: string
+        origin: string
+    }[]
+    homeHex: string
+    awayHex: string
+    siteId: string
+    type: string
+    slug: string
+    shortName: string
+    longName: string
+    logo: {
+        id: string
+        blobId: string
+        mimeType: string
+    }
+};
 export type LiveHockeyGame = {
     id: string
     extId: string
@@ -13,50 +35,8 @@ export type LiveHockeyGame = {
         id: string
         origin: string
     }[]
-    homeTeam: {
-        id: string
-        name: string
-        parentId: string
-        level1: string
-        extIds: {
-            id: string
-            origin: string
-        }[]
-        homeHex: string
-        awayHex: string
-        siteId: string
-        type: string
-        slug: string
-        shortName: string
-        longName: string
-        logo: {
-            id: string
-            blobId: string
-            mimeType: string
-        }
-    }
-    awayTeam: {
-        id: string
-        name: string
-        parentId: string
-        level1: string
-        extIds: {
-            id: string
-            origin: string
-        }[]
-        homeHex: string
-        awayHex: string
-        siteId: string
-        type: string
-        slug: string
-        shortName: string
-        longName: string
-        logo: {
-            id: string
-            blobId: string
-            mimeType: string
-        }
-    }
+    homeTeam: LiveHockeyTeam
+    awayTeam: LiveHockeyTeam
     competition: {
         id: string
         name: string
