@@ -82,7 +82,6 @@ export async function GET(req: NextRequest) {
         .then(it => it.json())
         .then((it: LiveHockeyGame[]) => it.map(g => formatLiveHockeyGame(g, false))).then(it => {
                 out.recent.push(...it.filter(game => !game.isLive))
-                out.upcoming.splice(0, 0, ...it.filter(game => game.isLive).toReversed())
             }
         ))
 

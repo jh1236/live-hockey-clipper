@@ -165,9 +165,9 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
         </Flex>
     }
 
-    const durationError = !/^(\d?\d)(:\d\d)?(:\d\d)?$/.test(durationToClip) || hmsToSecondsOnly(durationToClip) + hmsToSecondsOnly(timeToClip) > Date.now();
+    const durationError = !/^(\d?\d)(:\d\d)?(:\d\d)?$/.test(durationToClip) || game.startTime + hmsToSecondsOnly(durationToClip) + hmsToSecondsOnly(timeToClip) > Date.now();
     const clipNameError = !nameOfNewClip || (clips?.filter((_, i) => i !== editIndex)?.map(it => it.name).includes(nameOfNewClip));
-    const timeToClipError = !/^(\d?\d)(:\d\d)?(:\d\d)?$/.test(timeToClip) || hmsToSecondsOnly(timeToClip) > Date.now();
+    const timeToClipError = !/^(\d?\d)(:\d\d)?(:\d\d)?$/.test(timeToClip) || game.startTime + hmsToSecondsOnly(timeToClip) > Date.now();
 
     return <Box>
         <Modal opened={openAddClips} onClose={() => setOpenAddClips(false)} title="Add Clip" centered>

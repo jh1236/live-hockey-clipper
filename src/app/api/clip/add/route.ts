@@ -25,7 +25,7 @@ export async function POST(
     }).where(tGames.blob.equals(gameBlob)).executeSelectOne()
 
     const clipEndTime = game.startTime + (hmsToSecondsOnly(clip.timecode) + hmsToSecondsOnly(clip.length)) * 1000;
-    if (clipEndTime + 10_000 > Date.now()) {
+    if (clipEndTime - 10_000 > Date.now()) {
         throw Error('The clip goes too far into the future!')
     } else if (clipEndTime > Date.now()) { //we can't clip video that doesn't exist yet
         await setTimeout(clipEndTime - Date.now())
