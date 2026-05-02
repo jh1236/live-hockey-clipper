@@ -165,9 +165,9 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
         </Flex>
     }
 
-    const durationError = !/^(\d?\d)(:\d\d)?(:\d\d)?$/.test(durationToClip);
+    const durationError = !/^(\d?\d)(:\d\d)?(:\d\d)?$/.test(durationToClip) || hmsToSecondsOnly(durationToClip) + hmsToSecondsOnly(timeToClip) > Date.now();
     const clipNameError = !nameOfNewClip || (clips?.filter((_, i) => i !== editIndex)?.map(it => it.name).includes(nameOfNewClip));
-    const timeToClipError = !/^(\d?\d)(:\d\d)?(:\d\d)?$/.test(timeToClip);
+    const timeToClipError = !/^(\d?\d)(:\d\d)?(:\d\d)?$/.test(timeToClip) || hmsToSecondsOnly(timeToClip) > Date.now();
 
     return <Box>
         <Modal opened={openAddClips} onClose={() => setOpenAddClips(false)} title="Add Clip" centered>
@@ -304,7 +304,7 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                         secondsToHMS(Math.max(Math.round((currentTime - game?.startTime) / 1000) - PRIOR_CLIP_RECORDING, 0)) : '00:00:00'
                 );
                 setClipQuality(5)
-                setDurationToClip(secondsToHMS(PRIOR_CLIP_RECORDING * 2, false));
+                setDurationToClip(secondsToHMS(PRIOR_CLIP_RECORDING, false));
                 setNameOfNewClip(`Clip ${clips?.length ?? 1}`)
                 setEditIndex(-1)
                 setOpenAddClips(true);
