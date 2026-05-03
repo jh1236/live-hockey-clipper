@@ -146,6 +146,7 @@ export async function serverDownloadSingleClip(
         "-y",
         "-protocol_whitelist", "file,http,https,tcp,tls,crypto",
         "-ss", (Math.max(hmsToSecondsOnly(clip.timecode) - 10, 0)).toString(),
+        "-live_start_index", "0",
         // we remove 10 seconds so that we can avoid any silliness with keyframes on the edge,
         // and then remove 5 seconds to account for the delay that is inherent to live hockey
         "-i", indexUrl,
