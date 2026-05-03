@@ -232,7 +232,9 @@ export async function serverDownloadSingleClip(
         "-y",
         "-protocol_whitelist", "file,http,https,tcp,tls,crypto",
         "-i", indexUrl,
-        "-ss", (Math.max(hmsToSecondsOnly(clip.timecode) - 10, 0)).toString(),
+        // we remove 10 seconds so that we can avoid any silliness with keyframes on the edge,
+        // and then remove 5 seconds to account for the delay that is inherent to live hockey
+        "-ss", (Math.max(hmsToSecondsOnly(clip.timecode) - 10 - 5, 0)).toString(),
         '-avoid_negative_ts', 'make_zero',
         "-ss", '10'.toString(),
         "-t", (hmsToSecondsOnly(clip.length)).toString(),
