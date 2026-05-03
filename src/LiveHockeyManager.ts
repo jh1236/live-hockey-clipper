@@ -231,10 +231,10 @@ export async function serverDownloadSingleClip(
     const args = [
         "-y",
         "-protocol_whitelist", "file,http,https,tcp,tls,crypto",
-        "-i", indexUrl,
+        "-ss", (Math.max(hmsToSecondsOnly(clip.timecode) - 10, 0)).toString(),
         // we remove 10 seconds so that we can avoid any silliness with keyframes on the edge,
         // and then remove 5 seconds to account for the delay that is inherent to live hockey
-        "-ss", (Math.max(hmsToSecondsOnly(clip.timecode) - 10 - 5, 0)).toString(),
+        "-i", indexUrl,
         '-avoid_negative_ts', 'make_zero',
         "-ss", '10'.toString(),
         "-t", (hmsToSecondsOnly(clip.length)).toString(),
@@ -264,14 +264,14 @@ export async function serverDownloadSingleClip(
         child.stderr.setEncoding('utf8');
         child.stderr.on('data', (data) => {
             console.log(`ffmpeg (error): ${data}`);
-            // if (data.toLowerCase().includes('error') || data.toLowerCase().includes('could not')) {
-            //     child.kill()
-            //     reject()
-            // }
         })
 
-        child.on('close', () => {
-            resolve();
+        child.on('close', (code) => {
+            if (code !== 0) {
+                reject();
+            } else {
+                resolve();
+            }
         })
 
     }).then(() => true).catch(() => false);

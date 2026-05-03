@@ -265,7 +265,7 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
 
                                         }).then(it => it.json()).then(({clip}) => {
                                             setClips(prev => prev!.map((it, idx) => it.name === clip.name ? clip : it))
-                                        })
+                                        }).catch(() => setClips(prev => prev!.filter(it => it.name !== newClip.name)))
                                         setOpenAddClips(false)
                                     }}>Save Clip</Button>
                         </Tooltip>
@@ -297,14 +297,26 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                                     <ActionIcon variant="subtle"><FaArrowUpRightFromSquare/></ActionIcon>
                                 </Popover.Target>
                                 <Popover.Dropdown>
-                                    <Link href={game.altiusLink ?? game.teamstarLink ?? '#'}
-                                          target={game.altiusLink || game.teamstarLink ? '_blank' : undefined}>
-                                        <Button>
-                                            View Game on {game.altiusLink ? 'Altius' : 'Teamstar'}
-                                        </Button>
-                                    </Link>
-
+                                    <Stack align="center">
+                                        <Link
+                                            href={game.altiusLink ?? game.teamstarLink ?? '#'}
+                                            target={game.altiusLink || game.teamstarLink ? '_blank' : undefined}
+                                        >
+                                            <Button>
+                                                View on {game.altiusLink ? 'Altius' : 'Teamstar'}
+                                            </Button>
+                                        </Link>
+                                        <Link
+                                            href={`https://www.livehockey.com.au/en/game/${gameBlob}`}
+                                            target="_blank"
+                                        >
+                                            <Button>
+                                                View on Live Hockey
+                                            </Button>
+                                        </Link>
+                                    </Stack>
                                 </Popover.Dropdown>
+
                             </Popover>
 
                         </Stack>
