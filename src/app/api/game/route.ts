@@ -1,7 +1,6 @@
 import {getDbSession, tClips, tGames} from "@/database/database";
 import {NextRequest} from "next/server";
-import fs from "node:fs/promises";
-import {formatLiveHockeyGame, getLinkFromBlob, getLiveHockeyToken} from "@/LiveHockeyManager";
+import {formatLiveHockeyGame} from "@/LiveHockeyManager";
 import {secondsToHMS} from "@/utils";
 
 // how many seconds before we consider going to the live hockey server again
@@ -10,7 +9,6 @@ const RELOAD_TIMEOUT = 60 * 1000
 
 export async function POST(req: NextRequest) {
     const {gameBlob, username, password} = await req.json()
-    const token = await getLiveHockeyToken(username, password)
     const connection = await getDbSession()
 
     // check if the game is in the database
@@ -77,10 +75,6 @@ export async function POST(req: NextRequest) {
         comment: tClips.comment,
     }).where(tClips.gameId.equals(game!.id)).executeSelectMany()
 
-    const link: string = await getLinkFromBlob(gameBlob, token)
-    const indexFile = await fetch(link);
-    const text = await indexFile.text();
-    await fs.writeFile(`./videos/input/${gameBlob}.m3u8`, text)
 
 
     return Response.json({
