@@ -119,7 +119,7 @@ export function GamesDisplay({games, missingMessage, createLink = it => `/${it.b
 
                             <Text size="sm" c="dimmed" mb={12}>
                                 <b>Start Time:</b>
-                                <br/>{getDateString(it.startTime)}
+                                <br/>{it.isLive ? 'Live!' : getDateString(it.startTime)}
                             </Text>
 
                         </Card>

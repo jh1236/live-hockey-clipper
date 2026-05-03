@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
         timecode: tClips.startTime,
         link: tClips.link,
         comment: tClips.comment,
-    }).where(tClips.gameId.equals(tGames.id)).executeSelectMany()
+    }).where(tClips.gameId.equals(game!.id)).executeSelectMany()
 
     const link: string = await getLinkFromBlob(gameBlob, token)
     const indexFile = await fetch(link);

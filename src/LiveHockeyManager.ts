@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises'
-import {execFile} from "node:child_process";
+import {execFile, spawn} from "node:child_process";
 import {promisify} from "node:util";
 import path from "node:path";
 import {hmsToSecondsOnly} from "@/utils";
@@ -155,7 +155,23 @@ export async function serverDownloadMultipleClips(
             ];
 
             console.log(`ffmpeg ${args.join(' ')}`)
-            tasks.push(execFileAsync("ffmpeg", args));
+            await new Promise<void>(resolve => {
+                const child = spawn('ffmpeg', args);
+
+                child.stdout.setEncoding('utf8');
+                child.stdout.on('data', (data) => {
+                    console.log(`ffmpeg: ${data}`);
+                })
+                child.stderr.setEncoding('utf8');
+                child.stderr.on('data', (data) => {
+                    console.log(`ffmpeg (error): ${data}`);
+                })
+
+                child.on('close', () => {
+                    resolve();
+                })
+
+            });
         }
         await Promise.all(tasks)
         if (addToDatabase) {
@@ -195,10 +211,15 @@ export async function serverDownloadMultipleClips(
 
 
 export async function serverDownloadSingleClip(
-    blob: string, clip: Clip, quality: number): Promise<Clip> {
+    username: string,
+    password: string,
+    blob: string,
+    clip: Clip,
+    quality: number): Promise<Clip | null> {
 
     const clipOut = {...clip}
-
+    const token = await getLiveHockeyToken(username, password)
+    const indexUrl = await getLinkFromBlob(blob, token)
     await fs.mkdir(`./videos/output/${blob}`, {recursive: true});
 
     const output = `./videos/output/${blob}/${clip.name}.mp4`;
@@ -206,24 +227,56 @@ export async function serverDownloadSingleClip(
     const args = [
         "-y",
         "-protocol_whitelist", "file,http,https,tcp,tls,crypto",
+        "-i", indexUrl,
         "-ss", (Math.max(hmsToSecondsOnly(clip.timecode) - 10, 0)).toString(),
-        "-copyts",
-        "-i", `./videos/input/${blob}.m3u8`,
-        "-ss", (hmsToSecondsOnly(clip.timecode)).toString(),
-        "-t", clip.length.toString(),
+        '-avoid_negative_ts', 'make_zero',
+        "-ss", '10'.toString(),
+        "-t", (hmsToSecondsOnly(clip.length)).toString(),
         "-c:v", "libx264",
-        "-c:a", "aac",
+        "-c:a", "flac",
         "-preset", "veryfast",
-        "-crf", `${40 - 2 * (quality)}`,
-        "-fflags", "+genpts",
+        "-r", "30",
+        "-crf", `${40 - 2 * quality}`,
+        "-af", "aresample=async=1000",
         "-f", "mp4",
         output
     ];
 
+    console.log(`ffmpeg ${args.join(' ')}`)
     clipOut.link = `/api/videos/${blob}/${clip.name}.mp4`;
+    const out = await new Promise<void>((resolve, reject) => {
+        const child = spawn('ffmpeg', args);
+        setTimeout(() => {
+            child.kill()
+            reject();
+        }, 120_000)
+        child.stdout.setEncoding('utf8');
+        child.stdout.on('data', (data) => {
+            console.log(`ffmpeg: ${data}`);
+        })
+        child.stderr.setEncoding('utf8');
+        child.stderr.on('data', (data) => {
+            console.log(`ffmpeg (error): ${data}`);
+            // if (data.toLowerCase().includes('error') || data.toLowerCase().includes('could not')) {
+            //     child.kill()
+            //     reject()
+            // }
+        })
 
-    await execFileAsync("ffmpeg", args);
+        child.on('close', () => {
+            resolve();
+        })
 
-    return clipOut
+    }).then(() => true).catch(e => false);
 
+    return out ? clipOut : null
+
+}
+
+export async function downloadIndexFile(username: string, password: string, gameBlob: string) {
+    const token = await getLiveHockeyToken(username, password)
+    const link: string = await getLinkFromBlob(gameBlob, token)
+    const indexFile = await fetch(link);
+    const text = await indexFile.text();
+    await fs.writeFile(`./videos/input/${gameBlob}.m3u8`, text)
 }

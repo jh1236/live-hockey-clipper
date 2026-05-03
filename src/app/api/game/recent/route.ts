@@ -4,7 +4,7 @@ import {formatLiveHockeyGame} from "@/LiveHockeyManager";
 import {LiveHockeyGame} from "@/app/api/game/types";
 import {Game} from "@/database/database";
 
-async function getRequestURL(comps: StructureResponse["competitions"], count: number = 16) {
+async function getRequestURL(comps: StructureResponse["competitions"], count: number = 16, includeLive: boolean = true) {
 
 
     const url = new URL("https://api.livearenasports.com/broadcast/?")
@@ -14,12 +14,13 @@ async function getRequestURL(comps: StructureResponse["competitions"], count: nu
     }
     url.searchParams.set('page-index', '0')
     url.searchParams.set('page-size', count.toString())
-    url.searchParams.set('include-live', 'true')
+    url.searchParams.set('include-live', includeLive ? 'true' : 'false')
     url.searchParams.set('sort-column', 'start')
     return url;
 }
 
 const DAY_IN_MS = 1000 * 60 * 60 * 24;
+const HOUR_IN_MS = 1000 * 60 * 60;
 
 export async function GET(req: NextRequest) {
 
@@ -56,13 +57,15 @@ export async function GET(req: NextRequest) {
         ))
     const now = new Date()
     const dateTo = new Date(now.getTime() + 4 * DAY_IN_MS);
+    const oneWeekAgo = new Date(now.getTime() - 4 * DAY_IN_MS);
     const futureUrl = await getRequestURL(comps, 8);
     futureUrl.searchParams.set('sort-order', 'Ascending')
     futureUrl.searchParams.set('start-from', now.toISOString().replace(/ GMT/, ''))
     futureUrl.searchParams.set('start-to', dateTo.toISOString().replace(/ GMT/, ''))
-    const pastUrl = await getRequestURL(comps, 8);
+    const pastUrl = await getRequestURL(comps, 8, false);
     pastUrl.searchParams.set('sort-order', 'Descending')
     pastUrl.searchParams.set('start-to', now.toISOString().replace(/ GMT/, ''))
+    pastUrl.searchParams.set('start-from', oneWeekAgo.toISOString().replace(/ GMT/, ''))
 
     const out: {
         upcoming: Game[],
@@ -81,7 +84,7 @@ export async function GET(req: NextRequest) {
     tasks.push(await fetch(pastUrl, {headers: {'site-id': "AU_FH_AUS"},})
         .then(it => it.json())
         .then((it: LiveHockeyGame[]) => it.map(g => formatLiveHockeyGame(g, false))).then(it => {
-                out.recent.push(...it.filter(game => !game.isLive))
+                out.recent.push(...it)
             }
         ))
 

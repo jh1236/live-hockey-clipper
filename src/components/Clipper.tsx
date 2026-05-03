@@ -258,7 +258,9 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                                             body: JSON.stringify({
                                                 gameBlob,
                                                 clip: newClip,
-                                                quality: clipQuality
+                                                quality: clipQuality,
+                                                username,
+                                                password,
                                             })
 
                                         }).then(it => it.json()).then(({clip}) => {
