@@ -287,11 +287,28 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                         </Center>
                     </Grid.Col>
                     <Grid.Col span={2}>
-                        <Center h="100%">
+
+                        <Stack h="100%" align="center" justify="center">
                             {game.isLive && <Text ta="center">
                                 {secondsToHMS(Math.round((currentTime - game.startTime) / 1000))}
                             </Text>}
-                        </Center>
+                            <Popover>
+                                <Popover.Target>
+                                    <ActionIcon variant="subtle"><FaArrowUpRightFromSquare/></ActionIcon>
+                                </Popover.Target>
+                                <Popover.Dropdown>
+                                    <Link href={game.altiusLink ?? game.teamstarLink ?? '#'}
+                                          target={game.altiusLink || game.teamstarLink ? '_blank' : undefined}>
+                                        <Button>
+                                            View Game on {game.altiusLink ? 'Altius' : 'Teamstar'}
+                                        </Button>
+                                    </Link>
+
+                                </Popover.Dropdown>
+                            </Popover>
+
+                        </Stack>
+
                     </Grid.Col>
                     <Grid.Col span={5}>
                         <Center>

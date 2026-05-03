@@ -25,6 +25,8 @@ export async function POST(req: NextRequest) {
         competitionName: tGames.competitionName,
         startTime: tGames.startTime,
         lastServerPing: tGames.lastServerPing,
+        teamstarLink: tGames.teamstarLink,
+        altiusLink: tGames.altiusLink,
     }).where(tGames.blob.equals(gameBlob)).executeSelectNoneOrOne()
 
     if (game === null) {

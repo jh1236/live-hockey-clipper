@@ -4,14 +4,12 @@ import {ActionIcon, Box, Button, Checkbox, Flex, Group, Popover, Stack, TextInpu
 import {redirect} from "next/navigation";
 import {useEffect, useState} from "react";
 import {useLocalStorage} from "react-use";
-import {useMounted} from "@mantine/hooks";
 import {GamesDisplay} from "@/components/GamesDisplay";
 import {Game} from "@/database/database";
 import {FaSlidersH} from "react-icons/fa";
 
 export default function Page() {
     const [gameBlob, setGameBlob] = useState<string>("");
-    const [username] = useLocalStorage<string | null>("username", null);
     const [upcoming, setUpcoming] = useState<Game[] | null>(null)
     const [recent, setRecent] = useState<Game[] | null>(null)
     const [premierOnly, setPremierOnly] = useLocalStorage<boolean>("premierOnly", true);
@@ -36,11 +34,6 @@ export default function Page() {
         }
     }, [includeJuniors, premierOnly]);
 
-    const mounted = useMounted()
-
-    if (mounted && !username) {
-        redirect('/login')
-    }
 
     const gameBlobError = !/^[0-9a-zA-Z]*$/.test(gameBlob);
 

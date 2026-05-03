@@ -1,12 +1,11 @@
 import fs from 'node:fs/promises'
-import {execFile, spawn} from "node:child_process";
-import {promisify} from "node:util";
+import {spawn} from "node:child_process";
 import path from "node:path";
 import {hmsToSecondsOnly} from "@/utils";
 import {Game, getDbSession, tClips, tGames, tImages} from "@/database/database";
 import {LiveHockeyGame, LiveHockeyTeam} from "@/app/api/game/types";
+import liveHockeyDefaultAccount from "@/../resources/liveHockeyDefault.json"
 
-const execFileAsync = promisify(execFile)
 let images: { [key: string]: string } = null!
 let imagesIsLoading = true
 
@@ -65,11 +64,16 @@ export function formatLiveHockeyGame(game: LiveHockeyGame, useStreamTime: boolea
         teamOneImage: getTeamImage(game.homeTeam),
         teamTwoImage: getTeamImage(game.awayTeam),
         startTime: new Date((useStreamTime ? game.streamStart : game.start) ?? game.start).getTime(),
-        lastServerPing: Date.now()
+        lastServerPing: Date.now(),
+        altiusLink: game.extSrc === 'ALT_WA' ? `https://hockeywa.altiusrt.com/matches/${game.extId}` : undefined,
+        teamstarLink: game.extSrc === 'TEAMSTAR' ? `https://comp.teamstar.team/event/${game.extId}` : undefined
     });
 }
 
-export async function getLiveHockeyToken(username: string, password: string): Promise<string> {
+export async function getLiveHockeyToken(usernameIn: string | null | undefined, passwordIn: string | null | undefined): Promise<string> {
+    const username = usernameIn || liveHockeyDefaultAccount.username;
+    const password = passwordIn || liveHockeyDefaultAccount.password;
+
     return await fetch("https://api.livearenasports.com/user/login", {
         method: "POST",
         headers: {
@@ -211,11 +215,11 @@ export async function serverDownloadMultipleClips(
 
 
 export async function serverDownloadSingleClip(
-    username: string,
-    password: string,
     blob: string,
     clip: Clip,
-    quality: number): Promise<Clip | null> {
+    quality: number,
+    username: string | null | undefined,
+    password: string | null | undefined): Promise<Clip | null> {
 
     const clipOut = {...clip}
     const token = await getLiveHockeyToken(username, password)
@@ -247,6 +251,7 @@ export async function serverDownloadSingleClip(
     const out = await new Promise<void>((resolve, reject) => {
         const child = spawn('ffmpeg', args);
         setTimeout(() => {
+            //maximum time of 2 minutes
             child.kill()
             reject();
         }, 120_000)
@@ -267,7 +272,7 @@ export async function serverDownloadSingleClip(
             resolve();
         })
 
-    }).then(() => true).catch(e => false);
+    }).then(() => true).catch(() => false);
 
     return out ? clipOut : null
 

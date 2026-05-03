@@ -25,6 +25,8 @@ export interface Game {
     startTime: number
     lastServerPing: number
     isLive: boolean
+    altiusLink?: string
+    teamstarLink?: string
 }
 
 export const tGames = new class TGames extends Table<DBConnection, 'TGames'> {
@@ -41,6 +43,8 @@ export const tGames = new class TGames extends Table<DBConnection, 'TGames'> {
     lastServerPing = this.column('last_server_ping', 'int')
     timeCreated = this.columnWithDefaultValue('time_created', 'int')
     isLive = this.column('is_live', 'boolean')
+    altiusLink = this.optionalColumn('altius_link', 'string')
+    teamstarLink = this.optionalColumn('teamstar_link', 'string')
 
     constructor() {
         super('games'); // table name in the database
