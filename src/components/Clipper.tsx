@@ -60,6 +60,10 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
     const [state, copyToClip] = useCopyToClipboard()
     const [copyTime, setCopyTime] = useState<number>(-1);
 
+    useEffect(() => {
+        setCurrentTime(Date.now());
+    }, [])
+
     useInterval(
         () => {
             setCurrentTime(Date.now());

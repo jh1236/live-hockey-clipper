@@ -10,6 +10,7 @@ import {FaSlidersH} from "react-icons/fa";
 
 export default function Page() {
     const [gameBlob, setGameBlob] = useState<string>("");
+    const [error, setError] = useState<string | null>(null)
     const [upcoming, setUpcoming] = useState<Game[] | null>(null)
     const [recent, setRecent] = useState<Game[] | null>(null)
     const [premierOnly, setPremierOnly] = useLocalStorage<boolean>("premierOnly", true);
@@ -28,7 +29,10 @@ export default function Page() {
                 if (cancelled) return
                 setRecent(it.recent)
                 setUpcoming(it.upcoming)
-            });
+                setError(null)
+            }).catch((err) => {
+            setError(err.toString())
+        });
         return () => {
             cancelled = true
         }
@@ -96,12 +100,14 @@ export default function Page() {
                 games={upcoming?.filter(it => includeJuniors ? true : !it.competitionName.includes('Junior ')) ?? null}
                 missingMessage={"There are currently no upcoming games."}
                 createLink={it => it.isLive ? `/${it.blob}` : '#'}
+                error={error}
             />
             <br/>
             <Title order={2} p={20}>Recent Games</Title>
             <GamesDisplay
                 games={recent?.filter(it => includeJuniors ? true : !it.competitionName.includes('Junior ')) ?? null}
-                missingMessage={"There are currently no recent games."}/>
+                missingMessage={"There are currently no recent games."}
+                error={error}/>
             <br/>
         </Flex>
     </Flex>
