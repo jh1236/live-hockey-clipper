@@ -3,7 +3,8 @@ import Link from "next/link";
 import Image from "next/image";
 import {Game} from "@/database/database";
 import classes from '@/components/GamesDisplay.module.css'
-import {HTMLAttributes} from "react";
+import {HTMLAttributes, useState} from "react";
+import {useInterval} from "react-use";
 
 function PulsingDot(props: HTMLAttributes<HTMLDivElement>) {
     return <span className={classes.statusdot} {...props}></span>
@@ -15,8 +16,9 @@ interface GamesDisplayProps {
     createLink?: (it: Game) => string;
 }
 
-const HOURS_TO_MS = 1000 * 60 * 60
-const WEEKS_TO_MS = 7 * 24 * HOURS_TO_MS;
+const MINUTE_IN_MS = 1000 * 60;
+const HOUR_IN_MS = MINUTE_IN_MS * 60;
+const WEEK_IN_MS = 7 * 24 * HOUR_IN_MS;
 
 const DAYS = [
     'Sunday',
@@ -28,34 +30,56 @@ const DAYS = [
     'Saturday',
 ]
 
-function getDateString(it: number) {
+function getDateString(it: number, currentTime: number): string {
     const dateToRender = new Date(it);
-    const today = new Date();
-    const deltaHours = Math.floor(Math.abs(dateToRender.getTime() - today.getTime()) / (HOURS_TO_MS));
+    const today = new Date(currentTime);
+    const deltaHours = Math.floor(Math.abs(dateToRender.getTime() - today.getTime()) / (HOUR_IN_MS));
+    if (deltaHours < 1) {
+        const deltaMinutes = Math.floor(Math.abs(dateToRender.getTime() - today.getTime()) / (MINUTE_IN_MS));
+        if (deltaMinutes < 1) {
+            if (dateToRender.getTime() > today.getTime()) {
+                return `Soon!`;
+            } else {
+                return `Now!`;
+            }
+        }
+        if (dateToRender.getTime() > today.getTime()) {
+            return `In ${deltaMinutes} minutes`;
+        } else {
+            return `${deltaMinutes} minutes ago`;
+        }
+    }
     if (deltaHours <= 10) {
         if (dateToRender.getTime() > today.getTime()) {
             return `In ${deltaHours} hours`;
         } else {
             return `${deltaHours} hours ago`;
         }
-    } else {
-        const s = dateToRender.toLocaleTimeString().replace(/:\d\d\s/, ' ');
-        if (dateToRender.getDate() === today.getDate() - 1) {
-            return `Yesterday, ${s}`
-        } else if (dateToRender.getDate() === today.getDate() + 1) {
-            return `Tomorrow, ${s}`
-        } else if (dateToRender.getDate() === today.getDate()) {
-            return `${s}`
-        } else if (Math.abs(dateToRender.getTime() - today.getTime()) / WEEKS_TO_MS < 1) {
-            const prefix = dateToRender.getTime() > today.getTime() ? 'Next' : 'Last'
-            return `${prefix} ${DAYS[dateToRender.getDay()]}, ${s}`
-        }
     }
+
+    const s = dateToRender.toLocaleTimeString().replace(/:\d\d\s/, ' ');
+    if (dateToRender.getDate() === today.getDate() - 1) {
+        return `Yesterday, ${s}`
+    } else if (dateToRender.getDate() === today.getDate() + 1) {
+        return `Tomorrow, ${s}`
+    } else if (dateToRender.getDate() === today.getDate()) {
+        return `${s}`
+    } else if (Math.abs(dateToRender.getTime() - today.getTime()) / WEEK_IN_MS < 1) {
+        const prefix = dateToRender.getTime() > today.getTime() ? 'Next' : 'Last'
+        return `${prefix} ${DAYS[dateToRender.getDay()]}, ${s}`
+    }
+
     return dateToRender.toLocaleString()
 }
 
 export function GamesDisplay({games, missingMessage, createLink = it => `/${it.blob}`}: GamesDisplayProps) {
-
+    const [currentTime, setCurrentTime] = useState<number>(-1);
+    useInterval(
+        () => {
+            setCurrentTime(Date.now());
+        },
+        5000
+    )
 
     if (!games) {
         return <Grid flex={3} w="100%" p={20} overflow="scroll">
@@ -119,7 +143,7 @@ export function GamesDisplay({games, missingMessage, createLink = it => `/${it.b
 
                             <Text size="sm" c="dimmed" mb={12}>
                                 <b>Start Time:</b>
-                                <br/>{it.isLive ? 'Live!' : getDateString(it.startTime)}
+                                <br/>{it.isLive ? 'Live!' : getDateString(it.startTime, currentTime)}
                             </Text>
 
                         </Card>
