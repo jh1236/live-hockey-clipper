@@ -8,7 +8,28 @@ const RELOAD_TIMEOUT = 60 * 1000
 
 
 export async function POST(req: NextRequest) {
-    const {gameBlob, username, password} = await req.json()
+    const json = await req.json();
+    const {gameBlob} = json
+
+    if (gameBlob === 'test') {
+        return Response.json({
+            game: {
+                blob: "test",
+                competitionName: "This competition",
+                isLive: true,
+                lastServerPing: 0,
+                startTime: json.startTime,
+                teamOne: "Team One",
+                teamOneImage: "/blank.png",
+                teamOneLongName: "Team One",
+                teamTwo: "Team Two",
+                teamTwoImage: "/blank.png",
+                teamTwoLongName: "Team Two",
+            },
+            clips: []
+        })
+    }
+
     const connection = await getDbSession()
 
     // check if the game is in the database

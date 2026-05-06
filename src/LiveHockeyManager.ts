@@ -43,7 +43,7 @@ function getTeamImage(team: LiveHockeyTeam): string {
 export function formatLiveHockeyGame(game: LiveHockeyGame, useStreamTime: boolean = true): Game {
     return ({
         blob: game.id,
-        isLive: game.live,
+        isLive: game.live ?? false,
         competitionName:
             game.competition.playerLevel.name
                 .replace(/^WA J?/, '')
@@ -145,14 +145,14 @@ export async function serverDownloadSingleClip(
     const args = [
         "-y",
         "-protocol_whitelist", "file,http,https,tcp,tls,crypto",
-        "-ss", (Math.max(hmsToSecondsOnly(clip.timecode) - 10, 0)).toString(),
+        "-ss", (Math.max(hmsToSecondsOnly(clip.timecode) - 12, 0)).toString(),
         "-live_start_index", "0",
         // we remove 10 seconds so that we can avoid any silliness with keyframes on the edge,
         // and then remove 5 seconds to account for the delay that is inherent to live hockey
         "-i", indexUrl,
         '-avoid_negative_ts', 'make_zero',
         "-ss", '10'.toString(),
-        "-t", (hmsToSecondsOnly(clip.length)).toString(),
+        "-t", (hmsToSecondsOnly(clip.length) + 4).toString(),
         "-c:v", "libx264",
         "-c:a", "flac",
         "-preset", "veryfast",
@@ -165,6 +165,72 @@ export async function serverDownloadSingleClip(
 
     console.log(`ffmpeg ${args.join(' ')}`)
     clipOut.link = `/api/videos/${blob}/${clip.name}.mp4`;
+    const out = await new Promise<void>((resolve, reject) => {
+        const child = spawn('ffmpeg', args);
+        setTimeout(() => {
+            //maximum time of 2 minutes
+            child.kill()
+            reject();
+        }, 120_000)
+        child.stdout.setEncoding('utf8');
+        child.stdout.on('data', (data) => {
+            console.log(`ffmpeg: ${data}`);
+        })
+        child.stderr.setEncoding('utf8');
+        child.stderr.on('data', (data) => {
+            console.log(`ffmpeg (error): ${data}`);
+        })
+
+        child.on('close', (code) => {
+            if (code !== 0) {
+                reject();
+            } else {
+                resolve();
+            }
+        })
+
+    }).then(() => true).catch(() => false);
+
+    return out ? clipOut : null
+
+}
+
+
+export async function serverDownloadTestClip(
+    clip: Clip,
+    quality: number,
+    startTime: number
+   ): Promise<Clip | null> {
+
+    const clipOut = {...clip}
+    const indexUrl = `http://localhost:3000/api/test.m3u8?${startTime}`
+    await fs.mkdir('./videos/output/test', {recursive: true});
+
+    const output = `./videos/output/test/${clip.name}.mp4`;
+
+    const args = [
+        "-y",
+        "-protocol_whitelist", "file,http,https,tcp,tls,crypto",
+        "-ss", (Math.max(hmsToSecondsOnly(clip.timecode) - 12, 0)).toString(),
+        "-live_start_index", "0",
+        // we remove 10 seconds so that we can avoid any silliness with keyframes on the edge,
+        // and then remove 5 seconds to account for the delay that is inherent to live hockey
+        "-i", indexUrl,
+        '-avoid_negative_ts', 'make_zero',
+        "-ss", '10'.toString(),
+        "-t", (hmsToSecondsOnly(clip.length) + 4).toString(),
+        "-c:v", "libx264",
+        "-c:a", "flac",
+        "-preset", "veryfast",
+        "-r", "30",
+        "-crf", `${40 - 2 * quality}`,
+        "-af", "aresample=async=1000",
+        "-f", "mp4",
+        output
+    ];
+
+    console.log(`ffmpeg ${args.join(' ')}`)
+    clipOut.link = `/api/videos/test/${clip.name}.mp4`;
     const out = await new Promise<void>((resolve, reject) => {
         const child = spawn('ffmpeg', args);
         setTimeout(() => {

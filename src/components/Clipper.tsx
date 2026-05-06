@@ -11,7 +11,7 @@ import {
     Center,
     Flex,
     Grid,
-    Group,
+    Group, HoverCard,
     Loader,
     Modal,
     Paper,
@@ -36,9 +36,8 @@ interface ClipperProps {
     blob: string;
 }
 
-// the max length a game can be considered going for is 2 hours and 15 minutes (completely arbitrary)
-// const MAX_GAME_LENGTH = (2 * 60 + 15) * 60 * 60 * 1000;
 
+const MINUTE_IN_MS = 1000 * 60
 const PRIOR_CLIP_RECORDING = 10;
 
 
@@ -51,6 +50,7 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
     const [durationToClip, setDurationToClip] = useState<string>('00:00:00');
     const [timeToClip, setTimeToClip] = useState<string>('00:00:00');
     const [clipQuality, setClipQuality] = useState<number>(4);
+    const [initialTime, setInitialTime] = useState<number>(-1);
     const [currentTime, setCurrentTime] = useState<number>(-1);
     const [editIndex, setEditIndex] = useState<number>(-1);
     const [username] = useLocalStorage<string | null>("username", null);
@@ -66,6 +66,20 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
 
     useInterval(
         () => {
+            if (game && currentTime + 5 * MINUTE_IN_MS < game.startTime && Date.now() + 5 * MINUTE_IN_MS > game.startTime && !game.isLive) {
+                // if the game starts in 5 minutes, and the game isn't live, we should check the server and update our game
+                // (there should be no race condition as all games start broadcast 15 mins before the true start time)
+                fetch('/api/game', {
+                    method: "POST", body: JSON.stringify({
+                        gameBlob,
+                        username,
+                        password,
+                    })
+                }).then(it => it.json()).then((it: { game: Game, clips: Clip[] }) => {
+                    setGame(it.game)
+                    setClips(it.clips)
+                })
+            }
             setCurrentTime(Date.now());
         },
         (game?.startTime ?? 0) > 0 ? 500 : null
@@ -74,11 +88,14 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
     useEffect(() => {
         if (gameBlob) {
             console.log("Requesting!")
+            const now = Date.now();
+            setInitialTime(now);
             fetch('/api/game', {
                 method: "POST", body: JSON.stringify({
                     gameBlob,
                     username,
                     password,
+                    startTime: now - 45 * MINUTE_IN_MS,
                 })
             }).then(it => it.json()).then((it: { game: Game, clips: Clip[] }) => {
                 setGame(it.game)
@@ -265,10 +282,11 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                                                 quality: clipQuality,
                                                 username,
                                                 password,
+                                                startTime: initialTime - 45 * MINUTE_IN_MS,
                                             })
 
                                         }).then(it => it.json()).then(({clip}) => {
-                                            setClips(prev => prev!.map((it, idx) => it.name === clip.name ? clip : it))
+                                            setClips(prev => prev!.map(it => it.name === clip.name ? clip : it))
                                         }).catch(() => setClips(prev => prev!.filter(it => it.name !== newClip.name)))
                                         setOpenAddClips(false)
                                     }}>Save Clip</Button>
@@ -333,17 +351,26 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                     </Grid.Col>
                 </Grid>
             </Center>
-            <Button size="xl" w="60%" m={10} onClick={() => {
-                setTimeToClip(
-                    game.isLive ?
-                        secondsToHMS(Math.max(Math.round((currentTime - game?.startTime) / 1000) - PRIOR_CLIP_RECORDING, 0)) : '00:00:00'
-                );
-                setClipQuality(5)
-                setDurationToClip(secondsToHMS(PRIOR_CLIP_RECORDING, false));
-                setNameOfNewClip(`Clip ${clips?.length ?? 1}`)
-                setEditIndex(-1)
-                setOpenAddClips(true);
-            }}>Add Clip</Button>
+            <HoverCard disabled={game.isLive || game.startTime <= currentTime}>
+                <HoverCard.Target>
+                    <Button size="xl" w="60%" m={10} onClick={() => {
+                        setTimeToClip(
+                            game.isLive ?
+                                secondsToHMS(Math.max(Math.round((currentTime - game?.startTime) / 1000) - PRIOR_CLIP_RECORDING, 0)) : '00:00:00'
+                        );
+                        setClipQuality(5)
+                        setDurationToClip(secondsToHMS(PRIOR_CLIP_RECORDING, false));
+                        setNameOfNewClip(`Clip ${clips?.length ?? 1}`)
+                        setEditIndex(-1)
+                        setOpenAddClips(true);
+                    }}
+                            data-disabled={!game.isLive && game.startTime > currentTime}
+                    >Add Clip</Button>
+                </HoverCard.Target>
+                <HoverCard.Dropdown>
+                    The livestream has not started!
+                </HoverCard.Dropdown>
+            </HoverCard>
             {clips.length ? <Grid flex={3} w="100%" h="80%" p={20} overflow="scroll">
                 {clips.map((it) => <Grid.Col key={it.name + !!it.link} span={{
                     base: 6,
@@ -446,5 +473,6 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
 
             </Group>
         </Flex>
-    </Box>;
+    </Box>
+        ;
 }

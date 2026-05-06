@@ -99,7 +99,6 @@ export default function Page() {
             <GamesDisplay
                 games={upcoming?.filter(it => includeJuniors ? true : !it.competitionName.includes('Junior ')) ?? null}
                 missingMessage={"There are currently no upcoming games."}
-                createLink={it => it.isLive ? `/${it.blob}` : '#'}
                 error={error}
             />
             <br/>

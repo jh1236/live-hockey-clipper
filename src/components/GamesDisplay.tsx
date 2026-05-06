@@ -1,4 +1,4 @@
-import {AspectRatio, Box, Card, Center, Flex, Grid, Group, HoverCard, Paper, Skeleton, Text} from "@mantine/core";
+import {AspectRatio, Box, Card, Center, Flex, Grid, Group, Paper, Skeleton, Text} from "@mantine/core";
 import Link from "next/link";
 import Image from "next/image";
 import {Game} from "@/database/database";
@@ -138,7 +138,7 @@ export function GamesDisplay({
                     base: 6,
                     md: 2
                 }}>
-                    {it.isLive || it.startTime < currentTime ? <Link href={createLink(it)}>
+                    <Link href={createLink(it)}>
                         <Card shadow="sm" padding="xs" withBorder>
                             {it.isLive && <Box h={0}>
                                 <PulsingDot style={{float: 'right', margin: 5}}/>
@@ -164,39 +164,7 @@ export function GamesDisplay({
                             </Text>
 
                         </Card>
-                    </Link> : <HoverCard withinPortal={false} position="top">
-                        <HoverCard.Target>
-                            <Card shadow="sm" padding="xs" withBorder bg="dark.7" style={{cursor: 'not-allowed'}}>
-                                <Card.Section pt={10}>
-                                    <Text fz="1.4em" ta="center" fw={600} c="dimmed">{it.teamOne} vs {it.teamTwo}</Text>
-                                    <Text fz="1em" ta="center" c="dimmed"><i>{it.competitionName}</i></Text>
-                                </Card.Section>
-                                <Card.Section mb={10}>
-
-                                    <Group h={120} w="100%" justify="center" mb={5} pl={5} pr={5}>
-                                        <Center w="45%">
-                                            <Image src={it.teamOneImage} alt="Home team image"
-                                                   width={100} height={100} style={{filter: 'grayscale(0.8)'}}/>
-                                        </Center>
-                                        <Center w="45%">
-                                            <Image src={it.teamTwoImage} alt="Away team image"
-                                                   width={100} height={100} style={{filter: 'grayscale(0.8)'}}/>
-                                        </Center>
-                                    </Group>
-
-                                </Card.Section>
-
-                                <Text size="sm" c="dimmed" mb={12}>
-                                    <b>Start Time:</b>
-                                    <br/>{it.isLive ? 'Live!' : getDateString(it.startTime, currentTime)}
-                                </Text>
-
-                            </Card>
-                        </HoverCard.Target>
-                        <HoverCard.Dropdown>
-                            This Game is yet to start streaming!
-                        </HoverCard.Dropdown>
-                    </HoverCard>}
+                    </Link>
                 </Grid.Col>
             )}
         </Grid> :

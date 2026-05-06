@@ -1,5 +1,5 @@
 import {NextRequest, NextResponse} from "next/server";
-import {Clip, serverDownloadSingleClip} from "@/LiveHockeyManager";
+import {Clip, serverDownloadSingleClip, serverDownloadTestClip} from "@/LiveHockeyManager";
 import {hmsToSecondsOnly} from "@/utils";
 import {getDbSession, tClips, tGames} from "@/database/database";
 
@@ -8,13 +8,20 @@ export async function POST(
     req: NextRequest,
 ) {
     console.log("Request")
-    const {gameBlob, clip, quality, username, password} = (await req.json() as {
+    const json = await req.json();
+    const {gameBlob, clip, quality, username, password} = (json as {
         gameBlob: string,
         clip: Clip,
         quality: number,
         username?: string,
         password?: string
     });
+
+    if (gameBlob === 'test') {
+        const clipOut = await serverDownloadTestClip(clip, quality, json.startTime);
+        return NextResponse.json({clip: clipOut});
+    }
+
     const connection = await getDbSession()
 
     const game = await connection.selectFrom(tGames).select({
