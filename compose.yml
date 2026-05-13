@@ -4,7 +4,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_BACKEND_ADDRESS: "https://api.clip.jh1236.top"
+        BACKEND_ADDRESS: "https://api.clip.jh1236.top"
     image: hockey-clipper-frontend
     container_name: hockey-clipper-frontend-container
     ports:
