@@ -1,4 +1,6 @@
 import json
+import os
+import shutil
 
 import humps
 from flask import Flask
@@ -23,6 +25,8 @@ CORS(app)
 Pony(app)
 init_db()
 
+if not os.path.exists('./database/database.db'):
+    shutil.copy('./resources/database.db', './database/database.db')
 
 @app.after_request
 def to_camel_case(response):
