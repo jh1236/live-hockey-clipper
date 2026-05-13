@@ -23,10 +23,11 @@ app.register_blueprint(api)
 
 CORS(app)
 Pony(app)
-init_db()
 
 if not os.path.exists('./database/database.db'):
     shutil.copy('./resources/database.db', './database/database.db')
+
+init_db()
 
 @app.after_request
 def to_camel_case(response):
