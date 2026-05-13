@@ -25,8 +25,7 @@ import {
 } from "@mantine/core";
 import {hmsToSecondsOnly, secondsToHMS} from "@/utils";
 import {FaFileDownload} from "react-icons/fa";
-import {Clip} from "@/LiveHockeyManager";
-import {Game} from "@/database/database";
+import {Clip, ClipGame, SERVER_ADDRESS} from "@/serverTypes";
 import Link from "next/link";
 import Image from "next/image";
 import {FaArrowUpRightFromSquare} from "react-icons/fa6";
@@ -42,7 +41,7 @@ const PRIOR_CLIP_RECORDING = 10;
 
 
 export function Clipper({blob: gameBlob}: ClipperProps) {
-    const [game, setGame] = useState<Game | null>(null)
+    const [game, setGame] = useState<ClipGame | null>(null)
     const [clips, setClips] = useState<Clip[] | null>(null);
     const [openAddClips, setOpenAddClips] = useBoolean(false);
     const [commentForNewClip, setCommentForNewClip] = useState<string>("");
@@ -69,13 +68,10 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
             if (game && currentTime + 5 * MINUTE_IN_MS < game.startTime && Date.now() + 5 * MINUTE_IN_MS > game.startTime && !game.isLive) {
                 // if the game starts in 5 minutes, and the game isn't live, we should check the server and update our game
                 // (there should be no race condition as all games start broadcast 15 mins before the true start time)
-                fetch('/api/game', {
-                    method: "POST", body: JSON.stringify({
-                        gameBlob,
-                        username,
-                        password,
-                    })
-                }).then(it => it.json()).then((it: { game: Game, clips: Clip[] }) => {
+                fetch(`${SERVER_ADDRESS}/api/clips/games/${gameBlob}`).then(it => it.json()).then((it: {
+                    game: ClipGame,
+                    clips: Clip[]
+                }) => {
                     setGame(it.game)
                     setClips(it.clips)
                 })
@@ -90,14 +86,7 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
             console.log("Requesting!")
             const now = Date.now();
             setInitialTime(now);
-            fetch('/api/game', {
-                method: "POST", body: JSON.stringify({
-                    gameBlob,
-                    username,
-                    password,
-                    startTime: now - 45 * MINUTE_IN_MS,
-                })
-            }).then(it => it.json()).then((it: { game: Game, clips: Clip[] }) => {
+            fetch(`${SERVER_ADDRESS}/api/clips/games/${gameBlob}`).then(it => it.json()).then((it: { game: ClipGame, clips: Clip[] }) => {
                 setGame(it.game)
                 setClips(it.clips)
             })
@@ -274,8 +263,11 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                                             comment: commentForNewClip,
                                         };
                                         setClips([...clips!, newClip])
-                                        fetch('/api/clip/add', {
+                                        fetch(`${SERVER_ADDRESS}/api/clips/add`, {
                                             method: "POST",
+                                            headers:{
+                                                'Content-Type': "application/json",
+                                            },
                                             body: JSON.stringify({
                                                 gameBlob,
                                                 clip: newClip,
@@ -351,6 +343,7 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                     </Grid.Col>
                 </Grid>
             </Center>
+            {!!game.officials.length && <Group><Text fw={600}>Officials:</Text> <Text fs="italic">{game.officials.join(', ')}</Text></Group>}
             <HoverCard disabled={game.isLive || game.startTime <= currentTime}>
                 <HoverCard.Target>
                     <Button size="xl" w="60%" m={10} onClick={() => {

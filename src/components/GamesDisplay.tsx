@@ -1,19 +1,19 @@
 import {AspectRatio, Box, Card, Center, Flex, Grid, Group, Paper, Skeleton, Text} from "@mantine/core";
 import Link from "next/link";
 import Image from "next/image";
-import {Game} from "@/database/database";
 import classes from '@/components/GamesDisplay.module.css'
 import {HTMLAttributes, useEffect, useState} from "react";
 import {useInterval} from "react-use";
+import {ClipGame} from "@/serverTypes";
 
 function PulsingDot(props: HTMLAttributes<HTMLDivElement>) {
     return <span className={classes.statusdot} {...props}></span>
 }
 
 interface GamesDisplayProps {
-    games: Game[] | null;
+    games: ClipGame[] | null;
     missingMessage: string;
-    createLink?: (it: Game) => string;
+    createLink?: (it: ClipGame) => string;
     error?: string | null;
 }
 
@@ -58,7 +58,7 @@ function getDateString(it: number, currentTime: number): string {
         }
     }
 
-    const s = dateToRender.toLocaleTimeString().replace(/:\d\d\s/, ' ');
+    const s = dateToRender.toLocaleTimeString().replace(/:\d\d\s/, '');
     if (dateToRender.getDate() === today.getDate() - 1) {
         return `Yesterday, ${s}`
     } else if (dateToRender.getDate() === today.getDate() + 1) {
@@ -66,8 +66,9 @@ function getDateString(it: number, currentTime: number): string {
     } else if (dateToRender.getDate() === today.getDate()) {
         return `${s}`
     } else if (Math.abs(dateToRender.getTime() - today.getTime()) / WEEK_IN_MS < 1) {
-        const prefix = dateToRender.getTime() > today.getTime() ? 'Next' : 'Last'
-        return `${prefix} ${DAYS[dateToRender.getDay()]}, ${s}`
+        // const prefix = dateToRender.getTime() > today.getTime() ? 'Next' : 'Last'
+        // return `${prefix} ${DAYS[dateToRender.getDay()]}, ${s}`
+        return `${DAYS[dateToRender.getDay()]}, ${s}`
     }
 
     return dateToRender.toLocaleString()
@@ -91,7 +92,7 @@ export function GamesDisplay({
     )
 
     if (error) {
-        return <Paper h={100} ta="center" >
+        return <Paper h={100} ta="center">
             <Flex direction="column" h="100%" justify="space-evenly">
                 <Text fs="italic" c="dimmed">{error}</Text>
             </Flex>
@@ -99,7 +100,7 @@ export function GamesDisplay({
     }
 
     if (!games) {
-        return <Grid flex={3} w="100%" p={20} overflow="scroll">
+        return <Grid flex={3} w="100%" overflow="scroll">
             {Array.from({length: 10})?.map((_, i) => <Grid.Col key={i} span={{
                     base: 6,
                     md: 2
@@ -133,10 +134,11 @@ export function GamesDisplay({
         </Grid>
     }
 
-    return games.length ? <Grid flex={3} w="100%" overflow="scroll">
+    return games.length ? <Grid flex={3} w="100%" overflow="scroll" rowGap="0.4em" columnGap="0.5em">
             {games.map((it) => <Grid.Col key={it.blob} span={{
                     base: 6,
-                    md: 2
+                    md: 3,
+                    xl: 2
                 }}>
                     <Link href={createLink(it)}>
                         <Card shadow="sm" padding="xs" withBorder>
@@ -145,23 +147,31 @@ export function GamesDisplay({
                             </Box>}
                             <Card.Section pt={10}>
                                 <Text fz="1.4em" ta="center" fw={600}>{it.teamOne} vs {it.teamTwo}</Text>
-                                <Text fz="1em" ta="center"><i>{it.competitionName}</i></Text>
+                                <Text fz="1em" ta="center">{it.competitionName}</Text>
+                                <Text size="sm" c="dimmed" fs="italic" fz=".75em">
+                                    {it.isLive ? 'Live!' : getDateString(it.startTime, currentTime)}
+                                </Text>
                             </Card.Section>
-                            <Card.Section mb={10}>
-
-                                <Group h={120} w="100%" justify="center" mb={5} pl={5} pr={5}>
-                                    <Center w="45%"><Image src={it.teamOneImage} alt="Home team image"
-                                                           width={100} height={100}/></Center>
-                                    <Center w="45%"><Image src={it.teamTwoImage} alt="Away team image"
-                                                           width={100} height={100}/></Center>
+                            <Card.Section p={{base: 1, md: 5}}>
+                                <Group h={{base: 100, md: 120}} w="100%" justify="center" px={5}>
+                                    <Center w={{base: '40%', md: '45%'}}>
+                                        <Image src={it.teamOneImage} alt="Home team image" width={100} height={100}/>
+                                    </Center>
+                                    <Center w={{base: '40%', md: '45%'}}>
+                                        <Image src={it.teamTwoImage} alt="Away team image" width={100} height={100}/>
+                                    </Center>
                                 </Group>
 
                             </Card.Section>
 
-                            <Text size="sm" c="dimmed" mb={12}>
-                                <b>Start Time:</b>
-                                <br/>{it.isLive ? 'Live!' : getDateString(it.startTime, currentTime)}
+                            <Text size="sm" c="dimmed" mb={10}>
+                                <b>Umpires:</b>
+                                <br/><i>{it.officials.length ? it.officials.map(i => {
+                                const [first, last] = i.split(' ', 2)
+                                return `${first[0]}. ${last}`
+                            }).join(', ') : 'Not on Altius'}</i>
                             </Text>
+                            
 
                         </Card>
                     </Link>
