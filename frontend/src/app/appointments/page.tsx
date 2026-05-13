@@ -36,6 +36,7 @@ export default function Page() {
     const [genders, setGenders] = useState<{ [key: string]: 'M' | 'F' }>({});
     const [grade, setGrade] = useState<string | null>(null);
     useEffect(() => {
+        console.log(SERVER_ADDRESS)
         fetch(`${SERVER_ADDRESS}/api/appointments`).then(res => res.json()).then(setData);
         fetch(`${SERVER_ADDRESS}/api/appointments/ladder`).then(res => res.json()).then(setLadder);
         fetch(`${SERVER_ADDRESS}/api/appointments/genders`).then(res => res.json()).then(setGenders);
