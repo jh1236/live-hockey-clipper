@@ -122,39 +122,39 @@ def get_appointments(tournaments: tuple[int] = None) -> list[Game]:
 
 
 def _get_officials_from_altius(tournament):
-    os.makedirs(f'./cache', exist_ok=True)
-    if os.path.exists(f'./cache/{tournament}_officials.html'):
-        with open(f'./cache/{tournament}_officials.html', 'r') as f:
+    os.makedirs(f'/cache', exist_ok=True)
+    if os.path.exists(f'/cache/{tournament}_officials.html'):
+        with open(f'/cache/{tournament}_officials.html', 'r') as f:
             return f.read()
     page = urlopen(f"{base_url}/{tournament}/officials")
     html = page.read().decode("utf-8")
-    with open(f'./cache/{tournament}_officials.html', 'w+') as f:
+    with open(f'/cache/{tournament}_officials.html', 'w+') as f:
         f.write(html)
     return html
 
 
 def _get_ladder_from_altius(tournament):
-    os.makedirs(f'./cache', exist_ok=True)
-    if os.path.exists(f'./cache/{tournament}_ladder.html'):
-        with open(f'./cache/{tournament}_ladder.html', 'r') as f:
+    os.makedirs(f'/cache', exist_ok=True)
+    if os.path.exists(f'/cache/{tournament}_ladder.html'):
+        with open(f'/cache/{tournament}_ladder.html', 'r') as f:
             return f.read()
     page = urlopen(f"{base_url}/{tournament}/pools")
     html = page.read().decode("utf-8")
-    with open(f'./cache/{tournament}_ladder.html', 'w+') as f:
+    with open(f'/cache/{tournament}_ladder.html', 'w+') as f:
         f.write(html)
     return html
 
 
 def update_altius_pages():
-    os.makedirs(f'./cache', exist_ok=True)
+    os.makedirs(f'/cache', exist_ok=True)
     for i in DEFAULT_TOURNAMENTS:
         page = urlopen(f"{base_url}/{i}/officials")
         html = page.read().decode("utf-8")
-        with open(f'./cache/{i}_officials.html', 'w+') as f:
+        with open(f'/cache/{i}_officials.html', 'w+') as f:
             f.write(html)
         page = urlopen(f"{base_url}/{i}/pools")
         html = page.read().decode("utf-8")
-        with open(f'./cache/{i}_ladder.html', 'w+') as f:
+        with open(f'/cache/{i}_ladder.html', 'w+') as f:
             f.write(html)
 
 if __name__ == '__main__':
