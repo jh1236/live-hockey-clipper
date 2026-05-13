@@ -259,7 +259,7 @@ def download_clip_for_game(
     output_clip = dataclasses.replace(clip)
     index_url = get_link_from_blob(blob, username, password)
     os.makedirs(f'/videos/output/{blob}', exist_ok=True)
-    output_location = f'/videos/output/{blob}/{output_clip.name}.mp4'
+    output_location = f'/videos/output/{blob}/{clip.name}.mp4'
     args: list[str] = [
         "ffmpeg",
         "-y",
