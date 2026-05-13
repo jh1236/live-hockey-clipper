@@ -71,5 +71,5 @@ def get_game(blob):
 @clips_bp.route('/<blob>/<clip>')
 def stream_file(blob, clip):
     """Serve the video stream files"""
-    directory = os.path.join('./videos/output', blob, clip)
+    directory = os.path.join('/videos/output', blob, clip)
     return send_file(directory)
