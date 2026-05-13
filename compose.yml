@@ -5,19 +5,19 @@ services:
       dockerfile: Dockerfile
     image: hockey-clipper-frontend
     container_name: hockey-clipper-frontend-container
+    ports:
+      - "8081:3000"
     environment:
       NODE_ENV: production
       PORT: "3000"
       BACKEND_ADDRESS: "https://api.clip.jh1236.top"
-    ports:
-      - "8081:3000"
     restart: unless-stopped
   hockey-clipper-backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     image: hockey-clipper-backend
-    container_name: hockey-clipper-frontend-backend
+    container_name: hockey-clipper-backend-container
     ports:
       - "5003:5000"
     restart: unless-stopped
