@@ -20,16 +20,9 @@ export function secondsToHMS(secs: number, includeHours: boolean = true) {
     return `${hours}:${minutes}:${seconds}`;
 }
 
-export function daysIntoYear(date: Date) {
-    return (
-        Date.UTC(date.getFullYear(),
-            date.getMonth(),
-            date.getDate()) - Date.UTC(date.getFullYear(), 0, 0)
-    ) / 24 / 60 / 60 / 1000;
-}
 
 export function getMonday(d: Date) {
-    const day = d.getDay(),
-        diff = d.getDate() - day + (day == 0 ? -6 : 1); // adjust when day is sunday
-    return new Date(d.setDate(diff));
+    const day = d.getDay();
+    const diff = day === 0 ? 6 : day - 1
+    return new Date(d.setDate(d.getDate() - diff));
 }

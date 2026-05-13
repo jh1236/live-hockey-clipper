@@ -15,7 +15,6 @@ from fastapi.encoders import jsonable_encoder
 from pony.orm import db_session, select, commit
 
 import AltiusManager
-from AltiusManager import get_officials
 from database import Images, Users, Games, Clips, Umpires
 from utils import time_to_int, int_to_time, format_iso
 
@@ -129,9 +128,10 @@ def live_hockey_game_to_db_game(game: dict[str, Any], use_stream_time=True, fix_
         team_two_code = _LIVEHOCKEY_CODE_TO_ALTIUS_CODE[team_two_code]
         altius_games = AltiusManager.get_appointments(tournaments=(_COMPS_TO_ALTIUS_ID[comp_name],))
         # if the games are of the same two teams, and start within and hour of eachother, they are probably the correct game
-        altius_game = ([i for i in altius_games if team_one_code in i.teams and team_two_code in i.teams] + [None])[0]
+        TWO_HOURS = 120 * 60 * 1000
+        altius_game = ([i for i in altius_games if team_one_code in i.teams and team_two_code in i.teams and i.start_time - parser.parse(game['start']).timestamp() * 1000 < TWO_HOURS] + [None])[0]
         if altius_game:
-            [out.official_one, out.official_two] = [get_officials()[i] for i in altius_game.umpires]
+            [out.official_one, out.official_two] = [AltiusManager.get_officials()[i] for i in altius_game.umpires]
 
     if fix_for_js:
         out = fix_game_for_js(out)
@@ -142,9 +142,9 @@ def fix_game_for_js(game: Union[Game | Games | dict]) -> dict:
     if isinstance(game, Games):
         game = game.to_dict()
         game['official_one'] = jsonable_encoder(
-            next(i for i in get_officials().values() if i.id == game['official_one']))
+            next(i for i in AltiusManager.get_officials().values() if i.id == game['official_one']))
         game['official_two'] = jsonable_encoder(
-            next(i for i in get_officials().values() if i.id == game['official_two']))
+            next(i for i in AltiusManager.get_officials().values() if i.id == game['official_two']))
     else:
         game = jsonable_encoder(game)
     if game.get('official_one', False) and game.get('official_two', False):
@@ -303,7 +303,6 @@ def get_recent_games(location: str = 'hockeywa', juniors: bool = False, premier_
         params={'slug': f'live{location}'},
         headers={'site-id': 'AU_FH_AUS'},
     ).json()
-    print(structure)
     competitions = structure[0]['competitions']
 
     def comp_filter(comp):

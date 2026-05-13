@@ -6,13 +6,12 @@ import {useEffect, useMemo, useState} from "react";
 import {getMonday} from "@/utils";
 import {AppointmentGame, SERVER_ADDRESS} from "@/serverTypes";
 
-
-const COLORS = [
+const BASE_COLORS = [
     '#e6194b',
     '#3cb44b',
     '#ffe119',
     '#4363d8',
-    '#f58231',
+    '#f66700',
     '#911eb4',
     '#46f0f0',
     '#f032e6',
@@ -20,7 +19,7 @@ const COLORS = [
     '#fabebe',
     '#008080',
     '#e6beff',
-    '#9a6324',
+    '#734a16',
     '#fffac8',
     '#800000',
     '#aaffc3',
@@ -28,7 +27,9 @@ const COLORS = [
     '#ffd8b1',
     '#000075',
     '#808080',
+    '#ffffff'
 ]
+const COLORS = BASE_COLORS.concat(BASE_COLORS.map((_, i) => `url(#diagonal${i})`))
 
 export default function Page() {
     const [ladder, setLadder] = useState<{ [tournament: string]: string[] }>({});
@@ -49,6 +50,14 @@ export default function Page() {
 
     const gradeData = useMemo(() => !grade ? data : data.filter(it => it.grade === grade), [data, grade])
 
+    const officialColors = useMemo(() => Object.fromEntries(
+            gradeData.flatMap(it => it.umpires)
+                .filter((it, i, arr) => arr.indexOf(it) === i)
+                .toSorted()
+                .map((it, i) => [it, COLORS[i % COLORS.length]])
+        ),
+        [gradeData])
+
     const gamesPerUmpire = useMemo(() => {
         const outMap = new Map<string, number>();
         for (const game of gradeData) {
@@ -60,9 +69,9 @@ export default function Page() {
         return [...outMap.entries().map(([name, value], i) => ({
             name,
             value,
-            color: COLORS[i % 20]
+            color: officialColors[name]
         }))].sort((a, b) => a.value - b.value);
-    }, [gradeData])
+    }, [gradeData, officialColors])
 
     const averageLadderForUmpire = useMemo(() => {
         if (!ladder) return []
@@ -75,10 +84,11 @@ export default function Page() {
         console.log(ladder)
         return [...gamesForOfficial.entries().filter(([, games]) => games.length > 1).map(([name, games]) => ({
             name: name,
+            color: officialColors[name],
             'Average Ladder Position': Math.round(games.flatMap(g => g.teams.map(t => ladder[g.tournamentId.toString()].indexOf(t) + 1)).reduce((a, b) => a + b) / (2 * games.length) * 10) / 10
         }))]
 
-    }, [gradeData, ladder])
+    }, [gradeData, ladder, officialColors])
 
     const averageLadderDeltaForUmpire = useMemo(() => {
         if (!ladder) return []
@@ -88,19 +98,20 @@ export default function Page() {
                 gamesForOfficial.set(umpire, [...(gamesForOfficial.get(umpire) ?? []), game])
             }
         }
-        console.log(ladder)
         return [...gamesForOfficial.entries().filter(([, games]) => games.length > 1).map(([name, games]) => ({
             name: name,
+            color: officialColors[name],
             'Average Ladder Delta': Math.round(games.flatMap(g => g.teams.map(t => ladder[g.tournamentId.toString()].indexOf(t)).reduce((a, b) => Math.abs(a - b))).reduce((a, b) => a + b) / (games.length) * 10) / 10
         }))]
 
-    }, [gradeData, ladder])
+    }, [gradeData, ladder, officialColors])
 
-    console.log(averageLadderForUmpire)
+    console.log(gradeData.map(it => new Date(it.startTime).toString()))
 
     const gamesPerUmpirePerWeek = useMemo(() => {
         const outMap: Map<string, { [key: string]: number }> = new Map();
         for (const game of gradeData) {
+
             const week = getMonday(new Date(game.startTime)).toDateString();
             if (!outMap.has(week)) {
                 outMap.set(week, Object.fromEntries(umpires.map(it => [it, 0])))
@@ -160,7 +171,28 @@ export default function Page() {
         }))].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     }, [genders, gradeData])
 
+    const defs = <defs>
+        {BASE_COLORS.map((color, i) =>
+            <pattern
+                key={color}
+                id={`diagonal${i}`}
+                patternUnits="userSpaceOnUse"
+                width={6}
+                height={8}
+                patternTransform="rotate(45)"
+            >
+                <rect
+                    width="2"
+                    height="8"
+                    transform="translate(0,0)"
+                    fill={color}
+                />
+            </pattern>
+        )}
+    </defs>
+
     return <>
+
         <Group w="100%" justify="center">
             <Title ta="center" m={20}>Graphs For</Title>
             <Select w={200} defaultValue="All" data={['All', ...grades]}
@@ -171,16 +203,17 @@ export default function Page() {
             <Grid.Col span={{base: 6, md: 3}} p={10}>
                 <Title order={3} ta="center">Games Umpired</Title>
                 <PieChart data={gamesPerUmpire} withTooltip tooltipDataSource="segment" mx="auto" size={250}
-                          startAngle={90} endAngle={360 + 90} strokeWidth={0}/>
+                          startAngle={90} endAngle={360 + 90} strokeWidth={0}>{defs}</PieChart>
             </Grid.Col>
             <Grid.Col span={{base: 6, md: 3}} p={10}>
                 <Title order={3} ta="center">Weekly Games</Title>
                 {!grade &&
-                    <Text my={5} ta="center" c="dimmed" fs="italic">Only showing umpires with 2+ games for space</Text>}
+                    <Text my={5} ta="center" c="dimmed" fs="italic">For people who have umpired 2+ games</Text>}
                 <BarChart data={gamesPerUmpirePerWeek} withTooltip mx="auto" type="percent"
                           h={300}
                           dataKey="date"
-                          series={umpires.map((name, i) => ({name, color: COLORS[i % 20]}))}/>
+                          series={Object.entries(officialColors).map(([name, color]) => ({name, color}))}
+                >{defs}</BarChart>
             </Grid.Col>
             <Grid.Col span={{base: 6, md: 3}} p={10}>
                 <Title order={3} ta="center">Games by Gender</Title>
@@ -193,6 +226,7 @@ export default function Page() {
                           withLabels
                           labelsPosition="inside"
                           startAngle={90} endAngle={360 + 90} strokeWidth={0}>
+                    {defs}
                 </PieChart>
             </Grid.Col>
             <Grid.Col span={{base: 6, md: 3}} p={10}>
@@ -203,11 +237,12 @@ export default function Page() {
                            withTooltip
                            mx="auto" series={[{name: 'Percentage of Games Umpired by Women', color: '#CC00CC'}]}
                            dataKey="date" curveType="linear">
+                    {defs}
                 </LineChart>
             </Grid.Col>
             <Grid.Col span={{base: 6, md: 3}} p={10}>
                 <Title order={3} ta="center">Average Ladder Position of Game</Title>
-                <Text my={5} ta="center" c="dimmed" fs="italic">Lower is better</Text>
+                <Text my={5} ta="center" c="dimmed" fs="italic">For people who have umpired 2+ games</Text>
                 <BarChart
                     h={300}
                     data={averageLadderForUmpire}
@@ -215,14 +250,13 @@ export default function Page() {
                     type='stacked'
                     series={[{
                         name: 'Average Ladder Position',
-                        color: '#CC0000'
                     }]}
                     tickLine="y"
-                />
+                >{defs}</BarChart>
             </Grid.Col>
             <Grid.Col span={{base: 6, md: 3}} p={10}>
                 <Title order={3} ta="center">Average Ladder Delta Position of Game</Title>
-                <Text my={5} ta="center" c="dimmed" fs="italic">Lower is better</Text>
+                <Text my={5} ta="center" c="dimmed" fs="italic">For people who have umpired 2+ games</Text>
                 <BarChart
                     h={300}
                     data={averageLadderDeltaForUmpire}
@@ -230,10 +264,9 @@ export default function Page() {
                     type='stacked'
                     series={[{
                         name: 'Average Ladder Delta',
-                        color: '#CC0000'
                     }]}
                     tickLine="y"
-                />
+                >{defs}</BarChart>
             </Grid.Col>
         </Grid></>
 }
