@@ -287,7 +287,7 @@ def download_clip_for_game(
     if return_code != 0:
         return None
 
-    output_clip.link = f'{ADDRESS}/videos/{blob}/{clip.name}.mp4'
+    output_clip.link = f'{ADDRESS}/api/clips/{blob}/{clip.name}.mp4'
     return output_clip
 
 
