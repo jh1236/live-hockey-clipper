@@ -1,0 +1,12 @@
+bs4
+flask
+fastapi
+python-dateutil
+flask-cors
+flask-cors
+pony
+requests
+pyhumps
+cachetools
+gunicorn
+schedule
