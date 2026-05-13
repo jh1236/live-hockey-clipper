@@ -210,7 +210,6 @@ def _db_set_live_hockey_token(username, token):
 
 
 def _web_get_live_hockey_token(username, password):
-    print(default_details)
     response = requests.post(
         "https://api.livearenasports.com/user/login",
         json={'userName': username, 'password': password},
@@ -221,7 +220,6 @@ def _web_get_live_hockey_token(username, password):
     )
     response.raise_for_status()
     response = response.json()
-    print(response)
     token = response.get('jwt_token', None)
     return token
 

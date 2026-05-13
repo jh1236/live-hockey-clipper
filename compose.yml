@@ -4,7 +4,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        BACKEND_ADDRESS: "https://api.clip.jh1236.top"
+        BACKEND_ADDRESS: "http://localhost:5003"
     image: hockey-clipper-frontend
     container_name: hockey-clipper-frontend-container
     ports:
@@ -17,8 +17,15 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    volumes:
+      - db:/database
+      - cache:/cache
     image: hockey-clipper-backend
     container_name: hockey-clipper-backend-container
     ports:
       - "5003:5000"
     restart: unless-stopped
+
+volumes:
+  db-data:
+  cache:

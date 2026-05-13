@@ -4,7 +4,7 @@ db = Database()
 
 
 def init_db():
-    db.bind(provider='sqlite', filename='../resources/database.db')
+    db.bind(provider='sqlite', filename='../database/database.db', create_db=True)
     db.generate_mapping(create_tables=False)
 
 
