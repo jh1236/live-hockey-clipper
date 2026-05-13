@@ -21,7 +21,7 @@ def add_clip():
     password = data.get('password', None)
 
     game = Games.get(blob=blob)
-    if not game:
+    if game is None:
         return 'Game not found', 404
 
     return_clip = LiveHockeyManager.download_clip_for_game(blob, clip, quality, username, password)

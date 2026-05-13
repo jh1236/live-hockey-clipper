@@ -55,7 +55,7 @@ class Game:
         d = dataclasses.asdict(self)
         d['official_one'] = Umpires.get(name=d['official_one']['name'])
         d['official_two'] = Umpires.get(name=d['official_two']['name'])
-        return Game(**d)
+        return Games(**d)
 
 
 def _convert_comp_name(comp):
