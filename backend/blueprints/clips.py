@@ -9,6 +9,7 @@ import LiveHockeyManager
 from database import Games, Clips
 from utils import time_to_int
 
+
 clips_bp = Blueprint('clips_bp', __name__, url_prefix='/clips')
 
 @clips_bp.post('/add')

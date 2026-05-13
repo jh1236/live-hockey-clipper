@@ -2,6 +2,7 @@ import dataclasses
 import json
 import os
 import re
+import subprocess
 import time
 from datetime import datetime, UTC, timedelta
 from re import RegexFlag
@@ -9,19 +10,19 @@ from typing import Any, Union
 
 import cachetools.func
 import requests
-import subprocess
-
 from dateutil import parser
 from fastapi.encoders import jsonable_encoder
 from pony.orm import db_session, select, commit
 
 import AltiusManager
-from AltiusManager import NAME_TO_CODE, get_officials
-from database import Images, Users, init_db, Games, Clips, Umpires
+from AltiusManager import get_officials
+from database import Images, Users, Games, Clips, Umpires
 from utils import time_to_int, int_to_time, format_iso
 
 with open('./resources/liveHockeyDefault.json', 'r') as f:
     default_details: dict[str, str] = json.load(f)
+
+ADDRESS = os.environ['ADDRESS']
 
 
 @dataclasses.dataclass
@@ -51,6 +52,7 @@ class Game:
     official_one: AltiusManager.Official | None = None
     official_two: AltiusManager.Official | None = None
 
+    @db_session
     def save_to_db(self):
         d = dataclasses.asdict(self)
         d['official_one'] = Umpires.get(name=d['official_one']['name'])
@@ -139,6 +141,10 @@ def live_hockey_game_to_db_game(game: dict[str, Any], use_stream_time=True, fix_
 def fix_game_for_js(game: Union[Game | Games | dict]) -> dict:
     if isinstance(game, Games):
         game = game.to_dict()
+        game['official_one'] = jsonable_encoder(
+            next(i for i in get_officials().values() if i.id == game['official_one']))
+        game['official_two'] = jsonable_encoder(
+            next(i for i in get_officials().values() if i.id == game['official_two']))
     else:
         game = jsonable_encoder(game)
     if game.get('official_one', False) and game.get('official_two', False):
@@ -252,8 +258,8 @@ def download_clip_for_game(
 ):
     output_clip = dataclasses.replace(clip)
     index_url = get_link_from_blob(blob, username, password)
-    os.makedirs(f'./videos/output/{blob}', exist_ok=True)
-    output_location = f'./videos/output/{blob}/{output_clip.name}.mp4'
+    os.makedirs(f'/videos/output/{blob}', exist_ok=True)
+    output_location = f'/videos/output/{blob}/{output_clip.name}.mp4'
     args: list[str] = [
         "ffmpeg",
         "-y",
@@ -281,7 +287,7 @@ def download_clip_for_game(
     if return_code != 0:
         return None
 
-    output_clip.link = f'http://localhost:5000/videos/{blob}/{clip.name}.mp4'
+    output_clip.link = f'{ADDRESS}/videos/{blob}/{clip.name}.mp4'
     return output_clip
 
 
