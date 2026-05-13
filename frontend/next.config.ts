@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
         remotePatterns: [new URL('https://files.livearenasports.com/files/**')],
         dangerouslyAllowSVG: true,
     },
+    output: 'standalone'
 };
 
 export default nextConfig;

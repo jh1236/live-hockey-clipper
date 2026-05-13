@@ -1,0 +1,22 @@
+services:
+  hockey-clipper-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: hockey-clipper-frontend
+    container_name: hockey-clipper-frontend-container
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+  hockey-clipper-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: hockey-clipper-backend
+    container_name: hockey-clipper-frontend-backend
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
