@@ -1,4 +1,4 @@
-export const SERVER_ADDRESS = 'http://localhost:5000';
+export const SERVER_ADDRESS = process.env.BACKEND_ADDRESS
 
 export type Clip = {
     timecode: string,
