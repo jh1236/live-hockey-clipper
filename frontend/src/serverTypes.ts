@@ -1,4 +1,4 @@
-export const SERVER_ADDRESS = process.env.BACKEND_ADDRESS
+export const SERVER_ADDRESS = process.env.NEXT_PUBLIC_BACKEND_ADDRESS
 
 export type Clip = {
     timecode: string,
