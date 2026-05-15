@@ -147,6 +147,9 @@ def _get_ladder_from_altius(tournament):
 
 def update_altius_pages():
     os.makedirs(f'/cache', exist_ok=True)
+    import LiveHockeyManager
+    # reset the cache - we have
+    LiveHockeyManager.get_recent_games.RECENT_GAMES_RESPONSES = {}
     for i in DEFAULT_TOURNAMENTS:
         page = urlopen(f"{base_url}/{i}/officials")
         html = page.read().decode("utf-8")

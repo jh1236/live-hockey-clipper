@@ -1,11 +1,11 @@
 import dataclasses
 import json
+import logging
 import os
 import re
 import subprocess
 import time
 from datetime import datetime, UTC, timedelta
-from re import RegexFlag
 from typing import Any, Union
 
 import cachetools.func
@@ -22,6 +22,8 @@ with open('./resources/liveHockeyDefault.json', 'r') as f:
     default_details: dict[str, str] = json.load(f)
 
 ADDRESS = os.environ['ADDRESS']
+
+logger = logging.Logger('LiveHockeyManager')
 
 
 @dataclasses.dataclass
@@ -54,23 +56,27 @@ class Game:
     @db_session
     def save_to_db(self):
         d = dataclasses.asdict(self)
-        d['official_one'] = Umpires.get(name=d['official_one']['name'])
-        d['official_two'] = Umpires.get(name=d['official_two']['name'])
+        if self.official_one is not None:
+            d['official_one'] = Umpires.get(name=d['official_one']['name'])
+        if self.official_two is not None:
+            d['official_two'] = Umpires.get(name=d['official_two']['name'])
         return Games(**d)
 
 
 def _convert_comp_name(comp):
     comp = re.sub('^WA J?', '', comp)
-    comp = re.sub('Premier League -', 'Prem One', comp, flags=RegexFlag.IGNORECASE)
-    comp = re.sub(r'Premier div 2 -', r'Prem Two', comp, flags=RegexFlag.IGNORECASE)
-    comp = re.sub(r'Premier div 3 -', r'Prem Three', comp, flags=RegexFlag.IGNORECASE)
-    comp = re.sub(r'B(\d*)', r'Div \1 Boys', comp)
-    comp = re.sub(r'G(\d*)', r'Div \1 Girls', comp)
+    comp = re.sub('DIVISION', 'Div', comp, flags=re.IGNORECASE)
+    comp = re.sub('Premier League -', 'Prem One', comp, flags=re.IGNORECASE)
+    comp = re.sub(r'Premier div 2 -', r'Prem Two', comp, flags=re.IGNORECASE)
+    comp = re.sub(r'Premier div 3 -', r'Prem Three', comp, flags=re.IGNORECASE)
     comp = re.sub('DIV', 'Div', comp)
-    comp = re.sub('MEN', 'Men', comp, flags=RegexFlag.IGNORECASE)
-    comp = re.sub('WOMEN', 'Women', comp, flags=RegexFlag.IGNORECASE)
+    comp = re.sub('MEN', 'Men', comp, flags=re.IGNORECASE)
+    comp = re.sub('WOMEN', 'Women', comp, flags=re.IGNORECASE)
     comp = re.sub('RB Pennant -', 'Rae Blunt', comp)
+    comp = re.sub(r'B(\d+)', r'Div \1 Boys', comp)
+    comp = re.sub(r'G(\d+)', r'Div \1 Girls', comp)
     comp = re.sub('[()]', '', comp)
+    comp = re.sub('div div', 'div', comp, flags=re.IGNORECASE)
 
     return comp
 
@@ -103,7 +109,7 @@ _LIVEHOCKEY_CODE_TO_ALTIUS_CODE = {i: i for i in AltiusManager.NAME_TO_CODE.valu
 }
 
 
-def live_hockey_game_to_db_game(game: dict[str, Any], use_stream_time=True, fix_for_js=False) -> Game:
+def live_hockey_game_to_db_game(game: dict[str, Any], use_stream_time=True, fix_for_js=False) -> Game | dict:
     stream_start = game.get('streamStart', None)
     comp_name = _convert_comp_name(game['competition']['playerLevel']['name'])
     team_one_code = game['homeTeam']['shortName']
@@ -128,13 +134,20 @@ def live_hockey_game_to_db_game(game: dict[str, Any], use_stream_time=True, fix_
         team_two_code = _LIVEHOCKEY_CODE_TO_ALTIUS_CODE[team_two_code]
         altius_games = AltiusManager.get_appointments(tournaments=(_COMPS_TO_ALTIUS_ID[comp_name],))
         # if the games are of the same two teams, and start within and hour of eachother, they are probably the correct game
-        TWO_HOURS = 120 * 60 * 1000
-        altius_game = ([i for i in altius_games if team_one_code in i.teams and team_two_code in i.teams and i.start_time - parser.parse(game['start']).timestamp() * 1000 < TWO_HOURS] + [None])[0]
+        TWO_HOURS = 2 * 60 * 60
+        start_time = parser.parse(game['start']).timestamp()
+        altius_game = ([i for i in altius_games if
+                        team_one_code in i.teams and team_two_code in i.teams and abs(i.start_time / 1000 - start_time) < TWO_HOURS] + [
+                           None])[0]
         if altius_game:
+            logger.warning(f'{altius_game.start_time / 1000} - {start_time} < 2 Hours = {altius_game.start_time - start_time < TWO_HOURS}')
             [out.official_one, out.official_two] = [AltiusManager.get_officials()[i] for i in altius_game.umpires]
-
+        else:
+            out.official_one = None
+            out.official_two = None
     if fix_for_js:
         out = fix_game_for_js(out)
+        logger.warning(out)
     return out
 
 
@@ -295,8 +308,13 @@ def main():
     print(download_clip_for_game('69edabc3ea763622a3811683', Clip('0', '0', 'test'), 3))
 
 
-@cachetools.func.ttl_cache(ttl=60 * 5)
-def get_recent_games(location: str = 'hockeywa', juniors: bool = False, premier_only: bool = False):
+def get_recent_games(location: str = 'hockeywa', juniors: bool = False, premier_only: bool = False,
+                     masters: bool = False):
+    key = (location, juniors, premier_only, masters)
+    current_timestamp = datetime.now(UTC).timestamp()
+    update_required_timestamp, out = get_recent_games.RECENT_GAMES_RESPONSES.get(key, (0, None))
+    if current_timestamp < update_required_timestamp:
+        return out
     this_year = str(datetime.now().year)
     structure = requests.get(
         f'https://api.livearenasports.com/site/structure',
@@ -311,15 +329,16 @@ def get_recent_games(location: str = 'hockeywa', juniors: bool = False, premier_
         if this_year not in name:
             return False
         if premier_only:
-            import re
-            if juniors and re.search(r'WA J ((9\/10)|(11\/12)) Division 1', name):
+            if juniors and re.search(r'WA J ((9/10)|(11/12)) Division 1', name):
                 return True
             return 'premier' in name.lower()
         else:
-            if juniors:
-                return True
-            import re
-            return not re.search(r'WA J ((5\/6)|(7\/8)|(9\/10)|(11\/12))', name)
+            output = True
+            if not masters:
+                output &= not re.search(r'WA ((Rae Blunt)|(O\d{2}))', name)
+            if not juniors:
+                output &= not re.search(r'WA J \d{1,2}/\d{1,2}', name)
+            return output
 
     comps = [c for c in competitions if comp_filter(c)]
     now = datetime.now(UTC)
@@ -344,4 +363,9 @@ def get_recent_games(location: str = 'hockeywa', juniors: bool = False, premier_
     ]
     recent_raw = requests.get(past_base, params=past_params, headers={'site-id': 'AU_FH_AUS'}).json()
     recent = [live_hockey_game_to_db_game(g, False, True) for g in recent_raw]
+    update_required_timestamp = min([i["start_time"] / 1000 for i in upcoming] + [date_to.timestamp()])
+    get_recent_games.RECENT_GAMES_RESPONSES[key] = (update_required_timestamp, (recent, upcoming))
     return recent, upcoming
+
+
+get_recent_games.RECENT_GAMES_RESPONSES = {}

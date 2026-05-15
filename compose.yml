@@ -4,7 +4,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        BACKEND_ADDRESS: "https://api.clip.jh1236.top"
+        BACKEND_ADDRESS: "http://localhost:5003"
     image: hockey-clipper-frontend
     container_name: hockey-clipper-frontend-container
     ports:
@@ -23,8 +23,10 @@ services:
       - videos:/video
     image: hockey-clipper-backend
     container_name: hockey-clipper-backend-container
+    command: 'python -m flask --app app run --debug --host 0.0.0.0 -p 5000'
     environment:
-      ADDRESS: "https://api.clip.jh1236.top"
+      ADDRESS: "http://localhost:5003"
+      GUNICORN_CMD_ARGS: "--capture-output"
     ports:
       - "5003:5000"
     restart: unless-stopped

@@ -169,7 +169,7 @@ export function GamesDisplay({
                                 <br/><i>{it.officials.length ? it.officials.map(i => {
                                 const [first, last] = i.split(' ', 2)
                                 return `${first[0]}. ${last}`
-                            }).join(', ') : 'Not on Altius'}</i>
+                            }).join(', ') : it.altiusLink ? 'Not set on Altius' : 'Game not on Altius'}</i>
                             </Text>
                             
 

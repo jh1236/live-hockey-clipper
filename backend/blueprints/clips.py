@@ -47,7 +47,8 @@ def get_recent_games_web():
     location = request.args.get('location', '')
     juniors = request.args.get('juniors') == 'true'
     premier_only = request.args.get('premier') == 'true'
-    recent, upcoming = LiveHockeyManager.get_recent_games(location, juniors, premier_only)
+    masters = request.args.get('masters') == 'true'
+    recent, upcoming = LiveHockeyManager.get_recent_games(location, juniors, premier_only, masters)
 
     return jsonify({'upcoming': upcoming, 'recent': recent})
 

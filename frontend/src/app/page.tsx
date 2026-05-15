@@ -14,14 +14,16 @@ export default function Page() {
     const [upcoming, setUpcoming] = useState<ClipGame[] | null>(null)
     const [recent, setRecent] = useState<ClipGame[] | null>(null)
     const [premierOnly, setPremierOnly] = useLocalStorage<boolean>("premierOnly", true);
+    const [includeMasters, setIncludeMasters] = useLocalStorage<boolean>("includeMasters", false);
     const [includeJuniors, setIncludeJuniors] = useLocalStorage<boolean>("includeJuniors", false);
 
     useEffect(() => {
-        if (includeJuniors === undefined || premierOnly === undefined) return;
+        if (includeJuniors === undefined || premierOnly === undefined || includeMasters === undefined) return;
         const url = new URL(`${SERVER_ADDRESS}/api/clips/games/recent`, window.location.origin);
         url.searchParams.append('location', 'hockeywa')
         url.searchParams.append('juniors', '' + includeJuniors)
         url.searchParams.append('premier', '' + premierOnly)
+        url.searchParams.append('masters', '' + includeMasters)
         let cancelled = false
         fetch(url)
             .then((it) => it.json())
@@ -36,7 +38,7 @@ export default function Page() {
         return () => {
             cancelled = true
         }
-    }, [includeJuniors, premierOnly]);
+    }, [includeJuniors, includeMasters, premierOnly]);
 
 
     const gameBlobError = !/^[0-9a-zA-Z]*$/.test(gameBlob);
@@ -64,10 +66,23 @@ export default function Page() {
                                 label="Include Junior Fixtures?"></Checkbox>
                             <Checkbox
                                 m={10}
+                                checked={includeMasters ?? false}
+                                disabled={premierOnly}
+                                onChange={e => {
+                                    setRecent(null)
+                                    setUpcoming(null)
+                                    setIncludeMasters(e.target.checked)
+                                }}
+                                label="Include Masters Fixtures?"></Checkbox>
+                            <Checkbox
+                                m={10}
                                 checked={!premierOnly}
                                 onChange={e => {
                                     setRecent(null)
                                     setUpcoming(null)
+                                    if (!e.target.checked) {
+                                        setIncludeMasters(false)
+                                    }
                                     setPremierOnly(!e.target.checked)
                                 }}
                                 label="Include Non Premier Fixtures?"></Checkbox>
