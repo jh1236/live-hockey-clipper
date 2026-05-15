@@ -1,20 +1,34 @@
+import atexit
 import json
+import logging
 import os
 import shutil
+import threading
 
 import humps
+from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask
 from flask_cors import CORS
 from pony.flask import Pony
-import schedule
-
-from AltiusManager import update_altius_pages
-
-schedule.every().day.at('12:00').do(update_altius_pages)
-schedule.every().day.at('00:00').do(update_altius_pages)
 
 from blueprints import api
 from database import init_db
+from AltiusManager import update_altius_pages
+
+logging.getLogger().setLevel(logging.INFO)
+
+
+def scheduled():
+    logging.info('Getting updates from altius')
+    update_altius_pages()
+
+
+scheduler = BackgroundScheduler()
+
+atexit.register(scheduler.shutdown)
+
+scheduler.add_job(scheduled, 'interval', minutes=30)
+scheduler.start()
 
 DAY_IN_MS = 1000 * 60 * 60 * 24
 HOUR_IN_MS = 1000 * 60 * 60
@@ -28,6 +42,7 @@ if not os.path.exists('/database/database.db'):
     shutil.copy('./resources/database.db', '/database/database.db')
 
 init_db()
+
 
 @app.after_request
 def to_camel_case(response):

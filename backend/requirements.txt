@@ -9,4 +9,4 @@ requests
 pyhumps
 cachetools
 gunicorn
-schedule
+APScheduler

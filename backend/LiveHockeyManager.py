@@ -103,8 +103,8 @@ _LIVEHOCKEY_CODE_TO_ALTIUS_CODE = {i: i for i in AltiusManager.NAME_TO_CODE.valu
     'MOG': 'MOGM',
     'NEW': 'NKHC',
     'NKH': 'NKHC',
-    'SUB': 'SUBS',
-    'LIO': 'SUBS',
+    'SUB': 'LIONS',
+    'LIO': 'LIONS',
     'YMC': 'YMCC'
 }
 
@@ -140,6 +140,7 @@ def live_hockey_game_to_db_game(game: dict[str, Any], use_stream_time=True, fix_
                         team_one_code in i.teams and team_two_code in i.teams and abs(i.start_time / 1000 - start_time) < TWO_HOURS] + [
                            None])[0]
         if altius_game:
+            print(altius_game.umpires)
             [out.official_one, out.official_two] = [AltiusManager.get_officials()[i] for i in altius_game.umpires]
         else:
             out.official_one = None
@@ -160,10 +161,13 @@ def fix_game_for_js(game: Union[Game | Games | dict]) -> dict:
         game = jsonable_encoder(game)
     if game.get('official_one', False) and game.get('official_two', False):
         game['officials'] = [i for i in [game['official_one']['name'], game['official_two']['name']] if i]
-        del game['official_one']
         del game['official_two']
     else:
         game['officials'] = []
+    for i in ['one', 'two']:
+        if f'official_{i}' in game:
+            del game[f'official_{i}']
+
     game['start_time'] *= 1000
     game['last_server_ping'] *= 1000
     return game
