@@ -27,6 +27,9 @@ scheduler = BackgroundScheduler()
 
 atexit.register(scheduler.shutdown)
 
+# update the altius w/o halting startup
+threading.Thread(target=scheduled).start()
+
 scheduler.add_job(scheduled, 'interval', minutes=30)
 scheduler.start()
 
