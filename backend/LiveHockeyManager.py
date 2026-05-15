@@ -140,14 +140,12 @@ def live_hockey_game_to_db_game(game: dict[str, Any], use_stream_time=True, fix_
                         team_one_code in i.teams and team_two_code in i.teams and abs(i.start_time / 1000 - start_time) < TWO_HOURS] + [
                            None])[0]
         if altius_game:
-            logger.warning(f'{altius_game.start_time / 1000} - {start_time} < 2 Hours = {altius_game.start_time - start_time < TWO_HOURS}')
             [out.official_one, out.official_two] = [AltiusManager.get_officials()[i] for i in altius_game.umpires]
         else:
             out.official_one = None
             out.official_two = None
     if fix_for_js:
         out = fix_game_for_js(out)
-        logger.warning(out)
     return out
 
 
