@@ -271,21 +271,36 @@ def download_clip_for_game(
         password: str = None
 ):
     logger.error('Downloading clip for game %s', blob)
-    logger.error('\tStart time: %s', str(max(time_to_int(clip.timecode), 0)))
+    clip_start_time = max(time_to_int(clip.timecode) - 2, 0)
+    clip_end_time = max(time_to_int(clip.timecode) + time_to_int(clip.length) + 2, 0)
+    logger.error('\tStart time: %s', clip_start_time)
     logger.error('\tLength: %s', str(time_to_int(clip.length)))
     output_clip = dataclasses.replace(clip)
+    
     index_url = get_link_from_blob(blob, username, password)
+    index_file = requests.get(index_url).text
+    
+    files=[]
+    prev_time = 0
+    current_time = 0
+    first_time = -1
+    for line in index_file.split('\n'):
+        if line.startswith("#EXTINF:"):
+            prev_time = current_time
+            current_time = prev_time + float(line.split("#EXTINF:")[1].split(",")[0])
+        elif not line.startswith('#') and current_time > clip_start_time and prev_time < clip_end_time:
+            if first_time < 0:
+                first_time = current_time
+            files.append(line)
+
     os.makedirs(f'/videos/output/{blob}', exist_ok=True)
     output_location = f'/videos/output/{blob}/{clip.name}.mp4'
     args: list[str] = [
         "ffmpeg",
+        "-protocol_whitelist", "file,http,https,tcp,tls,crypto,concat",
         "-y",
-        "-ss", str(max(time_to_int(clip.timecode) - 10, 0)),
-        "-copyts",
-        "-start_at_zero",
-        "-i", index_url,
-        "-af", "aresample=async=1",
-        "-ss", str(max(time_to_int(clip.timecode) - 2, 0)),
+        "-i", "concat:" + "|".join(files),
+        "-ss", str(clip_start_time - first_time),
         "-t", str(time_to_int(clip.length) + 4),
         "-c:v", "libx264",
         "-c:a", "aac",
@@ -303,6 +318,7 @@ def download_clip_for_game(
 
     output_clip.link = f'{ADDRESS}/api/clips/{blob}/{clip.name}.mp4'
     return output_clip
+        
 
 
 def main():
