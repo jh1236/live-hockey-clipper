@@ -12,7 +12,7 @@ NullableOptional = lambda a: Optional(a, nullable=True)
 
 class Umpires(db.Entity):
     id = PrimaryKey(int, auto=True)
-    name = Required(str)
+    name = Required(str, unique=True)
     gender = Required(str)
     time_created = NullableOptional(int)
     games_first_official = Set('Games', reverse='official_one')

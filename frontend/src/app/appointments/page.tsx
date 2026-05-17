@@ -32,17 +32,36 @@ const BASE_COLORS = [
 const COLORS = BASE_COLORS.concat(BASE_COLORS.map((_, i) => `url(#diagonal${i})`))
 
 export default function Page() {
-    const [ladder, setLadder] = useState<{ [tournament: string]: string[] }>({});
-    const [data, setData] = useState<AppointmentGame[]>([]);
+    const [year, setYear] = useState<string>(new Date().getFullYear().toString());
+    const [gradesInYears, setGradesInYears] = useState<{
+        [year: string]: string[]
+    }>({/*'All': ['Premier One Men', 'Premier One Women', 'Premier Two Men', 'Premier Two Women']*/})
+    const [ladders, setLadders] = useState<{ [tournament: string]: string[] }>({});
+    const [allTimeData, setAllTimeData] = useState<{ [key: string]: AppointmentGame[] }>({})
+    const data = useMemo(() => allTimeData[year] ?? [], [allTimeData, year]);
     const [genders, setGenders] = useState<{ [key: string]: 'M' | 'F' }>({});
     const [grade, setGrade] = useState<string | null>(null);
     useEffect(() => {
-        console.log(SERVER_ADDRESS)
-        fetch(`${SERVER_ADDRESS}/api/appointments`).then(res => res.json()).then(setData);
-        fetch(`${SERVER_ADDRESS}/api/appointments/ladder`).then(res => res.json()).then(setLadder);
-        fetch(`${SERVER_ADDRESS}/api/appointments/genders`).then(res => res.json()).then(setGenders);
+        fetch(`${SERVER_ADDRESS}/api/appointments/available`).then(res => res.json()).then(it => setGradesInYears(prev => Object.assign(prev, it)));
+        fetch(`${SERVER_ADDRESS}/api/umpires/genders`).then(res => res.json()).then(setGenders);
     }, []);
-    console.log(data.filter(it => !it.umpires))
+
+    useEffect(() => {
+        if (year.toString() in allTimeData) return;
+        const yearToFetch = year
+        fetch(`${SERVER_ADDRESS}/api/appointments?year=${yearToFetch}`).then(res => res.json()).then(it => {
+                if (!(year.toString() in allTimeData)) {
+                    setAllTimeData(prev => ({...prev, [yearToFetch.toString()]: it}))
+                }
+            }
+        );
+        fetch(`${SERVER_ADDRESS}/api/appointments/ladder?year=${yearToFetch}`).then(res => res.json()).then(it => {
+                setLadders(prev => Object.assign(prev, it))
+            }
+        );
+        // if we fulfil the exhaustive deps, then the code will run when we update all time data (which is useless)
+        // eslint-disable-next-line
+    }, [year]);
     const umpires = useMemo(() => data.flatMap(it => it.umpires)
         .filter((v, i, arr) => arr.indexOf(v) === i), [data])
     const grades = useMemo(() => data.map(it => it.grade)
@@ -74,24 +93,23 @@ export default function Page() {
     }, [gradeData, officialColors])
 
     const averageLadderForUmpire = useMemo(() => {
-        if (!ladder) return []
+        if (!ladders) return []
         const gamesForOfficial = new Map<string, AppointmentGame[]>();
         for (const game of gradeData) {
             for (const umpire of game.umpires) {
                 gamesForOfficial.set(umpire, [...(gamesForOfficial.get(umpire) ?? []), game])
             }
         }
-        console.log(ladder)
         return [...gamesForOfficial.entries().filter(([, games]) => games.length > 1).map(([name, games]) => ({
             name: name,
             color: officialColors[name],
-            'Average Ladder Position': Math.round(games.flatMap(g => g.teams.map(t => ladder[g.tournamentId.toString()].indexOf(t) + 1)).reduce((a, b) => a + b) / (2 * games.length) * 10) / 10
+            'Average Ladder Position': Math.round(games.filter(it => it.tournamentId in ladders).flatMap(g => g.teams.map(t => ladders[g.tournamentId.toString()].indexOf(t) + 1)).reduce((a, b) => a + b, 0) / (2 * games.length) * 10) / 10
         }))]
 
-    }, [gradeData, ladder, officialColors])
+    }, [gradeData, ladders, officialColors])
 
     const averageLadderDeltaForUmpire = useMemo(() => {
-        if (!ladder) return []
+        if (!ladders) return []
         const gamesForOfficial = new Map<string, AppointmentGame[]>();
         for (const game of gradeData) {
             for (const umpire of game.umpires) {
@@ -101,10 +119,10 @@ export default function Page() {
         return [...gamesForOfficial.entries().filter(([, games]) => games.length > 1).map(([name, games]) => ({
             name: name,
             color: officialColors[name],
-            'Average Ladder Delta': Math.round(games.flatMap(g => g.teams.map(t => ladder[g.tournamentId.toString()].indexOf(t)).reduce((a, b) => Math.abs(a - b))).reduce((a, b) => a + b) / (games.length) * 10) / 10
+            'Average Ladder Delta': Math.round(games.filter(it => it.tournamentId in ladders).flatMap(g => g.teams.map(t => ladders[g.tournamentId.toString()].indexOf(t)).reduce((a, b) => Math.abs(a - b))).reduce((a, b) => a + b, 0) / (games.length) * 10) / 10
         }))]
 
-    }, [gradeData, ladder, officialColors])
+    }, [gradeData, ladders, officialColors])
 
     console.log(gradeData.map(it => new Date(it.startTime).toString()))
 
@@ -198,6 +216,11 @@ export default function Page() {
             <Select w={200} defaultValue="All" data={['All', ...grades]}
                     value={grade ?? 'All'}
                     onChange={it => setGrade((!it || it === 'All') ? null : it)}/>
+            <Title ta="center" m={20}> In </Title>
+            <Select w={100}
+                    data={Object.keys(gradesInYears)}
+                    value={year}
+                    onChange={e => setYear((e ?? new Date().getFullYear()).toString())}/>
         </Group>
         <Grid w="100%" gap={3} p={20}>
             <Grid.Col span={{base: 6, md: 3}} p={10}>

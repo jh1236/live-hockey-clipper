@@ -12,5 +12,6 @@ def time_to_int(timestr):
         seconds = seconds * 60 + int(part, 10)
     return seconds
 
+
 def format_iso(dt: datetime) -> str:
     return dt.isoformat(timespec='milliseconds').replace('+00:00', '') + 'Z'

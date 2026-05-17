@@ -55,6 +55,8 @@ def to_camel_case(response):
     if not isinstance(body, list) or len(body) != 1:
         return response
     body = body[0]
+    if not body:
+        return response
     body = json.loads(body)
     if isinstance(body, dict):
         new_body = humps.camelize(

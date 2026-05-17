@@ -23,6 +23,8 @@ with open('./resources/liveHockeyDefault.json', 'r') as f:
 
 ADDRESS = os.environ['ADDRESS']
 
+TWO_HOURS = 2 * 60 * 60
+
 logger = logging.Logger('LiveHockeyManager')
 
 
@@ -81,14 +83,9 @@ def _convert_comp_name(comp):
     return comp
 
 
-_COMPS_TO_ALTIUS_ID = {
-    'Prem One Men': 57,
-    'Prem One Women': 58,
-    'Prem Two Men': 59,
-    'Prem Two Women': 60,
-}
+_COMPS_TO_ALTIUS_ID = AltiusManager.YEAR_TO_TOURNAMENT_ID[datetime.now().year]
 
-_LIVEHOCKEY_CODE_TO_ALTIUS_CODE = {i: i for i in AltiusManager.NAME_TO_CODE.values()} | {
+_LIVEHOCKEY_CODE_TO_ALTIUS_CODE = {i: i for i in set(AltiusManager.FIX_ALTIUS_CODE.values())} | {
     'FRE': 'FCHC',
     'FCH': 'FCHC',
     'WHC': 'WHIT',
@@ -96,6 +93,7 @@ _LIVEHOCKEY_CODE_TO_ALTIUS_CODE = {i: i for i in AltiusManager.NAME_TO_CODE.valu
     'WSP': 'WASPS',
     'WAS': 'WASPS',
     'CUR': 'CUHC',
+    'CUH': 'CUHC',
     'RAI': 'NCR',
     'RED': 'REDS',
     'VIC': 'VPX',
@@ -132,15 +130,16 @@ def live_hockey_game_to_db_game(game: dict[str, Any], use_stream_time=True, fix_
     if comp_name in _COMPS_TO_ALTIUS_ID and game['extSrc'] == 'ALT_WA':
         team_one_code = _LIVEHOCKEY_CODE_TO_ALTIUS_CODE[team_one_code]
         team_two_code = _LIVEHOCKEY_CODE_TO_ALTIUS_CODE[team_two_code]
-        altius_games = AltiusManager.get_appointments(tournaments=(_COMPS_TO_ALTIUS_ID[comp_name],))
-        # if the games are of the same two teams, and start within and hour of eachother, they are probably the correct game
-        TWO_HOURS = 2 * 60 * 60
+        altius_games = AltiusManager.get_appointments(tournament=_COMPS_TO_ALTIUS_ID[comp_name])
+        # if the games are of the same two teams, and start within and 
+        # hour of each other, they are probably the correct game
         start_time = parser.parse(game['start']).timestamp()
         altius_game = ([i for i in altius_games if
-                        team_one_code in i.teams and team_two_code in i.teams and abs(i.start_time / 1000 - start_time) < TWO_HOURS] + [
-                           None])[0]
+                        team_one_code in i.teams and
+                        team_two_code in i.teams and
+                        abs(i.start_time / 1000 - start_time) < TWO_HOURS]
+                       + [None])[0]
         if altius_game:
-            print(altius_game.umpires)
             [out.official_one, out.official_two] = [AltiusManager.get_officials()[i] for i in altius_game.umpires]
         else:
             out.official_one = None
@@ -271,6 +270,9 @@ def download_clip_for_game(
         username: str = None,
         password: str = None
 ):
+    logger.error('Downloading clip for game %s', blob)
+    logger.error('\tStart time: %s', str(max(time_to_int(clip.timecode), 0)))
+    logger.error('\tLength: %s', str(time_to_int(clip.length)))
     output_clip = dataclasses.replace(clip)
     index_url = get_link_from_blob(blob, username, password)
     os.makedirs(f'/videos/output/{blob}', exist_ok=True)
@@ -278,25 +280,22 @@ def download_clip_for_game(
     args: list[str] = [
         "ffmpeg",
         "-y",
-        "-protocol_whitelist", "file,http,https,tcp,tls,crypto",
-        "-ss", str(max(time_to_int(clip.timecode) - 12, 0)),
-        "-live_start_index", "0",
+        "-ss", str(max(time_to_int(clip.timecode) - 10, 0)),
+        "-copyts",
+        "-start_at_zero",
         "-i", index_url,
-        '-avoid_negative_ts', 'make_zero',
-        "-ss", '10',
+        "-af", "aresample=async=1",
+        "-ss", str(max(time_to_int(clip.timecode) - 2, 0)),
         "-t", str(time_to_int(clip.length) + 4),
         "-c:v", "libx264",
-        "-c:a", "flac",
+        "-c:a", "aac",
         "-preset", "veryfast",
-        "-r", "30",
-        "-crf", f'{40 - 2 * quality}',
-        "-af", "aresample=async=1000",
+        "-crf", f"{40 - 2 * quality}",
         "-f", "mp4",
         output_location
     ]
+    logger.warning(' '.join(args))
     process = subprocess.Popen(args, stdout=subprocess.PIPE, bufsize=1, text=True)
-    for line in process.stdout:
-        print(line)
 
     return_code = process.wait(120)
     if return_code != 0:

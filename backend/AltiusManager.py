@@ -1,6 +1,10 @@
 import dataclasses
+import datetime
+import logging
 import os
+import re
 from collections import defaultdict
+from functools import reduce
 from urllib.request import urlopen
 import cachetools.func
 
@@ -11,8 +15,6 @@ from pony.orm import db_session, select
 
 from database import Umpires, init_db
 
-DEFAULT_TOURNAMENTS = [57, 58, 59, 60]
-
 
 @dataclasses.dataclass
 class Official:
@@ -22,23 +24,128 @@ class Official:
     time_created: int | None = None
 
 
-NAME_TO_CODE = {
-    'Hale Hockey Club': 'HAL',
-    'Victoria Park Xavier Hockey Club': 'VPX',
-    'Curtin University Hockey Club': 'CUHC',
-    'Westside Wolves Hockey Club': 'WOL',
-    'YMCC Hockey Club': 'YMCC',
-    'Old Aquinians Hockey Club': 'REDS',
-    'Suburban Lions Hockey Club': 'SUBS',
-    'Wesley South Perth Hockey Club': 'WASPS',
-    'University of WA Hockey Club': 'UWA',
-    'Melville City Hockey Club': 'MEL',
-    'Whitford Hockey Club': 'WHIT',
-    'North Coast Raiders Hockey Club': 'NCR',
-    'Fremantle Cockburn Hockey Club': 'FCHC',
-    'Newman Knights Hockey Club': 'NKHC',
-    'Modernians - Old Guildfordians Mundaring Hockey Club': 'MOGM'
+YEAR_TO_TOURNAMENT_ID = {
+    2026: {
+        "Prem One Men": 57,
+        "Prem One Women": 58,
+        "Prem Two Men": 59,
+        "Prem Two Women": 60,
+    },
+    2025: {
+        "Prem One Men": 52,
+        "Prem One Women": 51,
+        "Prem Two Men": 54,
+        "Prem Two Women": 53,
+    },
+    2024: {
+        "Prem One Men": 45,
+        "Prem One Women": 46,
+        "Prem Two Men": 43,
+        "Prem Two Women": 44,
+    },
+    2023: {
+        "Prem One Men": 39,
+        "Prem One Women": 40
+    },
+    2022: {
+        "Prem One Men": 33,
+        "Prem One Women": 34
+    },
+    2021: {
+        "Prem One Men": 25,
+        "Prem One Women": 26
+    },
+    2020: {
+        "Prem One Men": 17,
+        "Prem One Women": 18
+    },
+    2019: {
+        "Prem One Men": 12,
+        "Prem One Women": 11
+    },
+    2018: {
+        "Prem One Men": 7,
+        "Prem One Women": 8
+    },
+    2017: {
+        "Prem One Men": 3,
+        "Prem One Women": 4
+    }
 }
+
+TOURNAMENT_ID_TO_GRADE = reduce(lambda og, new: og | {v: k for k, v in new.items()}, YEAR_TO_TOURNAMENT_ID.values(), {})
+
+FIX_ALTIUS_CODE = {
+    'HAL': 'HAL',
+    'VPX': 'VPX',
+    'CUHC': 'CUHC',
+    'WOL': 'WOL',
+    'YMCC': 'YMCC',
+    'REDS': 'REDS',
+    'SUBS': 'SUBS',
+    'WASPS': 'WASPS',
+    'UWA': 'UWA',
+    'MEL': 'MEL',
+    'WHIT': 'WHIT',
+    'NCR': 'NCR',
+    'FCHC': 'FCHC',
+    'NKHC': 'NKHC',
+    'MOGM': 'MOGM',
+    'WOLVES': 'WOL',
+    'WHC': 'WHIT',
+    'LIONS': 'SUBS',
+    'RDHC': 'RDHC',
+    'WSP': 'WASPS',
+    'OA': 'REDS',
+    'CUH': 'CUHC',
+    'LION': 'LIONS',
+    'HALE': 'HAL',
+    'OGM': 'OGMHC',
+    'FRE': 'FCHC',
+    'YM': 'YMCC',
+    'OGMHC': 'OGMHC',
+    'MODS': 'MODS',
+    'WOLV': 'WOL',
+    'MELV': 'MEL'
+}
+
+
+def name_to_code(name):
+    NAME_TO_CODE = {
+        'hale': 'HAL',
+        'vic': 'VPX',
+        'curtin': 'CUHC',
+        'wolves': 'WOL',
+        'ymcc': 'YMCC',
+        'ymca': 'YMCC',
+        'reds': 'REDS',
+        'aquin': 'REDS',
+        'sub': 'SUBS',
+        'lions': 'SUBS',
+        'wasp': 'WASPS',
+        'wesley': 'WASPS',
+        'uwa': 'UWA',
+        'western australia': 'UWA',
+        'university of wa': 'UWA',
+        'melville': 'MEL',
+        'whitford': 'WHIT',
+        'raiders': 'NCR',
+        'fremantle': 'FCHC',
+        'newman': 'NKHC',
+        'modernians': 'MODS',
+        'ogm': 'OGMHC',
+        'guildford': 'OGMHC',
+        'rockingham': 'RDHC',
+    }
+    name = name.lower()
+    if 'mods' in name and ('ogm' in name or 'guildford' in name):
+        return 'MOGM'
+    for i in NAME_TO_CODE:
+        if i in name:
+            return NAME_TO_CODE[i]
+    logging.error(f'Unknown teamname {name}')
+    return None
+
 
 base_url = "https://hockeywa.altiusrt.com/competitions"
 
@@ -53,16 +160,17 @@ class Game:
         self.tournament_id: int | None
 
 
-@cachetools.func.ttl_cache(ttl=60)
 @db_session
 def get_officials() -> dict[str, Official]:
     return {i.name: Official(**i.to_dict()) for i in select(c for c in Umpires)[:]}
 
 
 @cachetools.func.ttl_cache(ttl=60)
-def get_ladder(tournaments=None):
-    if tournaments is None:
-        tournaments = DEFAULT_TOURNAMENTS
+def get_ladder(year='2026'):
+    if year.lower() == 'all':
+        tournaments = TOURNAMENT_ID_TO_GRADE.keys()
+    else:
+        tournaments = YEAR_TO_TOURNAMENT_ID[int(year)].values()
     out: dict[int, list[str]] = defaultdict(list)
     for t in tournaments:
         html = _get_ladder_from_altius(t)
@@ -71,15 +179,24 @@ def get_ladder(tournaments=None):
         table = table_container.find("table", attrs={"class": "table-hover"})
         trs = table.find_all("tr")[1:]  # we want to skip the header row
         for tr in trs:
-            out[t].append(NAME_TO_CODE.get(str(tr.find_all("td")[1].find('a').contents[0])))
+            name = str(tr.find_all("td")[1].find('a').contents[0])
+            name = re.sub('\s(M|W)?(1|2)', '', name)
+            name = name_to_code(name)
+            if not name:
+                out[t].append(None)
+                continue
+            out[t].append(name)
     return out
 
 
 @cachetools.func.ttl_cache(ttl=60)
-def get_appointments(tournaments: tuple[int] = None) -> list[Game]:
-    if tournaments is None:
-        tournaments = DEFAULT_TOURNAMENTS
-
+def get_appointments(tournament=None, year='2026') -> list[Game]:
+    if tournament:
+        tournaments = [tournament]
+    elif year.lower() == 'all':
+        tournaments = TOURNAMENT_ID_TO_GRADE.keys()
+    else:
+        tournaments = YEAR_TO_TOURNAMENT_ID[int(year)].values()
     out: list[Game] = []
     for t in tournaments:
         html = _get_officials_from_altius(t)
@@ -100,14 +217,18 @@ def get_appointments(tournaments: tuple[int] = None) -> list[Game]:
                     game.tournament_id = t
                     game.altius_id = altius_id
                     game.start_time = math.floor(parser.parse(f'{date} {start_time} +0800').timestamp() * 1000)
-                    [game_name, game.grade] = teams.strip(')').split(" (")
-                    game.teams = game_name.split(' v ')
+                    game_name = teams.split(" (")[0]
+                    game.grade = TOURNAMENT_ID_TO_GRADE[t]
+                    game.teams = [FIX_ALTIUS_CODE[re.sub('\d$', '', i)] for i in game_name.split(' v ')]
                     umpires = [[i.string for i in children][5], [i.string for i in children][7]]
                 else:
                     umpires = [[i.string for i in children][1], [i.string for i in children][2]]
                 if teams is None:
                     continue
                 umpires = [' '.join(reversed([j.title() for j in i.split(" (")[0].split(' ')])) for i in umpires if i]
+                if umpires and any(' V ' in i for i in umpires):
+                    # crude Bye handling
+                    continue
 
                 for j in umpires:
                     if not j.strip("\n\t"): continue
@@ -150,7 +271,7 @@ def update_altius_pages():
     import LiveHockeyManager
     # reset the cache - we have
     LiveHockeyManager.get_recent_games.RECENT_GAMES_RESPONSES = {}
-    for i in DEFAULT_TOURNAMENTS:
+    for i in YEAR_TO_TOURNAMENT_ID[datetime.datetime.now().year].values():
         page = urlopen(f"{base_url}/{i}/officials")
         html = page.read().decode("utf-8")
         with open(f'/cache/{i}_officials.html', 'w+') as f:
@@ -159,6 +280,7 @@ def update_altius_pages():
         html = page.read().decode("utf-8")
         with open(f'/cache/{i}_ladder.html', 'w+') as f:
             f.write(html)
+
 
 if __name__ == '__main__':
     init_db()
