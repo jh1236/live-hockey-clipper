@@ -12,4 +12,4 @@ WORKDIR /app
 EXPOSE 5000
 
 
-CMD ["gunicorn", "app:app", "--workers=4", "--preload", "-b", "0.0.0.0:5000"]
+CMD ["hypercorn", "app:app", "--workers=4", "-b", "0.0.0.0:5000"]

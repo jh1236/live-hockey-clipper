@@ -1,18 +1,18 @@
+import asyncio
 import dataclasses
 import datetime
 import logging
+import math
 import os
 import re
 from collections import defaultdict
 from functools import reduce
-from urllib.request import urlopen
-import cachetools.func
 
-import math
 from bs4 import BeautifulSoup
 from dateutil import parser
 from pony.orm import db_session, select
 
+from requester import client
 from database import Umpires, init_db
 
 
@@ -165,22 +165,23 @@ def get_officials() -> dict[str, Official]:
     return {i.name: Official(**i.to_dict()) for i in select(c for c in Umpires)[:]}
 
 
-@cachetools.func.ttl_cache(ttl=60)
-def get_ladder(year='2026'):
+async def get_ladder(year='2026'):
     if year.lower() == 'all':
         tournaments = TOURNAMENT_ID_TO_GRADE.keys()
     else:
         tournaments = YEAR_TO_TOURNAMENT_ID[int(year)].values()
     out: dict[int, list[str]] = defaultdict(list)
-    for t in tournaments:
-        html = _get_ladder_from_altius(t)
+    async def fetch(i):
+        return i, await _get_ladder_from_altius(i)
+
+    htmls: list[tuple[int, str]] = await asyncio.gather(*[fetch(i) for i in tournaments])
+    for t, html in htmls:
         soup = BeautifulSoup(html, "html.parser")
         table_container = soup.find("div", attrs={"class": "table-responsive"})
         table = table_container.find("table", attrs={"class": "table-hover"})
         trs = table.find_all("tr")[1:]  # we want to skip the header row
         for tr in trs:
             name = str(tr.find_all("td")[1].find('a').contents[0])
-            name = re.sub('\s(M|W)?(1|2)', '', name)
             name = name_to_code(name)
             if not name:
                 out[t].append(None)
@@ -189,8 +190,7 @@ def get_ladder(year='2026'):
     return out
 
 
-@cachetools.func.ttl_cache(ttl=60)
-def get_appointments(tournament=None, year='2026') -> list[Game]:
+async def get_appointments(tournament=None, year='2026') -> list[Game]:
     if tournament:
         tournaments = [tournament]
     elif year.lower() == 'all':
@@ -198,8 +198,12 @@ def get_appointments(tournament=None, year='2026') -> list[Game]:
     else:
         tournaments = YEAR_TO_TOURNAMENT_ID[int(year)].values()
     out: list[Game] = []
-    for t in tournaments:
-        html = _get_officials_from_altius(t)
+
+    async def fetch(i):
+        return i, await _get_officials_from_altius(i)
+
+    htmls: list[tuple[int, str]] = await asyncio.gather(*[fetch(i) for i in tournaments])
+    for t, html in htmls:
         soup = BeautifulSoup(html, "html.parser")
         table_container = soup.find_all("div", {"class": "tab-content"})[1]
         for table in table_container.find_all("table"):
@@ -219,7 +223,7 @@ def get_appointments(tournament=None, year='2026') -> list[Game]:
                     game.start_time = math.floor(parser.parse(f'{date} {start_time} +0800').timestamp() * 1000)
                     game_name = teams.split(" (")[0]
                     game.grade = TOURNAMENT_ID_TO_GRADE[t]
-                    game.teams = [FIX_ALTIUS_CODE[re.sub('\d$', '', i)] for i in game_name.split(' v ')]
+                    game.teams = [FIX_ALTIUS_CODE[re.sub(r'\d$', '', i)] for i in game_name.split(' v ')]
                     umpires = [[i.string for i in children][5], [i.string for i in children][7]]
                 else:
                     umpires = [[i.string for i in children][1], [i.string for i in children][2]]
@@ -242,44 +246,39 @@ def get_appointments(tournament=None, year='2026') -> list[Game]:
     return out
 
 
-def _get_officials_from_altius(tournament):
+async def _get_officials_from_altius(tournament):
     os.makedirs(f'/cache', exist_ok=True)
     if os.path.exists(f'/cache/{tournament}_officials.html'):
         with open(f'/cache/{tournament}_officials.html', 'r') as f:
             return f.read()
-    page = urlopen(f"{base_url}/{tournament}/officials")
+    page = await client.get(f"{base_url}/{tournament}/officials")
     html = page.read().decode("utf-8")
     with open(f'/cache/{tournament}_officials.html', 'w+') as f:
         f.write(html)
     return html
 
 
-def _get_ladder_from_altius(tournament):
+async def _get_ladder_from_altius(tournament):
     os.makedirs(f'/cache', exist_ok=True)
     if os.path.exists(f'/cache/{tournament}_ladder.html'):
         with open(f'/cache/{tournament}_ladder.html', 'r') as f:
             return f.read()
-    page = urlopen(f"{base_url}/{tournament}/pools")
+    page = await client.get(f"{base_url}/{tournament}/pools")
     html = page.read().decode("utf-8")
     with open(f'/cache/{tournament}_ladder.html', 'w+') as f:
         f.write(html)
     return html
 
 
-def update_altius_pages():
+async def update_altius_pages():
     os.makedirs(f'/cache', exist_ok=True)
     import LiveHockeyManager
-    # reset the cache - we have
+    # reset the cache - we have new data
     LiveHockeyManager.get_recent_games.RECENT_GAMES_RESPONSES = {}
+    tasks = []
     for i in YEAR_TO_TOURNAMENT_ID[datetime.datetime.now().year].values():
-        page = urlopen(f"{base_url}/{i}/officials")
-        html = page.read().decode("utf-8")
-        with open(f'/cache/{i}_officials.html', 'w+') as f:
-            f.write(html)
-        page = urlopen(f"{base_url}/{i}/pools")
-        html = page.read().decode("utf-8")
-        with open(f'/cache/{i}_ladder.html', 'w+') as f:
-            f.write(html)
+        tasks += [_get_officials_from_altius(i), _get_ladder_from_altius(i)]
+    await asyncio.wait(tasks)
 
 
 if __name__ == '__main__':

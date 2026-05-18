@@ -1,6 +1,6 @@
 'use client'
 
-import {BarChart, LineChart, PieChart} from "@mantine/charts";
+import {AreaChart, BarChart, PieChart} from "@mantine/charts";
 import {Grid, Group, Select, Title, Text} from "@mantine/core";
 import {useEffect, useMemo, useState} from "react";
 import {getMonday} from "@/utils";
@@ -35,7 +35,7 @@ export default function Page() {
     const [year, setYear] = useState<string>(new Date().getFullYear().toString());
     const [gradesInYears, setGradesInYears] = useState<{
         [year: string]: string[]
-    }>({/*'All': ['Premier One Men', 'Premier One Women', 'Premier Two Men', 'Premier Two Women']*/})
+    }>({'All': ['Premier One Men', 'Premier One Women', 'Premier Two Men', 'Premier Two Women']})
     const [ladders, setLadders] = useState<{ [tournament: string]: string[] }>({});
     const [allTimeData, setAllTimeData] = useState<{ [key: string]: AppointmentGame[] }>({})
     const data = useMemo(() => allTimeData[year] ?? [], [allTimeData, year]);
@@ -104,7 +104,7 @@ export default function Page() {
             name: name,
             color: officialColors[name],
             'Average Ladder Position': Math.round(games.filter(it => it.tournamentId in ladders).flatMap(g => g.teams.map(t => ladders[g.tournamentId.toString()].indexOf(t) + 1)).reduce((a, b) => a + b, 0) / (2 * games.length) * 10) / 10
-        }))]
+        }))].sort((a, b) => a['Average Ladder Position'] - b['Average Ladder Position'])
 
     }, [gradeData, ladders, officialColors])
 
@@ -120,7 +120,7 @@ export default function Page() {
             name: name,
             color: officialColors[name],
             'Average Ladder Delta': Math.round(games.filter(it => it.tournamentId in ladders).flatMap(g => g.teams.map(t => ladders[g.tournamentId.toString()].indexOf(t)).reduce((a, b) => Math.abs(a - b))).reduce((a, b) => a + b, 0) / (games.length) * 10) / 10
-        }))]
+        }))].sort((a, b) => a['Average Ladder Delta'] - b['Average Ladder Delta'])
 
     }, [gradeData, ladders, officialColors])
 
@@ -186,6 +186,7 @@ export default function Page() {
         return [...outMap.entries().map(([date, value], i) => ({
             date,
             'Percentage of Games Umpired by Women': Math.round(100 * (value.women / value.games)),
+            'Percentage of Games Umpired by Men': 100 - Math.round(100 * (value.women / value.games)),
         }))].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     }, [genders, gradeData])
 
@@ -254,20 +255,34 @@ export default function Page() {
             </Grid.Col>
             <Grid.Col span={{base: 6, md: 3}} p={10}>
                 <Title order={3} ta="center">Gender split by week</Title>
-                <LineChart data={gamesPerGenderPerWeek}
+                <AreaChart data={gamesPerGenderPerWeek}
                            yAxisProps={{domain: [0, 100]}}
+                           withGradient={false}
                            h={300}
+                           type="stacked"
                            withTooltip
-                           mx="auto" series={[{name: 'Percentage of Games Umpired by Women', color: '#CC00CC'}]}
+                           dotProps={{ r: 0, strokeWidth: 0}}
+                           mx="auto" series={[{
+                    name: 'Percentage of Games Umpired by Women',
+                    color: '#CC00CC'
+                }, {name: 'Percentage of Games Umpired by Men', color: '#000088'}]}
                            dataKey="date" curveType="linear">
                     {defs}
-                </LineChart>
+                </AreaChart>
             </Grid.Col>
             <Grid.Col span={{base: 6, md: 3}} p={10}>
                 <Title order={3} ta="center">Average Ladder Position of Game</Title>
                 <Text my={5} ta="center" c="dimmed" fs="italic">For people who have umpired 2+ games</Text>
                 <BarChart
                     h={300}
+                    referenceLines={[
+                        {
+                            y: averageLadderForUmpire.map(it => it["Average Ladder Position"]).reduce((a, b) => a + b, 0) / averageLadderForUmpire.length,
+                            color: 'dimmed',
+                            label: 'Average',
+                            labelPosition: 'insideTopLeft',
+                        },
+                    ]}
                     data={averageLadderForUmpire}
                     dataKey="name"
                     type='stacked'
@@ -282,6 +297,15 @@ export default function Page() {
                 <Text my={5} ta="center" c="dimmed" fs="italic">For people who have umpired 2+ games</Text>
                 <BarChart
                     h={300}
+                    referenceLines={[
+                        {
+                            y: averageLadderDeltaForUmpire.map(it => it["Average Ladder Delta"]).reduce((a, b) => a + b, 0) / averageLadderDeltaForUmpire.length,
+                            color: 'dimmed',
+                            label: 'Average',
+                            labelPosition: 'insideTopLeft',
+                        },
+                    ]}
+
                     data={averageLadderDeltaForUmpire}
                     dataKey="name"
                     type='stacked'

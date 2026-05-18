@@ -1,45 +1,34 @@
 import atexit
 import json
 import logging
+import multiprocessing
 import os
 import shutil
-import threading
-
 import humps
 from apscheduler.schedulers.background import BackgroundScheduler
-from flask import Flask
-from flask_cors import CORS
-from pony.flask import Pony
 
+from quart import Quart
+from quart.wrappers.response import DataBody
+from quart_cors import cors
+
+from AltiusManager import update_altius_pages
 from blueprints import api
 from database import init_db
-from AltiusManager import update_altius_pages
 
 logging.getLogger().setLevel(logging.INFO)
 
 
-def scheduled():
+async def scheduled():
     logging.info('Getting updates from altius')
-    update_altius_pages()
+    await update_altius_pages()
 
-
-scheduler = BackgroundScheduler()
-
-atexit.register(scheduler.shutdown)
-
-# update the altius w/o halting startup
-threading.Thread(target=scheduled).start()
-
-scheduler.add_job(scheduled, 'interval', minutes=30)
-scheduler.start()
 
 DAY_IN_MS = 1000 * 60 * 60 * 24
 HOUR_IN_MS = 1000 * 60 * 60
-app = Flask(__name__)
+app = Quart(__name__)
 app.register_blueprint(api)
 
-CORS(app)
-Pony(app)
+cors(app)
 
 if not os.path.exists('/database/database.db'):
     shutil.copy('./resources/database.db', '/database/database.db')
@@ -47,11 +36,17 @@ if not os.path.exists('/database/database.db'):
 init_db()
 
 
+@app.before_request
+async def before_request():
+    pass
+
 @app.after_request
-def to_camel_case(response):
+async def to_camel_case(response):
     if response.status[0] != '2':
         return response
     body = response.response
+    if isinstance(body, DataBody):
+        body = [i async for i in body]
     if not isinstance(body, list) or len(body) != 1:
         return response
     body = body[0]
@@ -70,8 +65,24 @@ def to_camel_case(response):
             new_body = humps.camelize(body)
     encoded = json.dumps(new_body, separators=(',', ':')).encode('utf-8')
     response.headers.set('Content-Length', str(len(encoded)))
-    response.response = [encoded]
+    response.response = DataBody(encoded)
     return response
+
+
+@app.before_serving
+async def start_schedule():
+    if multiprocessing.current_process().daemon:
+        # this only needs to run on one process
+        return
+    scheduler = BackgroundScheduler()
+
+    atexit.register(scheduler.shutdown)
+
+    # update the altius w/o halting startup
+    await scheduled()
+
+    scheduler.add_job(scheduled, 'interval', minutes=30)
+    scheduler.start()
 
 
 if __name__ == '__main__':

@@ -1,27 +1,28 @@
+import asyncio
+import contextlib
 import dataclasses
 import json
 import logging
 import os
 import re
-import subprocess
 import time
 from datetime import datetime, UTC, timedelta
 from typing import Any, Union
 
-import cachetools.func
-import requests
 from dateutil import parser
 from fastapi.encoders import jsonable_encoder
 from pony.orm import db_session, select, commit
+from sanitize_filename import sanitize
 
 import AltiusManager
+from requester import client
 from database import Images, Users, Games, Clips, Umpires
 from utils import time_to_int, int_to_time, format_iso
 
 with open('./resources/liveHockeyDefault.json', 'r') as f:
     default_details: dict[str, str] = json.load(f)
 
-ADDRESS = os.environ['ADDRESS']
+ADDRESS = os.environ.get('ADDRESS', 'http://localhost:5003')
 
 TWO_HOURS = 2 * 60 * 60
 
@@ -35,6 +36,16 @@ class Clip:
     name: str
     link: str | None = None
     comment: str | None = None
+
+
+def db_clip_to_return_clip(clip_in: Clips) -> Clip:
+    return Clip(
+        timecode=int_to_time(clip_in.start_time),
+        length=int_to_time(clip_in.duration),
+        name=clip_in.name,
+        link=clip_in.link,
+        comment=clip_in.comment,
+    )
 
 
 @dataclasses.dataclass
@@ -107,7 +118,8 @@ _LIVEHOCKEY_CODE_TO_ALTIUS_CODE = {i: i for i in set(AltiusManager.FIX_ALTIUS_CO
 }
 
 
-def live_hockey_game_to_db_game(game: dict[str, Any], use_stream_time=True, fix_for_js=False) -> Game | dict:
+def live_hockey_game_to_db_game(game: dict[str, Any], altius_games: list[AltiusManager.Game] | None,
+                                use_stream_time=True, fix_for_js=False) -> Game | dict:
     stream_start = game.get('streamStart', None)
     comp_name = _convert_comp_name(game['competition']['playerLevel']['name'])
     team_one_code = game['homeTeam']['shortName']
@@ -127,16 +139,16 @@ def live_hockey_game_to_db_game(game: dict[str, Any], use_stream_time=True, fix_
         altius_link=f'https://hockeywa.altiusrt.com/matches/{game["extId"]}' if game['extSrc'] == 'ALT_WA' else None,
         teamstar_link=f'https://comp.teamstar.team/event/${game["extId"]}' if game['extSrc'] == 'TEAMSTAR' else None,
     )
-    if comp_name in _COMPS_TO_ALTIUS_ID and game['extSrc'] == 'ALT_WA':
+    if altius_games and comp_name in _COMPS_TO_ALTIUS_ID and game['extSrc'] == 'ALT_WA':
         team_one_code = _LIVEHOCKEY_CODE_TO_ALTIUS_CODE[team_one_code]
         team_two_code = _LIVEHOCKEY_CODE_TO_ALTIUS_CODE[team_two_code]
-        altius_games = AltiusManager.get_appointments(tournament=_COMPS_TO_ALTIUS_ID[comp_name])
         # if the games are of the same two teams, and start within and 
         # hour of each other, they are probably the correct game
         start_time = parser.parse(game['start']).timestamp()
         altius_game = ([i for i in altius_games if
                         team_one_code in i.teams and
                         team_two_code in i.teams and
+                        AltiusManager.TOURNAMENT_ID_TO_GRADE[i.tournament_id] == comp_name and
                         abs(i.start_time / 1000 - start_time) < TWO_HOURS]
                        + [None])[0]
         if altius_game:
@@ -229,8 +241,8 @@ def _db_set_live_hockey_token(username, token):
     Users(username=username, token=token)
 
 
-def _web_get_live_hockey_token(username, password):
-    response = requests.post(
+async def _web_get_live_hockey_token(username, password):
+    response = await client.post(
         "https://api.livearenasports.com/user/login",
         json={'userName': username, 'password': password},
         headers={
@@ -244,26 +256,28 @@ def _web_get_live_hockey_token(username, password):
     return token
 
 
-def get_link_from_blob(blob: str, username=None,
-                       password=None) -> str:
+async def get_link_from_blob(blob: str, username=None,
+                             password=None) -> str:
     username = username or default_details['username']
     password = password or default_details['password']
     token = _db_get_live_hockey_token(username)
     if not token:
-        token = _web_get_live_hockey_token(username, password)
+        token = await _web_get_live_hockey_token(username, password)
         _db_set_live_hockey_token(username, token)
     try:
-        out = requests.get(f'https://api.livearenasports.com/broadcast/video/{blob}?video-format=HLS',
-                           headers={'Authorization': f'Bearer {token}', 'site-id': 'AU_FH_AUS'}).json()['videoUrl']
+        out = (await client.get(f'https://api.livearenasports.com/broadcast/video/{blob}?video-format=HLS',
+                                headers={'Authorization': f'Bearer {token}', 'site-id': 'AU_FH_AUS'})).json()[
+            'videoUrl']
         return out
-    except requests.exceptions.RequestException:
-        token = _web_get_live_hockey_token(username, password)
-        out = requests.get(f'https://api.livearenasports.com/broadcast/video/{blob}?video-format=HLS',
-                           headers={'Authorization': f'Bearer {token}', 'site-id': 'AU_FH_AUS'}).json()['videoUrl']
+    except Exception:
+        token = await _web_get_live_hockey_token(username, password)
+        out = await (client.get(f'https://api.livearenasports.com/broadcast/video/{blob}?video-format=HLS',
+                                headers={'Authorization': f'Bearer {token}', 'site-id': 'AU_FH_AUS'})).json()[
+            'videoUrl']
         return out
 
 
-def download_clip_for_game(
+async def download_clip_for_game(
         blob: str,
         clip: Clip,
         quality: int,
@@ -276,25 +290,31 @@ def download_clip_for_game(
     logger.error('\tStart time: %s', clip_start_time)
     logger.error('\tLength: %s', str(time_to_int(clip.length)))
     output_clip = dataclasses.replace(clip)
-    
-    index_url = get_link_from_blob(blob, username, password)
-    index_file = requests.get(index_url).text
-    
-    files=[]
-    prev_time = 0
-    current_time = 0
+
+    index_url = await get_link_from_blob(blob, username, password)
+    index_file = (await client.get(index_url)).text
+
+    files = []
+    segment_start_time = 0
+    segment_finish_time = 0
     first_time = -1
     for line in index_file.split('\n'):
         if line.startswith("#EXTINF:"):
-            prev_time = current_time
-            current_time = prev_time + float(line.split("#EXTINF:")[1].split(",")[0])
-        elif not line.startswith('#') and current_time > clip_start_time and prev_time < clip_end_time:
+            segment_start_time = segment_finish_time
+            segment_finish_time += float(line.split("#EXTINF:")[1].split(",")[0])
+        elif not line.startswith('#') and segment_finish_time > clip_start_time and segment_start_time < clip_end_time:
             if first_time < 0:
-                first_time = current_time
+                first_time = segment_start_time
             files.append(line)
 
-    os.makedirs(f'/videos/output/{blob}', exist_ok=True)
-    output_location = f'/videos/output/{blob}/{clip.name}.mp4'
+    logger.warning('first time: %s', first_time)
+    logger.warning('files: %s', '\n'.join([re.sub('.*/', '', i) for i in files]))
+
+    os.makedirs(f'/videos/output/{sanitize(blob)}', exist_ok=True)
+    output_location = f'/videos/output/{sanitize(blob)}/{sanitize(clip.name)}.mp4'
+    with contextlib.suppress(FileNotFoundError):
+        os.remove(output_location)
+
     args: list[str] = [
         "ffmpeg",
         "-protocol_whitelist", "file,http,https,tcp,tls,crypto,concat",
@@ -310,34 +330,37 @@ def download_clip_for_game(
         output_location
     ]
     logger.warning(' '.join(args))
-    process = subprocess.Popen(args, stdout=subprocess.PIPE, bufsize=1, text=True)
+    process = await asyncio.create_subprocess_exec(*args)
 
-    return_code = process.wait(120)
-    if return_code != 0:
+    async def kill_after_time():
+        await asyncio.sleep(120)
+        process.terminate()
+
+    tasks = [asyncio.create_task(i) for i in [process.communicate(), kill_after_time()]]
+    await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+    for i in tasks:
+        if not i.done(): i.cancel()
+    if process.returncode:
         return None
 
     output_clip.link = f'{ADDRESS}/api/clips/{blob}/{clip.name}.mp4'
     return output_clip
-        
 
 
-def main():
-    print(download_clip_for_game('69edabc3ea763622a3811683', Clip('0', '0', 'test'), 3))
-
-
-def get_recent_games(location: str = 'hockeywa', juniors: bool = False, premier_only: bool = False,
-                     masters: bool = False):
+async def get_recent_games(location: str = 'hockeywa', juniors: bool = False, premier_only: bool = False,
+                           masters: bool = False):
     key = (location, juniors, premier_only, masters)
     current_timestamp = datetime.now(UTC).timestamp()
     update_required_timestamp, out = get_recent_games.RECENT_GAMES_RESPONSES.get(key, (0, None))
     if current_timestamp < update_required_timestamp:
         return out
     this_year = str(datetime.now().year)
-    structure = requests.get(
+    structure = (await client.get(
         f'https://api.livearenasports.com/site/structure',
         params={'slug': f'live{location}'},
         headers={'site-id': 'AU_FH_AUS'},
-    ).json()
+    )).json()
+
     competitions = structure[0]['competitions']
 
     def comp_filter(comp):
@@ -368,9 +391,10 @@ def get_recent_games(location: str = 'hockeywa', juniors: bool = False, premier_
         ('start-from', format_iso(now)),
         ('start-to', format_iso(date_to)),
     ]
-    upcoming_raw = requests.get(future_base, params=future_params, headers={'site-id': 'AU_FH_AUS'})
+    upcoming_raw = await client.get(future_base, params=future_params, headers={'site-id': 'AU_FH_AUS'})
     upcoming_raw = upcoming_raw.json()
-    upcoming = [live_hockey_game_to_db_game(g, False, True) for g in upcoming_raw]
+    appointments = await AltiusManager.get_appointments()
+    upcoming = [live_hockey_game_to_db_game(g, appointments, False, True) for g in upcoming_raw]
     # Recent games
     past_base, past_params = get_games_from_comps(comps, 8, include_live=False)
     past_params += [
@@ -378,8 +402,8 @@ def get_recent_games(location: str = 'hockeywa', juniors: bool = False, premier_
         ('start-to', format_iso(now)),
         ('start-from', format_iso(one_week_ago)),
     ]
-    recent_raw = requests.get(past_base, params=past_params, headers={'site-id': 'AU_FH_AUS'}).json()
-    recent = [live_hockey_game_to_db_game(g, False, True) for g in recent_raw]
+    recent_raw = (await client.get(past_base, params=past_params, headers={'site-id': 'AU_FH_AUS'})).json()
+    recent = [live_hockey_game_to_db_game(g, appointments, False, True) for g in recent_raw]
     update_required_timestamp = min([i["start_time"] / 1000 for i in upcoming] + [date_to.timestamp()])
     get_recent_games.RECENT_GAMES_RESPONSES[key] = (update_required_timestamp, (recent, upcoming))
     return recent, upcoming

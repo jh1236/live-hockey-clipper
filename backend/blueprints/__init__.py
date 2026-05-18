@@ -1,4 +1,4 @@
-from flask import Blueprint
+from quart import Blueprint
 
 from blueprints.clips import clips_bp
 from blueprints.appointments import appointments_bp

@@ -86,7 +86,10 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
             console.log("Requesting!")
             const now = Date.now();
             setInitialTime(now);
-            fetch(`${SERVER_ADDRESS}/api/clips/games/${gameBlob}`).then(it => it.json()).then((it: { game: ClipGame, clips: Clip[] }) => {
+            fetch(`${SERVER_ADDRESS}/api/clips/games/${gameBlob}`).then(it => it.json()).then((it: {
+                game: ClipGame,
+                clips: Clip[]
+            }) => {
                 setGame(it.game)
                 setClips(it.clips)
             })
@@ -265,7 +268,7 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                                         setClips([...clips!, newClip])
                                         fetch(`${SERVER_ADDRESS}/api/clips/add`, {
                                             method: "POST",
-                                            headers:{
+                                            headers: {
                                                 'Content-Type': "application/json",
                                             },
                                             body: JSON.stringify({
@@ -293,7 +296,37 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
             <Center>
                 <Grid p={20} gap={0}>
                     <Grid.Col span={5}><Text ta="center" fz="2em">{game.teamOne}</Text></Grid.Col>
-                    <Grid.Col span={2}><Text ta="center" fz="2em">VS</Text></Grid.Col>
+                    <Grid.Col span={2}>
+                        <Popover>
+                            <Popover.Target>
+                                <Text ta="center" fz="2em">VS</Text>
+                            </Popover.Target>
+                            <Popover.Dropdown>
+                                <Button onClick={() => {
+                                    setClips(prev => prev?.map(it => ({...it, link: undefined})) ?? null)
+                                    fetch(`${SERVER_ADDRESS}/api/clips/regenerate`, {
+                                        method: "POST",
+                                        headers: {
+                                            'Content-Type': "application/json",
+                                        },
+                                        body: JSON.stringify({
+                                            gameBlob,
+                                            quality: clipQuality,
+                                            username,
+                                            password,
+                                        })
+
+                                    }).then(it => it.json()).then(({clip}) => {
+                                        setClips(prev => prev!.map(it => it.name === clip.name ? clip : it))
+                                    }).catch(() => fetch(`${SERVER_ADDRESS}/api/clips/games/${gameBlob}`).then(it => it.json()).then((it: {
+                                        clips: Clip[]
+                                    }) => {
+                                        setClips(it.clips)
+                                    }))
+                                }}>Regenerate All Clips?</Button>
+                            </Popover.Dropdown>
+                        </Popover>
+                    </Grid.Col>
                     <Grid.Col span={5}><Text ta="center" fz="2em">{game.teamTwo}</Text></Grid.Col>
                     <Grid.Col span={5}>
                         <Center>
@@ -343,7 +376,8 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                     </Grid.Col>
                 </Grid>
             </Center>
-            {!!game.officials.length && <Group><Text fw={600}>Officials:</Text> <Text fs="italic">{game.officials.join(', ')}</Text></Group>}
+            {!!game.officials.length &&
+                <Group><Text fw={600}>Officials:</Text> <Text fs="italic">{game.officials.join(', ')}</Text></Group>}
             <HoverCard disabled={game.isLive || game.startTime <= currentTime}>
                 <HoverCard.Target>
                     <Button size="xl" w="60%" m={10} onClick={() => {
