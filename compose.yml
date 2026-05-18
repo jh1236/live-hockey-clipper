@@ -20,7 +20,7 @@ services:
     volumes:
       - db:/database
       - cache:/cache
-      - videos:/video
+      - videos:/videos
     image: hockey-clipper-backend
     container_name: hockey-clipper-backend-container
     environment:
