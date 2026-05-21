@@ -15,14 +15,12 @@ from pony.orm import db_session, select, commit
 from sanitize_filename import sanitize
 
 import AltiusManager
+from config import get_config
 from requester import client
 from database import Images, Users, Games, Clips, Umpires
 from utils import time_to_int, int_to_time, format_iso
 
-with open('./resources/liveHockeyDefault.json', 'r') as f:
-    default_details: dict[str, str] = json.load(f)
-
-ADDRESS = os.environ.get('ADDRESS', 'http://localhost:5003')
+ADDRESS = get_config().server_address
 
 TWO_HOURS = 2 * 60 * 60
 
@@ -30,26 +28,32 @@ logger = logging.Logger('LiveHockeyManager')
 
 
 @dataclasses.dataclass
-class Clip:
+class ClipDto:
     timecode: str
     length: str
     name: str
+    favourite: bool = False
     link: str | None = None
-    comment: str | None = None
+    categories: list[str] | None = None
+
+    @db_session
+    def add_to_database(self, game_id):
+        return Clips(start_time=time_to_int(self.timecode), duration=time_to_int(self.length), name=self.name,
+                     link=self.link, comment=';'.join(self.categories), game_id=game_id)
 
 
-def db_clip_to_return_clip(clip_in: Clips) -> Clip:
-    return Clip(
+def db_clip_to_DTO(clip_in: Clips) -> ClipDto:
+    return ClipDto(
         timecode=int_to_time(clip_in.start_time),
         length=int_to_time(clip_in.duration),
         name=clip_in.name,
         link=clip_in.link,
-        comment=clip_in.comment,
+        categories=clip_in.comment.split(';'),
     )
 
 
 @dataclasses.dataclass
-class Game:
+class GameDto:
     blob: str
     team_one: str
     team_two: str
@@ -119,12 +123,12 @@ _LIVEHOCKEY_CODE_TO_ALTIUS_CODE = {i: i for i in set(AltiusManager.FIX_ALTIUS_CO
 
 
 def live_hockey_game_to_db_game(game: dict[str, Any], altius_games: list[AltiusManager.Game] | None,
-                                use_stream_time=True, fix_for_js=False) -> Game | dict:
+                                use_stream_time=True, fix_for_js=False) -> GameDto | dict:
     stream_start = game.get('streamStart', None)
     comp_name = _convert_comp_name(game['competition']['playerLevel']['name'])
     team_one_code = game['homeTeam']['shortName']
     team_two_code = game['awayTeam']['shortName']
-    out = Game(
+    out = GameDto(
         blob=game['id'],
         is_live=game.get('live', False),
         competition_name=comp_name,
@@ -161,13 +165,15 @@ def live_hockey_game_to_db_game(game: dict[str, Any], altius_games: list[AltiusM
     return out
 
 
-def fix_game_for_js(game: Union[Game | Games | dict]) -> dict:
+def fix_game_for_js(game: Union[GameDto | Games | dict]) -> dict:
     if isinstance(game, Games):
         game = game.to_dict()
-        game['official_one'] = jsonable_encoder(
-            next(i for i in AltiusManager.get_officials().values() if i.id == game['official_one']))
-        game['official_two'] = jsonable_encoder(
-            next(i for i in AltiusManager.get_officials().values() if i.id == game['official_two']))
+        if 'official_one' in game and game['official_one']:
+            game['official_one'] = jsonable_encoder(
+                next(i for i in AltiusManager.get_officials().values() if i.id == game['official_one']))
+        if 'official_two' in game and game['official_two']:
+            game['official_two'] = jsonable_encoder(
+                next(i for i in AltiusManager.get_officials().values() if i.id == game['official_two']))
     else:
         game = jsonable_encoder(game)
     if game.get('official_one', False) and game.get('official_two', False):
@@ -184,12 +190,14 @@ def fix_game_for_js(game: Union[Game | Games | dict]) -> dict:
     return game
 
 
-def fix_clip_for_js(clip: Union[Clip, Clips]) -> dict:
+def fix_clip_for_js(clip: Union[ClipDto, Clips]) -> dict:
     if isinstance(clip, Clips):
         clip = clip.to_dict()
         clip['timecode'] = clip['start_time']
         clip['length'] = clip['duration']
+        clip['categories'] = clip['comment'].split(';')
         del clip['start_time']
+        del clip['comment']
         del clip['duration']
     else:
         clip = jsonable_encoder(clip)
@@ -258,8 +266,8 @@ async def _web_get_live_hockey_token(username, password):
 
 async def get_link_from_blob(blob: str, username=None,
                              password=None) -> str:
-    username = username or default_details['username']
-    password = password or default_details['password']
+    username = username or get_config().live_hockey_username
+    password = password or get_config().live_hockey_password
     token = _db_get_live_hockey_token(username)
     if not token:
         token = await _web_get_live_hockey_token(username, password)
@@ -279,7 +287,7 @@ async def get_link_from_blob(blob: str, username=None,
 
 async def download_clip_for_game(
         blob: str,
-        clip: Clip,
+        clip: ClipDto,
         quality: int,
         username: str = None,
         password: str = None
@@ -310,8 +318,10 @@ async def download_clip_for_game(
     logger.warning('first time: %s', first_time)
     logger.warning('files: %s', '\n'.join([re.sub('.*/', '', i) for i in files]))
 
-    os.makedirs(f'/videos/output/{sanitize(blob)}', exist_ok=True)
-    output_location = f'/videos/output/{sanitize(blob)}/{sanitize(clip.name)}.mp4'
+    folder = get_config().videos_folder + f'/{sanitize(blob)}'
+
+    os.makedirs(folder, exist_ok=True)
+    output_location = f'{folder}/{sanitize(clip.name)}.mp4'
     with contextlib.suppress(FileNotFoundError):
         os.remove(output_location)
 

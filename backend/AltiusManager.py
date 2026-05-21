@@ -12,6 +12,7 @@ from bs4 import BeautifulSoup
 from dateutil import parser
 from pony.orm import db_session, select
 
+from config import get_config
 from requester import client
 from database import Umpires, init_db
 
@@ -247,31 +248,32 @@ async def get_appointments(tournament=None, year='2026') -> list[Game]:
 
 
 async def _get_officials_from_altius(tournament):
-    os.makedirs(f'/cache', exist_ok=True)
-    if os.path.exists(f'/cache/{tournament}_officials.html'):
-        with open(f'/cache/{tournament}_officials.html', 'r') as f:
+    cache_folder = get_config().cache_folder
+    os.makedirs(cache_folder, exist_ok=True)
+    if os.path.exists(f'{cache_folder}/{tournament}_officials.html'):
+        with open(f'{cache_folder}/{tournament}_officials.html', 'r') as f:
             return f.read()
     page = await client.get(f"{base_url}/{tournament}/officials")
     html = page.read().decode("utf-8")
-    with open(f'/cache/{tournament}_officials.html', 'w+') as f:
+    with open(f'{cache_folder}/{tournament}_officials.html', 'w+') as f:
         f.write(html)
     return html
 
 
 async def _get_ladder_from_altius(tournament):
-    os.makedirs(f'/cache', exist_ok=True)
-    if os.path.exists(f'/cache/{tournament}_ladder.html'):
-        with open(f'/cache/{tournament}_ladder.html', 'r') as f:
+    cache_folder = get_config().cache_folder
+    os.makedirs(cache_folder, exist_ok=True)
+    if os.path.exists(f'{cache_folder}/{tournament}_ladder.html'):
+        with open(f'{cache_folder}/{tournament}_ladder.html', 'r') as f:
             return f.read()
     page = await client.get(f"{base_url}/{tournament}/pools")
     html = page.read().decode("utf-8")
-    with open(f'/cache/{tournament}_ladder.html', 'w+') as f:
+    with open(f'{cache_folder}/{tournament}_ladder.html', 'w+') as f:
         f.write(html)
     return html
 
 
 async def update_altius_pages():
-    os.makedirs(f'/cache', exist_ok=True)
     import LiveHockeyManager
     # reset the cache - we have new data
     LiveHockeyManager.get_recent_games.RECENT_GAMES_RESPONSES = {}

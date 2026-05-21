@@ -13,13 +13,14 @@ from quart_cors import cors
 
 from AltiusManager import update_altius_pages
 from blueprints import api
+from config import get_config
 from database import init_db
 
 logging.getLogger().setLevel(logging.INFO)
 
 
 async def scheduled():
-    logging.info('Getting updates from altius')
+    logging.fatal('Getting updates from altius')
     await update_altius_pages()
 
 
@@ -30,8 +31,8 @@ app.register_blueprint(api)
 
 cors(app)
 
-if not os.path.exists('/database/database.db'):
-    shutil.copy('./resources/database.db', '/database/database.db')
+if not os.path.exists(get_config().database_path):
+    shutil.copy('./resources/database.db', get_config().database_path)
 
 init_db()
 
@@ -69,20 +70,20 @@ async def to_camel_case(response):
     return response
 
 
-@app.before_serving
-async def start_schedule():
+async def start():
     if multiprocessing.current_process().daemon:
         # this only needs to run on one process
         return
+    # update the altius w/o halting startup
+    await scheduled()
     scheduler = BackgroundScheduler()
 
     atexit.register(scheduler.shutdown)
 
-    # update the altius w/o halting startup
-    await scheduled()
 
     scheduler.add_job(scheduled, 'interval', minutes=30)
     scheduler.start()
+    return app
 
 
 if __name__ == '__main__':

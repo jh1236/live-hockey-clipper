@@ -5,14 +5,36 @@ import os
 from pony.orm import select, db_session
 from quart import jsonify, send_file, request
 from quart.blueprints import Blueprint
+from sanitize_filename import sanitize
 
 import AltiusManager
 import LiveHockeyManager
+from config import get_config
 from database import Games, Clips
 from requester import client
 from utils import time_to_int
 
 clips_bp = Blueprint('clips_bp', __name__, url_prefix='/clips')
+
+
+@clips_bp.post('/favourite')
+async def favourite_clip():
+    with db_session():
+        data = await request.json
+        logging.error(data)
+        blob = data['gameBlob']
+        clip_name = data['clipName']
+        favourite = bool(data['favourite'])
+
+        game = Games.get(blob=blob)
+        if game is None:
+            return 'Game not found', 404
+
+        clip = Clips.get(game_id=game.id, clip_name=clip_name)
+
+        clip.favourite = favourite
+
+        return jsonify({'clip': clip}), 200
 
 
 @clips_bp.post('/add')
@@ -21,7 +43,7 @@ async def add_clip():
         data = await request.json
         logging.error(data)
         blob = data['gameBlob']
-        clip = LiveHockeyManager.Clip(**data['clip'])
+        clip = LiveHockeyManager.ClipDto(**data['clip'])
         quality = data['quality']
         username = data.get('username', None)
         password = data.get('password', None)
@@ -35,14 +57,7 @@ async def add_clip():
         if not return_clip:
             return 'Bad Clip', 400
 
-        Clips(
-            game_id=game,
-            name=return_clip.name,
-            start_time=time_to_int(return_clip.timecode),
-            duration=time_to_int(return_clip.length),
-            link=return_clip.link,
-            comment=return_clip.comment,
-        )
+        return_clip.add_to_database(game.id)
 
         return jsonify({'clip': return_clip}), 200
 
@@ -61,7 +76,7 @@ async def regenerate_clip():
         if game is None:
             return 'Game not found', 404
 
-        clips = [LiveHockeyManager.db_clip_to_return_clip(i) for i in Clips.select()]
+        clips = [LiveHockeyManager.db_clip_to_DTO(i) for i in Clips.select()]
 
         if not clips:
             return 'Bad Clip', 400
@@ -109,5 +124,5 @@ async def get_game(blob):
 async def stream_file(blob, clip):
     """Serve the video stream files"""
     download = request.args.get('download', 'false').lower() == 'true'
-    directory = os.path.join('/videos/output', blob, clip)
+    directory = os.path.join(get_config().videos_folder, sanitize(blob), sanitize(clip))
     return await send_file(directory, as_attachment=download)

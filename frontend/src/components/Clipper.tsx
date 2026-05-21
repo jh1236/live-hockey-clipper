@@ -5,13 +5,16 @@ import {useBoolean, useCopyToClipboard, useInterval, useLocalStorage} from "reac
 import {
     ActionIcon,
     AspectRatio,
+    Badge,
     Box,
     Button,
     Card,
     Center,
+    Chip,
     Flex,
     Grid,
-    Group, HoverCard,
+    Group,
+    HoverCard,
     Loader,
     Modal,
     Paper,
@@ -36,6 +39,18 @@ interface ClipperProps {
 }
 
 
+const CATEGORIES = [
+    'Stick Obstruction',
+    'Body Obstruction',
+    'Aerial',
+    'Penalty Corner',
+    'Penalty Stroke',
+    'Positioning',
+    'Green Card',
+    'Yellow Card',
+    '10 Minute Yellow Card',
+] as const
+
 const MINUTE_IN_MS = 1000 * 60
 const PRIOR_CLIP_RECORDING = 10;
 
@@ -44,7 +59,7 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
     const [game, setGame] = useState<ClipGame | null>(null)
     const [clips, setClips] = useState<Clip[] | null>(null);
     const [openAddClips, setOpenAddClips] = useBoolean(false);
-    const [commentForNewClip, setCommentForNewClip] = useState<string>("");
+    const [categories, setCategories] = useState<string[]>([]);
     const [nameOfNewClip, setNameOfNewClip] = useState<string>("Clip 1");
     const [durationToClip, setDurationToClip] = useState<string>('00:00:00');
     const [timeToClip, setTimeToClip] = useState<string>('00:00:00');
@@ -187,6 +202,7 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
             <Box ml={10} mr={10} style={{overflow: 'hidden'}}>
                 <TextInput
                     mb={10}
+                    withAsterisk
                     label="Clip title"
                     description="File name for this clip"
                     error={!nameOfNewClip ?
@@ -194,17 +210,18 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                         clipNameError ? `The name '${nameOfNewClip}' is already in use!` : undefined}
                     value={nameOfNewClip}
                     onChange={e => setNameOfNewClip(e.target.value)}/>
+                <Text mt={10} fz="sm" fw={600}>Clip Categories</Text>
+                <Chip.Group multiple value={categories} onChange={setCategories}>
+                    <Group>
+                        {CATEGORIES.map((it, i) => (
+                            <Chip value={it} key={i}>{it}</Chip>
+                        ))}
+                    </Group>
+                </Chip.Group>
                 <TextInput
                     mt={10}
                     mb={10}
-                    label="Clip Comments"
-                    description="Details about the clip"
-                    placeholder="Your comment here"
-                    value={commentForNewClip}
-                    onChange={e => setCommentForNewClip(e.target.value)}/>
-                <TextInput
-                    mt={10}
-                    mb={10}
+                    withAsterisk
                     label="Clip Start"
                     description={`Defaults to ${PRIOR_CLIP_RECORDING} seconds before the button was pressed`}
                     value={timeToClip}
@@ -214,6 +231,7 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                 <TextInput
                     mt={10}
                     mb={10}
+                    withAsterisk
                     label="Clip Duration"
                     description="How long the clip will record for"
                     placeholder="--:--:--"
@@ -263,7 +281,7 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                                             name: nameOfNewClip!,
                                             timecode: timeToClip,
                                             length: durationToClip,
-                                            comment: commentForNewClip,
+                                            categories,
                                         };
                                         setClips([...clips!, newClip])
                                         fetch(`${SERVER_ADDRESS}/api/clips/add`, {
@@ -380,7 +398,11 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                 <Group><Text fw={600}>Officials:</Text> <Text fs="italic">{game.officials.join(', ')}</Text></Group>}
             <HoverCard disabled={game.isLive || game.startTime <= currentTime}>
                 <HoverCard.Target>
-                    <Button size="xl" w="60%" m={10} onClick={() => {
+                    <Button size="xl" w="60%" m={10} onClick={e => {
+                        if (!game.isLive && game.startTime > currentTime) {
+                            e.preventDefault()
+                            return
+                        }
                         setTimeToClip(
                             game.isLive ?
                                 secondsToHMS(Math.max(Math.round((currentTime - game?.startTime) / 1000) - PRIOR_CLIP_RECORDING, 0)) : '00:00:00'
@@ -420,13 +442,14 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
 
                             }
                         </Card.Section>
-
+                        {it.categories?.length ?
+                            <Group my={10}>
+                                {it.categories.map(it => <Badge color="blue" key={it}>{it}</Badge>)}
+                            </Group>
+                            : <i>No Comment Left</i>}
                         <Text size="sm" c="dimmed" mb={12}>
                             <b>Timecode:</b>
                             <br/>{it.timecode} - {secondsToHMS(hmsToSecondsOnly(it.timecode) + hmsToSecondsOnly(it.length))}
-                        </Text>
-                        <Text size="sm" c="dimmed">
-                            <b>Comments:</b> <br/>{it.comment?.trim() ?? <i>No Comment Left</i>}
                         </Text>
 
 

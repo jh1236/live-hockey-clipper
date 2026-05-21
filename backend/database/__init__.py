@@ -1,10 +1,12 @@
 from pony.orm import Database, PrimaryKey, Required, Optional, Set
 
+from config import get_config
+
 db = Database()
 
 
 def init_db():
-    db.bind(provider='sqlite', filename='/database/database.db', create_db=True)
+    db.bind(provider='sqlite', filename=get_config().database_path, create_db=True)
     db.generate_mapping(create_tables=False)
 
 
@@ -47,6 +49,7 @@ class Clips(db.Entity):
     start_time = Required(int)
     duration = Required(int)
     link = NullableOptional(str)
+    favourite = NullableOptional(bool)
     comment = NullableOptional(str)
     time_created = NullableOptional(int)
 

@@ -33,11 +33,12 @@ const BASE_COLORS = [
     '#FAE7B5',
     '#A57164',
     '#004225'
-    
+
 ]
 const COLORS = BASE_COLORS.concat(BASE_COLORS.map((_, i) => `url(#diagonal${i})`))
 
 export default function Page() {
+    const [viewAsPieChart, setViewAsPieChart] = useState<boolean>(true);
     const [year, setYear] = useState<string>(new Date().getFullYear().toString());
     const [gradesInYears, setGradesInYears] = useState<{
         [year: string]: string[]
@@ -172,7 +173,7 @@ export default function Page() {
         return Object.entries(outMap).map(([k, v]) => ({
             name: k === 'M' ? 'Male' : 'Female',
             value: Math.round(100 * v / (gradeData.length * 2)),
-            color: k === 'M' ? '#000088' : '#CC00CC'
+            color: k === 'M' ? '#5555ee' : '#de47de'
         }));
     }, [genders, gradeData])
 
@@ -232,8 +233,31 @@ export default function Page() {
         <Grid w="100%" gap={3} p={20}>
             <Grid.Col span={{base: 6, md: 3}} p={10}>
                 <Title order={3} ta="center">Games Umpired</Title>
-                <PieChart data={gamesPerUmpire} withTooltip tooltipDataSource="segment" mx="auto" size={250}
-                          startAngle={90} endAngle={360 + 90} strokeWidth={0}>{defs}</PieChart>
+                <Text onClick={() => setViewAsPieChart(!viewAsPieChart)} my={5} ta="center" c="dimmed" fs="italic"
+                      style={{textDecoration: 'underline'}}>
+                    View as {viewAsPieChart ? 'Bar' : 'Pie'} Chart
+                </Text>
+
+                {viewAsPieChart ?
+                    <PieChart data={gamesPerUmpire} withTooltip tooltipDataSource="segment" mx="auto" size={250}
+                              startAngle={90} endAngle={360 + 90} strokeWidth={0}>{defs}</PieChart> :
+                    <BarChart data={gamesPerUmpire}
+                              withTooltip
+                              mx="auto"
+                              series={[
+                                  {label: 'Games Umpired', name: 'value'}
+                              ]}
+                              dataKey="name"
+                              h={300}
+                              referenceLines={[
+                                  {
+                                      y: gamesPerUmpire.map(it => it.value).reduce((a, b) => a + b, 0) / gamesPerUmpire.length,
+                                      color: 'dimmed',
+                                      label: 'Average',
+                                      labelPosition: 'insideTopLeft',
+                                  },
+                              ]}></BarChart>
+                }
             </Grid.Col>
             <Grid.Col span={{base: 6, md: 3}} p={10}>
                 <Title order={3} ta="center">Weekly Games</Title>
@@ -267,11 +291,11 @@ export default function Page() {
                            h={300}
                            type="stacked"
                            withTooltip
-                           dotProps={{ r: 0, strokeWidth: 0}}
+                           dotProps={{r: 0, strokeWidth: 0}}
                            mx="auto" series={[{
                     name: 'Percentage of Games Umpired by Women',
-                    color: '#CC00CC'
-                }, {name: 'Percentage of Games Umpired by Men', color: '#000088'}]}
+                    color: '#de47de'
+                }, {name: 'Percentage of Games Umpired by Men', color: '#5555ee'}]}
                            dataKey="date" curveType="linear">
                     {defs}
                 </AreaChart>
