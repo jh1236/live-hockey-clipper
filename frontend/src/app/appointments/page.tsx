@@ -27,7 +27,13 @@ const BASE_COLORS = [
     '#ffd8b1',
     '#000075',
     '#808080',
-    '#ffffff'
+    '#ffffff',
+    '#64609A',
+    '#FF9966',
+    '#FAE7B5',
+    '#A57164',
+    '#004225'
+    
 ]
 const COLORS = BASE_COLORS.concat(BASE_COLORS.map((_, i) => `url(#diagonal${i})`))
 
