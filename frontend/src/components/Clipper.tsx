@@ -10,7 +10,6 @@ import {
     Button,
     Card,
     Center,
-    Chip,
     Flex,
     Grid,
     Group,
@@ -18,10 +17,12 @@ import {
     Loader,
     Modal,
     Paper,
+    Pill,
     Popover,
     Skeleton,
     Slider,
     Stack,
+    TagsInput,
     Text,
     TextInput,
     Tooltip
@@ -59,12 +60,12 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
     const [game, setGame] = useState<ClipGame | null>(null)
     const [clips, setClips] = useState<Clip[] | null>(null);
     const [openAddClips, setOpenAddClips] = useBoolean(false);
+    const [categoryToAdd, setCategoryToAdd] = useState<string>('');
     const [categories, setCategories] = useState<string[]>([]);
     const [nameOfNewClip, setNameOfNewClip] = useState<string>("Clip 1");
     const [durationToClip, setDurationToClip] = useState<string>('00:00:00');
     const [timeToClip, setTimeToClip] = useState<string>('00:00:00');
     const [clipQuality, setClipQuality] = useState<number>(4);
-    const [initialTime, setInitialTime] = useState<number>(-1);
     const [currentTime, setCurrentTime] = useState<number>(-1);
     const [editIndex, setEditIndex] = useState<number>(-1);
     const [username] = useLocalStorage<string | null>("username", null);
@@ -99,8 +100,6 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
     useEffect(() => {
         if (gameBlob) {
             console.log("Requesting!")
-            const now = Date.now();
-            setInitialTime(now);
             fetch(`${SERVER_ADDRESS}/api/clips/games/${gameBlob}`).then(it => it.json()).then((it: {
                 game: ClipGame,
                 clips: Clip[]
@@ -210,14 +209,7 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                         clipNameError ? `The name '${nameOfNewClip}' is already in use!` : undefined}
                     value={nameOfNewClip}
                     onChange={e => setNameOfNewClip(e.target.value)}/>
-                <Text mt={10} fz="sm" fw={600}>Clip Categories</Text>
-                <Chip.Group multiple value={categories} onChange={setCategories}>
-                    <Group>
-                        {CATEGORIES.map((it, i) => (
-                            <Chip value={it} key={i}>{it}</Chip>
-                        ))}
-                    </Group>
-                </Chip.Group>
+                <TagsInput label="Clip Categories" value={categories} onChange={setCategories} data={CATEGORIES}/>
                 <TextInput
                     mt={10}
                     mb={10}
@@ -295,7 +287,6 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                                                 quality: clipQuality,
                                                 username,
                                                 password,
-                                                startTime: initialTime - 45 * MINUTE_IN_MS,
                                             })
 
                                         }).then(it => it.json()).then(({clip}) => {
@@ -333,7 +324,6 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                                             username,
                                             password,
                                         })
-
                                     }).then(it => it.json()).then(({clip}) => {
                                         setClips(prev => prev!.map(it => it.name === clip.name ? clip : it))
                                     }).catch(() => fetch(`${SERVER_ADDRESS}/api/clips/games/${gameBlob}`).then(it => it.json()).then((it: {

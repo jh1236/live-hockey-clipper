@@ -37,6 +37,13 @@ async def favourite_clip():
         return jsonify({'clip': clip}), 200
 
 
+@clips_bp.get('/favourite/get')
+async def get_favourite_clip():
+    with db_session():
+        clips = [LiveHockeyManager.db_clip_to_DTO(i) for i in Clips.select(i for i in Clips if i.favourite)]
+        return jsonify({'clips': clips}), 200
+
+
 @clips_bp.post('/add')
 async def add_clip():
     with db_session():

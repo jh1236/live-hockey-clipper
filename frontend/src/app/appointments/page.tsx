@@ -136,7 +136,6 @@ export default function Page() {
     const gamesPerUmpirePerWeek = useMemo(() => {
         const outMap: Map<string, { [key: string]: number }> = new Map();
         for (const game of gradeData) {
-
             const week = getMonday(new Date(game.startTime)).toDateString();
             if (!outMap.has(week)) {
                 outMap.set(week, Object.fromEntries(umpires.map(it => [it, 0])))
@@ -158,7 +157,7 @@ export default function Page() {
         }
         return [...outMap.entries().map(([date, value], i) => ({
             date,
-            ...Object.fromEntries(Object.entries(value).filter(([k, v]) => v > 0)),
+            ...Object.fromEntries(Object.entries(value).filter(([_, v]) => v > 0)),
         }))].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     }, [grade, gradeData, umpires])
 
