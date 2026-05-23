@@ -240,17 +240,20 @@ async def get_appointments(tournament=None, year='2026') -> list[Game]:
                     game.umpires.append(j)
                     if not j in get_officials():
                         print(f'Gender of umpire {j} is unknown!')
-                        Umpires(name=j, gender='?')
+                        @db_session
+                        def add_umpire():
+                            Umpires(name=j, gender='?')
+                        add_umpire()
                 if game not in out:
                     out.append(game)
     out.sort(key=lambda i: i.start_time)
     return out
 
 
-async def _get_officials_from_altius(tournament):
+async def _get_officials_from_altius(tournament, force_regen=False):
     cache_folder = get_config().cache_folder
     os.makedirs(cache_folder, exist_ok=True)
-    if os.path.exists(f'{cache_folder}/{tournament}_officials.html'):
+    if os.path.exists(f'{cache_folder}/{tournament}_officials.html') and not force_regen:
         with open(f'{cache_folder}/{tournament}_officials.html', 'r') as f:
             return f.read()
     page = await client.get(f"{base_url}/{tournament}/officials")
@@ -260,10 +263,10 @@ async def _get_officials_from_altius(tournament):
     return html
 
 
-async def _get_ladder_from_altius(tournament):
+async def _get_ladder_from_altius(tournament, force_regen=False):
     cache_folder = get_config().cache_folder
     os.makedirs(cache_folder, exist_ok=True)
-    if os.path.exists(f'{cache_folder}/{tournament}_ladder.html'):
+    if os.path.exists(f'{cache_folder}/{tournament}_ladder.html') and not force_regen:
         with open(f'{cache_folder}/{tournament}_ladder.html', 'r') as f:
             return f.read()
     page = await client.get(f"{base_url}/{tournament}/pools")
@@ -276,11 +279,14 @@ async def _get_ladder_from_altius(tournament):
 async def update_altius_pages():
     import LiveHockeyManager
     # reset the cache - we have new data
+    logging.warning('Launching Altius Update')
     LiveHockeyManager.get_recent_games.RECENT_GAMES_RESPONSES = {}
     tasks = []
     for i in YEAR_TO_TOURNAMENT_ID[datetime.datetime.now().year].values():
-        tasks += [_get_officials_from_altius(i), _get_ladder_from_altius(i)]
-    await asyncio.wait(tasks)
+        tasks += [_get_officials_from_altius(i, True), _get_ladder_from_altius(i, True)]
+    logging.error(f'{len(tasks)} many requests to make')
+    await asyncio.gather(*tasks)
+    logging.warning('Altius Update Successful')
 
 
 if __name__ == '__main__':

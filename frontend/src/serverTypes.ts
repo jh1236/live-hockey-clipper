@@ -6,6 +6,8 @@ export type Clip = {
     name: string,
     link?: string,
     categories?: string[],
+    favourite?: boolean,
+    gameBlob: string
 };
 
 export interface AppointmentGame {

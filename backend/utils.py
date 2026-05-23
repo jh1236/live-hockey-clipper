@@ -1,3 +1,4 @@
+import asyncio
 import time
 from datetime import datetime
 
@@ -15,3 +16,8 @@ def time_to_int(timestr):
 
 def format_iso(dt: datetime) -> str:
     return dt.isoformat(timespec='milliseconds').replace('+00:00', '') + 'Z'
+
+
+def async_to_sync(awaitable):
+    loop = asyncio.get_event_loop()
+    return loop.run_until_complete(awaitable)

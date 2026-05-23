@@ -29,6 +29,7 @@ logger = logging.Logger('LiveHockeyManager')
 
 @dataclasses.dataclass
 class ClipDto:
+    game_blob: str
     timecode: str
     length: str
     name: str
@@ -49,6 +50,7 @@ def db_clip_to_DTO(clip_in: Clips) -> ClipDto:
         name=clip_in.name,
         link=clip_in.link,
         categories=clip_in.comment.split(';'),
+        game_blob=clip_in.game_id.blob
     )
 
 

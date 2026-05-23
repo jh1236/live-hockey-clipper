@@ -7,6 +7,8 @@ import {useLocalStorage} from "react-use";
 import {GamesDisplay} from "@/components/GamesDisplay";
 import {FaSlidersH} from "react-icons/fa";
 import {ClipGame, SERVER_ADDRESS} from "@/serverTypes";
+import {FaRegStar, FaStar} from "react-icons/fa6";
+import Link from "next/link";
 
 export default function Page() {
     const [gameBlob, setGameBlob] = useState<string>("");
@@ -45,7 +47,17 @@ export default function Page() {
 
 
     return <Flex h="100svh" w="100svw" justify="center" align="center" direction="column" p={10}>
-        <Flex direction="column" align="center" h="100%" w="100%"  ta="center" style={{overflowX: 'hidden'}}>
+        <Box h={0} w="100%" pos="relative">
+            <Link href='/favourites'>
+                <ActionIcon
+                    right={0}
+                    pos="absolute"
+                    variant="subtle">
+                    <FaStar color="yellow"/>
+                </ActionIcon>
+            </Link>
+        </Box>
+        <Flex direction="column" align="center" h="100%" w="100%" ta="center" style={{overflowX: 'hidden'}}>
             <Group p={20}>
                 <Box w={40}></Box>
                 <Title order={2}>Upcoming Games</Title>

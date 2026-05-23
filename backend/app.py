@@ -1,15 +1,15 @@
 import atexit
 import json
 import logging
-import multiprocessing
 import os
 import shutil
-import humps
-from apscheduler.schedulers.background import BackgroundScheduler
+from datetime import datetime, timedelta
 
+import humps
 from quart import Quart
 from quart.wrappers.response import DataBody
 from quart_cors import cors
+from quart_tasks import QuartTasks
 
 from AltiusManager import update_altius_pages
 from blueprints import api
@@ -27,6 +27,7 @@ async def scheduled():
 DAY_IN_MS = 1000 * 60 * 60 * 24
 HOUR_IN_MS = 1000 * 60 * 60
 app = Quart(__name__)
+tasks = QuartTasks(app)
 app.register_blueprint(api)
 
 cors(app)
@@ -40,6 +41,7 @@ init_db()
 @app.before_request
 async def before_request():
     pass
+
 
 @app.after_request
 async def to_camel_case(response):
@@ -70,21 +72,13 @@ async def to_camel_case(response):
     return response
 
 
-async def start():
-    if multiprocessing.current_process().daemon:
-        # this only needs to run on one process
-        return
-    # update the altius w/o halting startup
-    await scheduled()
-    scheduler = BackgroundScheduler()
+@tasks.periodic(timedelta(minutes=30))
+async def update():
+    await update_altius_pages()
 
-    atexit.register(scheduler.shutdown)
-
-
-    scheduler.add_job(scheduled, 'interval', minutes=30)
-    scheduler.start()
-    return app
-
+@app.before_serving
+async def before_serving():
+    await update_altius_pages()
 
 if __name__ == '__main__':
     app.run()

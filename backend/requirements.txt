@@ -12,3 +12,4 @@ quart
 httpx
 aiohttp
 sanitize_filename
+quart-tasks

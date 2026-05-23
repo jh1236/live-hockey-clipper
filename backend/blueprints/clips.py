@@ -30,17 +30,18 @@ async def favourite_clip():
         if game is None:
             return 'Game not found', 404
 
-        clip = Clips.get(game_id=game.id, clip_name=clip_name)
-
+        clip = Clips.get(game_id=game.id, name=clip_name)
         clip.favourite = favourite
+        dto = LiveHockeyManager.db_clip_to_DTO(clip)
+        dto.favourite = favourite
 
-        return jsonify({'clip': clip}), 200
+        return jsonify({'clip': dto}), 200
 
 
 @clips_bp.get('/favourite/get')
 async def get_favourite_clip():
     with db_session():
-        clips = [LiveHockeyManager.db_clip_to_DTO(i) for i in Clips.select(i for i in Clips if i.favourite)]
+        clips = [LiveHockeyManager.db_clip_to_DTO(i) for i in select(i for i in Clips if i.favourite)]
         return jsonify({'clips': clips}), 200
 
 
@@ -122,7 +123,7 @@ async def get_game(blob):
             game.save_to_db()
             return jsonify({'game': LiveHockeyManager.fix_game_for_js(game), 'clips': []}), 200
         print(type(game))
-        clips = [LiveHockeyManager.fix_clip_for_js(i) for i in select(i for i in Clips if i.game_id == game)]
+        clips = [LiveHockeyManager.db_clip_to_DTO(i) for i in select(i for i in Clips if i.game_id == game)]
 
         return jsonify({'game': LiveHockeyManager.fix_game_for_js(game), 'clips': clips}), 200
 

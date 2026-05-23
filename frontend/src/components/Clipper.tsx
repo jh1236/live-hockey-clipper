@@ -5,7 +5,6 @@ import {useBoolean, useCopyToClipboard, useInterval, useLocalStorage} from "reac
 import {
     ActionIcon,
     AspectRatio,
-    Badge,
     Box,
     Button,
     Card,
@@ -14,10 +13,7 @@ import {
     Grid,
     Group,
     HoverCard,
-    Loader,
     Modal,
-    Paper,
-    Pill,
     Popover,
     Skeleton,
     Slider,
@@ -34,6 +30,7 @@ import Link from "next/link";
 import Image from "next/image";
 import {FaArrowUpRightFromSquare} from "react-icons/fa6";
 import {usePathname} from "next/navigation";
+import {ClipsDisplay} from "@/components/ClipsDisplay";
 
 interface ClipperProps {
     blob: string;
@@ -60,7 +57,6 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
     const [game, setGame] = useState<ClipGame | null>(null)
     const [clips, setClips] = useState<Clip[] | null>(null);
     const [openAddClips, setOpenAddClips] = useBoolean(false);
-    const [categoryToAdd, setCategoryToAdd] = useState<string>('');
     const [categories, setCategories] = useState<string[]>([]);
     const [nameOfNewClip, setNameOfNewClip] = useState<string>("Clip 1");
     const [durationToClip, setDurationToClip] = useState<string>('00:00:00');
@@ -274,6 +270,7 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                                             timecode: timeToClip,
                                             length: durationToClip,
                                             categories,
+                                            gameBlob
                                         };
                                         setClips([...clips!, newClip])
                                         fetch(`${SERVER_ADDRESS}/api/clips/add`, {
@@ -410,78 +407,10 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                     The livestream has not started!
                 </HoverCard.Dropdown>
             </HoverCard>
-            {clips.length ? <Grid flex={3} w="100%" h="80%" p={20} overflow="scroll">
-                {clips.map((it) => <Grid.Col key={it.name + !!it.link} span={{
-                    base: 6,
-                    md: 3
-                }}>
-                    <Card shadow="sm" padding="lg" withBorder>
-                        <Card.Section p={10}>
-                            <Center>
-                                <Text fz="1.1em" fw={600}>{it.name}</Text>
-                            </Center>
-                        </Card.Section>
-                        <Card.Section mb={10}>
-                            {it.link ?
-                                <video src={it.link} controls width="100%"></video> :
-                                <>
-                                    <AspectRatio ratio={16 / 9} maw={400} mx="auto" pos="relative" bg="#222222">
-                                        <Flex justify="center" align="center"><Loader z={1000}></Loader></Flex>
-                                    </AspectRatio>
-                                </>
-
-                            }
-                        </Card.Section>
-                        {it.categories?.length ?
-                            <Group my={10}>
-                                {it.categories.map(it => <Badge color="blue" key={it}>{it}</Badge>)}
-                            </Group>
-                            : <i>No Comment Left</i>}
-                        <Text size="sm" c="dimmed" mb={12}>
-                            <b>Timecode:</b>
-                            <br/>{it.timecode} - {secondsToHMS(hmsToSecondsOnly(it.timecode) + hmsToSecondsOnly(it.length))}
-                        </Text>
-
-
-                        {it.link ? <Group w="100%" justify="space-around">
-                            <Link href={it.link} target="_blank">
-                                <ActionIcon hiddenFrom="md" size="lg" color="blue" mt="md">
-                                    <FaArrowUpRightFromSquare/>
-                                </ActionIcon>
-                                <Button visibleFrom="md" color="blue" mt="md">
-                                    Open in new tab
-                                </Button>
-                            </Link>
-                            <Link download href={it.link} target="_blank">
-                                <ActionIcon hiddenFrom="md" size="lg" color="blue" mt="md">
-                                    <FaFileDownload/>
-                                </ActionIcon>
-                                <Button visibleFrom="md" color="blue" mt="md">
-                                    Download
-                                </Button>
-                            </Link>
-                        </Group> : <Group w="100%" justify="space-around">
-                            <ActionIcon disabled hiddenFrom="md" size="lg" color="blue" mt="md">
-                                <FaArrowUpRightFromSquare/>
-                            </ActionIcon>
-                            <Button disabled visibleFrom="md" color="blue" mt="md">
-                                Open in new tab
-                            </Button>
-                            <ActionIcon disabled hiddenFrom="md" size="lg" color="blue" mt="md">
-                                <FaFileDownload/>
-                            </ActionIcon>
-                            <Button disabled visibleFrom="md" color="blue" mt="md">
-                                Download
-                            </Button>
-                        </Group>}
-                    </Card>
-                </Grid.Col>)}
-            </Grid> : <Paper h="80%" ta="center">
-                <Flex direction="column" h="100%" justify="space-evenly" p={30}>
-                    <Text fs="italic" c="dimmed">There are no clips recorded for this game. <br/> Add one by
-                        pressing &apos;Add Clip&apos; above!</Text>
-                </Flex>
-            </Paper>}
+            <ClipsDisplay clips={clips} setClips={setClips} editable noClipMessage={
+                <>There are no clips recorded for this game. <br/> Add one by
+                    pressing &apos;Add Clip&apos; above!
+                </>}/>
             <Group w="70%" justify="space-between">
                 <Popover>
                     <Popover.Target>
