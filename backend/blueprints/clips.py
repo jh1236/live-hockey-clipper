@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 
+import humps
 from pony.orm import select, db_session
 from quart import jsonify, send_file, request
 from quart.blueprints import Blueprint
@@ -48,9 +49,9 @@ async def get_favourite_clip():
 @clips_bp.post('/add')
 async def add_clip():
     with db_session():
-        data = await request.json
+        data = humps.decamelize(await request.json)
         logging.error(data)
-        blob = data['gameBlob']
+        blob = data['game_blob']
         clip = LiveHockeyManager.ClipDto(**data['clip'])
         quality = data['quality']
         username = data.get('username', None)

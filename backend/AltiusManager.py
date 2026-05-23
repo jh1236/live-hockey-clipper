@@ -284,7 +284,6 @@ async def update_altius_pages():
     tasks = []
     for i in YEAR_TO_TOURNAMENT_ID[datetime.datetime.now().year].values():
         tasks += [_get_officials_from_altius(i, True), _get_ladder_from_altius(i, True)]
-    logging.error(f'{len(tasks)} many requests to make')
     await asyncio.gather(*tasks)
     logging.warning('Altius Update Successful')
 

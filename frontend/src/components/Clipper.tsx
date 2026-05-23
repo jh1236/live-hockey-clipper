@@ -1,7 +1,7 @@
 "use client";
 
 import {useEffect, useState} from "react";
-import {useBoolean, useCopyToClipboard, useInterval, useLocalStorage} from "react-use";
+import {useBoolean, useCopyToClipboard, useInterval, useLocalStorage, useMountedState} from "react-use";
 import {
     ActionIcon,
     AspectRatio,
@@ -54,6 +54,7 @@ const PRIOR_CLIP_RECORDING = 10;
 
 
 export function Clipper({blob: gameBlob}: ClipperProps) {
+    const mounted = useMountedState();
     const [game, setGame] = useState<ClipGame | null>(null)
     const [clips, setClips] = useState<Clip[] | null>(null);
     const [openAddClips, setOpenAddClips] = useBoolean(false);
@@ -67,7 +68,6 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
     const [username] = useLocalStorage<string | null>("username", null);
     const [password] = useLocalStorage<string | null>("password", null);
 
-    const pathname = usePathname();
     const [state, copyToClip] = useCopyToClipboard()
     const [copyTime, setCopyTime] = useState<number>(-1);
 
@@ -387,7 +387,6 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                 <HoverCard.Target>
                     <Button size="xl" w="60%" m={10} onClick={e => {
                         if (!game.isLive && game.startTime > currentTime) {
-                            e.preventDefault()
                             return
                         }
                         setTimeToClip(
@@ -398,6 +397,7 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                         setDurationToClip(secondsToHMS(PRIOR_CLIP_RECORDING, false));
                         setNameOfNewClip(`Clip ${clips?.length ?? 1}`)
                         setEditIndex(-1)
+                        setCategories([])
                         setOpenAddClips(true);
                     }}
                             data-disabled={!game.isLive && game.startTime > currentTime}
@@ -430,7 +430,9 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                     <Popover.Target>
                         <Button bg="green" p={10} m={20} size="lg" onClick={() => {
                             setCopyTime(Date.now())
-                            copyToClip(pathname)
+                            if (mounted()) {
+                                copyToClip(window.location.href)
+                            }
                         }}>Share</Button>
                     </Popover.Target>
                     <Popover.Dropdown>

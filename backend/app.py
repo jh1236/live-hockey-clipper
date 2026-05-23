@@ -4,6 +4,7 @@ import logging
 import os
 import shutil
 from datetime import datetime, timedelta
+from multiprocessing.process import current_process
 
 import humps
 from quart import Quart
@@ -20,7 +21,6 @@ logging.getLogger().setLevel(logging.INFO)
 
 
 async def scheduled():
-    logging.fatal('Getting updates from altius')
     await update_altius_pages()
 
 
@@ -74,11 +74,16 @@ async def to_camel_case(response):
 
 @tasks.periodic(timedelta(minutes=30))
 async def update():
-    await update_altius_pages()
+    if current_process()._name.endswith('-1'):
+        # HORRENDOUS HACK!!
+        await update_altius_pages()
+
 
 @app.before_serving
 async def before_serving():
-    await update_altius_pages()
+    if current_process()._name.endswith('-1'):
+        # HORRENDOUS HACK!!
+        await update_altius_pages()
 
 if __name__ == '__main__':
     app.run()
