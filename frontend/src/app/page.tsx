@@ -53,7 +53,7 @@ export default function Page() {
                     right={0}
                     pos="absolute"
                     variant="subtle">
-                    <FaFloppyDisk color="yellow"/>
+                    <FaFloppyDisk/>
                 </ActionIcon>
             </Link>
         </Box>
