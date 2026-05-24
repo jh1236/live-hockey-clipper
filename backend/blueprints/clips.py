@@ -18,25 +18,55 @@ from utils import time_to_int
 clips_bp = Blueprint('clips_bp', __name__, url_prefix='/clips')
 
 
-@clips_bp.post('/favourite')
+@clips_bp.post('/edit')
 async def favourite_clip():
     with db_session():
         data = await request.json
         logging.error(data)
         blob = data['gameBlob']
+        clip_id = data['id']
         clip_name = data['clipName']
+        categories = data['categories']
         favourite = bool(data['favourite'])
-
         game = Games.get(blob=blob)
-        if game is None:
-            return 'Game not found', 404
+        game_clips = Clips.select(lambda clip: clip.game_id == game)
+        clip = [i for i in game_clips if i.id == clip_id][0]
+        if clip is None:
+            return 'Clip not found', 404
 
-        clip = Clips.get(game_id=game.id, name=clip_name)
-        clip.favourite = favourite
         dto = LiveHockeyManager.db_clip_to_DTO(clip)
+        clip.favourite = favourite
         dto.favourite = favourite
+        if not favourite:
+            unsaved_count = max(([int(i.name.split('Unsaved Clip ')[1]) for i in game_clips if
+                                  not i.favourite and 'Unsaved Clip ' in i.name] + [0])) + 1
+            clip.name = f'Unsaved Clip {unsaved_count}'
+            dto.name = f'Unsaved Clip {unsaved_count}'
+            clip.comment = ''
+            dto.categories = []
+        else:
+            clip.name = clip_name
+            dto.name = clip_name
+            clip.comment = ';'.join(categories)
+            dto.categories = categories
 
         return jsonify({'clip': dto}), 200
+
+
+@clips_bp.delete('/remove')
+async def delete_clip():
+    with db_session():
+        data = await request.json
+        clip_id = data['id']
+        clip = Clips.get(id=clip_id)
+        if clip is None:
+            return 'Clip not found', 404
+
+        file_path = f'{get_config().videos_folder}/{clip.link.split("/api/clips/")[1]}'
+        clip.delete()
+        os.remove(file_path)
+        
+        return '', 204
 
 
 @clips_bp.get('/favourite/get')
@@ -52,7 +82,7 @@ async def add_clip():
         data = humps.decamelize(await request.json)
         logging.error(data)
         blob = data['game_blob']
-        clip = LiveHockeyManager.ClipDto(**data['clip'])
+        clip = LiveHockeyManager.ClipDto(**data['clip'], id=None)
         quality = data['quality']
         username = data.get('username', None)
         password = data.get('password', None)
@@ -61,14 +91,14 @@ async def add_clip():
         if game is None:
             return 'Game not found', 404
 
-        return_clip = await LiveHockeyManager.download_clip_for_game(blob, clip, quality, username, password)
-
-        if not return_clip:
+        database_entry = clip.add_to_database(game.id)
+        link = await LiveHockeyManager.download_clip_for_game(blob, database_entry, quality, username, password)
+        database_entry.link = link
+        if not link:
+            database_entry.delete()
             return 'Bad Clip', 400
 
-        return_clip.add_to_database(game.id)
-
-        return jsonify({'clip': return_clip}), 200
+        return jsonify({'clip': LiveHockeyManager.db_clip_to_DTO(database_entry)}), 200
 
 
 @clips_bp.post('/regenerate')
@@ -85,19 +115,19 @@ async def regenerate_clip():
         if game is None:
             return 'Game not found', 404
 
-        clips = [LiveHockeyManager.db_clip_to_DTO(i) for i in Clips.select()]
+        clips = list(Clips.select())
 
         if not clips:
             return 'Bad Clip', 400
 
-        tasks = []
+        async def worker(clip):
+            link = await LiveHockeyManager.download_clip_for_game(blob, clip, quality, username, password)
+            clip.link = link
+            return clip
 
-        for clip in clips:
-            tasks.append(LiveHockeyManager.download_clip_for_game(blob, clip, quality, username, password))
+        out = await asyncio.gather(*[worker(i) for i in clips])
 
-        out = await asyncio.gather(*tasks)
-
-        return jsonify(out), 200
+        return jsonify({'clips': out}), 200
 
 
 @clips_bp.route('/games/recent')

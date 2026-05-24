@@ -1,9 +1,9 @@
-import atexit
+import asyncio
 import json
 import logging
 import os
 import shutil
-from datetime import datetime, timedelta
+from datetime import timedelta
 from multiprocessing.process import current_process
 
 import humps
@@ -12,6 +12,7 @@ from quart.wrappers.response import DataBody
 from quart_cors import cors
 from quart_tasks import QuartTasks
 
+import LiveHockeyManager
 from AltiusManager import update_altius_pages
 from blueprints import api
 from config import get_config
@@ -74,16 +75,21 @@ async def to_camel_case(response):
 
 @tasks.periodic(timedelta(minutes=30))
 async def update():
-    if current_process()._name.endswith('-1'):
+    if current_process()._name.endswith('-1') and get_config().run_altius_checks:
         # HORRENDOUS HACK!!
         await update_altius_pages()
+    if current_process()._name.endswith('-2') and get_config().cleanse_old_videos:
+        LiveHockeyManager.remove_old_videos()
 
 
 @app.before_serving
 async def before_serving():
-    if current_process()._name.endswith('-1'):
+    if current_process()._name.endswith('-1') and get_config().run_altius_checks:
         # HORRENDOUS HACK!!
-        await update_altius_pages()
+        asyncio.create_task(update_altius_pages())
+    if current_process()._name.endswith('-2') and get_config().cleanse_old_videos:
+        LiveHockeyManager.remove_old_videos()
+
 
 if __name__ == '__main__':
     app.run()

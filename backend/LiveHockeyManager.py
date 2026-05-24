@@ -1,7 +1,6 @@
 import asyncio
 import contextlib
 import dataclasses
-import json
 import logging
 import os
 import re
@@ -16,8 +15,8 @@ from sanitize_filename import sanitize
 
 import AltiusManager
 from config import get_config
-from requester import client
 from database import Images, Users, Games, Clips, Umpires
+from requester import client
 from utils import time_to_int, int_to_time, format_iso
 
 ADDRESS = get_config().server_address
@@ -29,6 +28,7 @@ logger = logging.Logger('LiveHockeyManager')
 
 @dataclasses.dataclass
 class ClipDto:
+    id: int | None
     game_blob: str
     timecode: str
     length: str
@@ -39,17 +39,23 @@ class ClipDto:
 
     @db_session
     def add_to_database(self, game_id):
-        return Clips(start_time=time_to_int(self.timecode), duration=time_to_int(self.length), name=self.name,
-                     link=self.link, comment=';'.join(self.categories), game_id=game_id)
+        out = Clips(start_time=time_to_int(self.timecode), duration=time_to_int(self.length), name=self.name,
+                    link=self.link, comment=';'.join(self.categories) if self.categories else '', game_id=game_id,
+                    favourite=self.favourite)
+        out.flush()
+        self.id = out.id
+        return out
 
 
 def db_clip_to_DTO(clip_in: Clips) -> ClipDto:
     return ClipDto(
+        id=clip_in.id,
         timecode=int_to_time(clip_in.start_time),
         length=int_to_time(clip_in.duration),
         name=clip_in.name,
         link=clip_in.link,
-        categories=clip_in.comment.split(';'),
+        favourite=clip_in.favourite,
+        categories=[i for i in clip_in.comment.split(';') if i.strip()],
         game_blob=clip_in.game_id.blob
     )
 
@@ -194,15 +200,8 @@ def fix_game_for_js(game: Union[GameDto | Games | dict]) -> dict:
 
 def fix_clip_for_js(clip: Union[ClipDto, Clips]) -> dict:
     if isinstance(clip, Clips):
-        clip = clip.to_dict()
-        clip['timecode'] = clip['start_time']
-        clip['length'] = clip['duration']
-        clip['categories'] = clip['comment'].split(';')
-        del clip['start_time']
-        del clip['comment']
-        del clip['duration']
-    else:
-        clip = jsonable_encoder(clip)
+        clip = db_clip_to_DTO(clip)
+    clip = jsonable_encoder(clip)
     clip['length'] = int_to_time(clip['length'])
     clip['timecode'] = int_to_time(clip['timecode'])
     return clip
@@ -289,17 +288,14 @@ async def get_link_from_blob(blob: str, username=None,
 
 async def download_clip_for_game(
         blob: str,
-        clip: ClipDto,
+        clip: Clips,
         quality: int,
         username: str = None,
         password: str = None
 ):
     logger.error('Downloading clip for game %s', blob)
-    clip_start_time = max(time_to_int(clip.timecode) - 2, 0)
-    clip_end_time = max(time_to_int(clip.timecode) + time_to_int(clip.length) + 2, 0)
-    logger.error('\tStart time: %s', clip_start_time)
-    logger.error('\tLength: %s', str(time_to_int(clip.length)))
-    output_clip = dataclasses.replace(clip)
+    clip_start_time = max(clip.start_time - 2, 0)
+    clip_end_time = max(clip.start_time + clip.duration + 2, 0)
 
     index_url = await get_link_from_blob(blob, username, password)
     index_file = (await client.get(index_url)).text
@@ -308,14 +304,25 @@ async def download_clip_for_game(
     segment_start_time = 0
     segment_finish_time = 0
     first_time = -1
-    for line in index_file.split('\n'):
-        if line.startswith("#EXTINF:"):
-            segment_start_time = segment_finish_time
-            segment_finish_time += float(line.split("#EXTINF:")[1].split(",")[0])
-        elif not line.startswith('#') and segment_finish_time > clip_start_time and segment_start_time < clip_end_time:
-            if first_time < 0:
-                first_time = segment_start_time
-            files.append(line)
+    attempts = 0
+    while attempts < 3:
+        for line in index_file.split('\n'):
+            if line.startswith("#EXTINF:"):
+                segment_start_time = segment_finish_time
+                segment_finish_time += float(line.split("#EXTINF:")[1].split(",")[0])
+            elif not line.startswith(
+                    '#') and segment_finish_time > clip_start_time and segment_start_time < clip_end_time:
+                if first_time < 0:
+                    first_time = segment_start_time
+                files.append(line)
+        if segment_finish_time < clip_end_time:
+            attempts += 1
+            await asyncio.sleep(3)
+        else:
+            break
+
+    if attempts == 4:
+        raise Exception('Too far in future!')
 
     logger.warning('first time: %s', first_time)
     logger.warning('files: %s', '\n'.join([re.sub('.*/', '', i) for i in files]))
@@ -323,7 +330,7 @@ async def download_clip_for_game(
     folder = get_config().videos_folder + f'/{sanitize(blob)}'
 
     os.makedirs(folder, exist_ok=True)
-    output_location = f'{folder}/{sanitize(clip.name)}.mp4'
+    output_location = f'{folder}/{sanitize(str(clip.id))}.mp4'
     with contextlib.suppress(FileNotFoundError):
         os.remove(output_location)
 
@@ -333,7 +340,7 @@ async def download_clip_for_game(
         "-y",
         "-i", "concat:" + "|".join(files),
         "-ss", str(clip_start_time - first_time),
-        "-t", str(time_to_int(clip.length) + 4),
+        "-t", str(clip.duration + 4),
         "-c:v", "libx264",
         "-c:a", "aac",
         "-preset", "veryfast",
@@ -355,8 +362,7 @@ async def download_clip_for_game(
     if process.returncode:
         return None
 
-    output_clip.link = f'{ADDRESS}/api/clips/{blob}/{clip.name}.mp4'
-    return output_clip
+    return f'{ADDRESS}/api/clips/{blob}/{clip.id}.mp4'
 
 
 async def get_recent_games(location: str = 'hockeywa', juniors: bool = False, premier_only: bool = False,
@@ -422,3 +428,13 @@ async def get_recent_games(location: str = 'hockeywa', juniors: bool = False, pr
 
 
 get_recent_games.RECENT_GAMES_RESPONSES = {}
+
+
+def remove_old_videos():
+    with db_session():
+        two_days_ago = (datetime.now() - timedelta(days=2)).timestamp()
+        clips: list[Clips] = list(select(i for i in Clips if not i.favourite and i.time_created < two_days_ago))
+        for clip in clips:
+            file_path = f'{get_config().videos_folder}/{clip.link.split("/api/clips/")[1]}'
+            clip.delete()
+            os.remove(file_path)

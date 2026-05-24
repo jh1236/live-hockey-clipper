@@ -4,7 +4,8 @@ export type Clip = {
     timecode: string,
     length: string,
     name: string,
-    link?: string,
+    id?: number,
+    link: string,
     categories?: string[],
     favourite?: boolean,
     gameBlob: string

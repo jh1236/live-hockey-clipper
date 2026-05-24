@@ -8,6 +8,7 @@ import re
 from collections import defaultdict
 from functools import reduce
 
+import httpx
 from bs4 import BeautifulSoup
 from dateutil import parser
 from pony.orm import db_session, select
@@ -172,6 +173,7 @@ async def get_ladder(year='2026'):
     else:
         tournaments = YEAR_TO_TOURNAMENT_ID[int(year)].values()
     out: dict[int, list[str]] = defaultdict(list)
+
     async def fetch(i):
         return i, await _get_ladder_from_altius(i)
 
@@ -240,9 +242,11 @@ async def get_appointments(tournament=None, year='2026') -> list[Game]:
                     game.umpires.append(j)
                     if not j in get_officials():
                         print(f'Gender of umpire {j} is unknown!')
+
                         @db_session
                         def add_umpire():
                             Umpires(name=j, gender='?')
+
                         add_umpire()
                 if game not in out:
                     out.append(game)
@@ -250,30 +254,54 @@ async def get_appointments(tournament=None, year='2026') -> list[Game]:
     return out
 
 
-async def _get_officials_from_altius(tournament, force_regen=False):
+async def _get_officials_from_altius(tournament, force_regen=False, *, attempts=3):
+    if attempts == 0:
+        raise Exception('Too many attempts to fetch from altius, and cache is empty!')
     cache_folder = get_config().cache_folder
     os.makedirs(cache_folder, exist_ok=True)
     if os.path.exists(f'{cache_folder}/{tournament}_officials.html') and not force_regen:
         with open(f'{cache_folder}/{tournament}_officials.html', 'r') as f:
             return f.read()
-    page = await client.get(f"{base_url}/{tournament}/officials")
-    html = page.read().decode("utf-8")
-    with open(f'{cache_folder}/{tournament}_officials.html', 'w+') as f:
-        f.write(html)
-    return html
+    try:
+        page = await client.get(f"{base_url}/{tournament}/officials")
+        html = page.read().decode("utf-8")
+        with open(f'{cache_folder}/{tournament}_officials.html', 'w+') as f:
+            f.write(html)
+        return html
+    except httpx.HTTPError:
+        logging.warning('Altius API returned HTTP error')
+        if os.path.exists(f'{cache_folder}/{tournament}_officials.html') and force_regen:
+            with open(f'{cache_folder}/{tournament}_officials.html', 'r') as f:
+                return f.read()
+        else:
+            await asyncio.sleep(1)
+            return await _get_officials_from_altius(tournament=tournament, force_regen=force_regen,
+                                                    attempts=attempts - 1)
 
 
-async def _get_ladder_from_altius(tournament, force_regen=False):
+async def _get_ladder_from_altius(tournament, force_regen=False, *, attempts=3):
+    if attempts == 0:
+        raise Exception('Too many attempts to fetch from altius, and cache is empty!')
     cache_folder = get_config().cache_folder
     os.makedirs(cache_folder, exist_ok=True)
     if os.path.exists(f'{cache_folder}/{tournament}_ladder.html') and not force_regen:
         with open(f'{cache_folder}/{tournament}_ladder.html', 'r') as f:
             return f.read()
-    page = await client.get(f"{base_url}/{tournament}/pools")
-    html = page.read().decode("utf-8")
-    with open(f'{cache_folder}/{tournament}_ladder.html', 'w+') as f:
-        f.write(html)
-    return html
+    try:
+        page = await client.get(f"{base_url}/{tournament}/pools")
+        html = page.read().decode("utf-8")
+        with open(f'{cache_folder}/{tournament}_ladder.html', 'w+') as f:
+            f.write(html)
+        return html
+    except httpx.HTTPError:
+        logging.warning('Altius API returned HTTP error')
+        if os.path.exists(f'{cache_folder}/{tournament}_ladders.html') and force_regen:
+            with open(f'{cache_folder}/{tournament}_ladders.html', 'r') as f:
+                return f.read()
+        else:
+            await asyncio.sleep(1)
+            return await _get_ladder_from_altius(tournament=tournament, force_regen=force_regen,
+                                                 attempts=attempts - 1)
 
 
 async def update_altius_pages():
@@ -281,10 +309,12 @@ async def update_altius_pages():
     # reset the cache - we have new data
     logging.warning('Launching Altius Update')
     LiveHockeyManager.get_recent_games.RECENT_GAMES_RESPONSES = {}
-    tasks = []
     for i in YEAR_TO_TOURNAMENT_ID[datetime.datetime.now().year].values():
-        tasks += [_get_officials_from_altius(i, True), _get_ladder_from_altius(i, True)]
-    await asyncio.gather(*tasks)
+        # tonnes of sleeps - altius sucks and will crash without much work
+        await _get_officials_from_altius(i, True)
+        await asyncio.sleep(1)
+        await _get_ladder_from_altius(i, True)
+        await asyncio.sleep(1)
     logging.warning('Altius Update Successful')
 
 
