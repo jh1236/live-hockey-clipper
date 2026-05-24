@@ -149,7 +149,7 @@ def live_hockey_game_to_db_game(game: dict[str, Any], altius_games: list[AltiusM
         start_time=round(parser.parse(stream_start if use_stream_time and stream_start else game['start']).timestamp()),
         last_server_ping=round(time.time()),
         altius_link=f'https://hockeywa.altiusrt.com/matches/{game["extId"]}' if game['extSrc'] == 'ALT_WA' else None,
-        teamstar_link=f'https://comp.teamstar.team/event/${game["extId"]}' if game['extSrc'] == 'TEAMSTAR' else None,
+        teamstar_link=f'https://comp.teamstar.team/event/{game["extId"]}' if game['extSrc'] == 'TEAMSTAR' else None,
     )
     if altius_games and comp_name in _COMPS_TO_ALTIUS_ID and game['extSrc'] == 'ALT_WA':
         team_one_code = _LIVEHOCKEY_CODE_TO_ALTIUS_CODE[team_one_code]
