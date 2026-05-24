@@ -7,7 +7,7 @@ import {useLocalStorage} from "react-use";
 import {GamesDisplay} from "@/components/GamesDisplay";
 import {FaSlidersH} from "react-icons/fa";
 import {ClipGame, SERVER_ADDRESS} from "@/serverTypes";
-import {FaRegStar, FaStar} from "react-icons/fa6";
+import {FaFloppyDisk, FaRegStar, FaStar} from "react-icons/fa6";
 import Link from "next/link";
 
 export default function Page() {
@@ -53,7 +53,7 @@ export default function Page() {
                     right={0}
                     pos="absolute"
                     variant="subtle">
-                    <FaStar color="yellow"/>
+                    <FaFloppyDisk color="yellow"/>
                 </ActionIcon>
             </Link>
         </Box>

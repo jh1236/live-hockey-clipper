@@ -20,7 +20,7 @@ import {
 } from "@mantine/core";
 import {hmsToSecondsOnly, secondsToHMS} from "@/utils";
 import Link from "next/link";
-import {FaArrowUpRightFromSquare, FaFloppyDisk, FaMinus, FaPencil} from "react-icons/fa6";
+import {FaArrowUpRightFromSquare, FaFloppyDisk, FaMinus, FaPencil, FaTv} from "react-icons/fa6";
 import {FaFileDownload} from "react-icons/fa";
 import {Dispatch, SetStateAction, useMemo, useState} from "react";
 
@@ -57,16 +57,16 @@ function LoadingClip() {
 
 
         <Group w="100%" justify="space-around">
-            <ActionIcon disabled hiddenFrom="md" size="lg" color="blue" mt="md">
+            <ActionIcon disabled hiddenFrom="md" size="lg" color="blue" mt={5}>
                 <FaArrowUpRightFromSquare/>
             </ActionIcon>
-            <Button disabled visibleFrom="md" color="blue" mt="md">
+            <Button disabled visibleFrom="md" color="blue" mt={5}>
                 Open in new tab
             </Button>
-            <ActionIcon disabled hiddenFrom="md" size="lg" color="blue" mt="md">
+            <ActionIcon disabled hiddenFrom="md" size="lg" color="blue" mt={5}>
                 <FaFileDownload/>
             </ActionIcon>
-            <Button disabled visibleFrom="md" color="blue" mt="md">
+            <Button disabled visibleFrom="md" color="blue" mt={5}>
                 Download
             </Button>
         </Group>
@@ -75,19 +75,20 @@ function LoadingClip() {
 }
 
 interface LoadedCardProps {
-    clip: Clip | undefined;
-    setEditingClipIndex: Dispatch<SetStateAction<number>>;
-    setClips: Dispatch<SetStateAction<(Clip | undefined)[] | null>>;
-    clipIndex: number;
+    clip: Clip | undefined,
+    setEditingClipIndex: Dispatch<SetStateAction<number>>,
+    setClips: Dispatch<SetStateAction<(Clip | undefined)[] | null>>,
+    clipIndex: number,
+    linkToGame: boolean
 }
 
-function SingleClipDisplay({clip, setEditingClipIndex, clipIndex, setClips}: LoadedCardProps) {
+function SingleClipDisplay({clip, setEditingClipIndex, clipIndex, setClips, linkToGame}: LoadedCardProps) {
     if (!clip) {
         return <LoadingClip/>
     }
-    return <Card shadow="sm" padding="lg" withBorder>
-        <Box h={0} pos="relative">
-            <Box right={0} pos="absolute">
+    return <Card shadow="sm" p={10} pt={0} withBorder>
+        <Box h={{base: 30, md: 0}} pos="relative">
+            <Box right={0} pos="absolute" m={5}>
                 {
                     clip?.favourite ?
                         <ActionIcon
@@ -168,10 +169,10 @@ function SingleClipDisplay({clip, setEditingClipIndex, clipIndex, setClips}: Loa
 
             }
         </Card.Section>
-        <Group my={10}>
+        {!!clip?.categories?.length && <Group my={10}>
             {clip?.categories?.map(it => <Badge color="blue" key={it}>{it}</Badge>)}
-        </Group>
-        <Text size="sm" c="dimmed" mb={12} ta="left">
+        </Group>}
+        <Text size="sm" c="dimmed" mb={5} ta="left">
             <b>Timecode:</b>
             <br/>{clip.timecode} - {secondsToHMS(hmsToSecondsOnly(clip.timecode) + hmsToSecondsOnly(clip.length))}
         </Text>
@@ -179,33 +180,42 @@ function SingleClipDisplay({clip, setEditingClipIndex, clipIndex, setClips}: Loa
 
         <Group w="100%" justify="space-around">
             <Link href={clip.link} target="_blank">
-                <ActionIcon hiddenFrom="md" size="lg" color="blue" mt="md">
-                    <FaArrowUpRightFromSquare/>
+                <ActionIcon hiddenFrom="md" size="lg" color="blue" mt={5}>
+                    <FaTv/>
                 </ActionIcon>
-                <Button visibleFrom="md" color="blue" mt="md">
+                <Button visibleFrom="md" color="blue" mt={5}>
                     Open in new tab
                 </Button>
             </Link>
-            <Link download href={clip.link} target="_blank">
-                <ActionIcon hiddenFrom="md" size="lg" color="blue" mt="md">
-                    <FaFileDownload/>
-                </ActionIcon>
-                <Button visibleFrom="md" color="blue" mt="md">
-                    Download
-                </Button>
-            </Link>
+            {linkToGame ?
+                <Link href={`/${clip.gameBlob}`} target="_blank">
+                    <ActionIcon hiddenFrom="md" size="lg" color="blue" mt={5}>
+                        <FaArrowUpRightFromSquare/>
+                    </ActionIcon>
+                    <Button visibleFrom="md" color="blue" mt={5}>
+                        View Game
+                    </Button>
+                </Link> : <Link download href={`${clip.link}?download=true`} target="_blank">
+                    <ActionIcon hiddenFrom="md" size="lg" color="blue" mt={5}>
+                        <FaFileDownload/>
+                    </ActionIcon>
+                    <Button visibleFrom="md" color="blue" mt={5}>
+                        Download
+                    </Button>
+                </Link>}
         </Group>
     </Card>;
 }
 
 interface ClipsDisplayProps {
-    clips: (Clip | undefined)[] | null
-    setClips: Dispatch<SetStateAction<(Clip | undefined)[] | null>>;
-    error?: string
-    noClipMessage: string | React.ReactElement
+    clips: (Clip | undefined)[] | null,
+    setClips: Dispatch<SetStateAction<(Clip | undefined)[] | null>>,
+    error?: string,
+    noClipMessage: string | React.ReactElement,
+    linkToGame?: boolean
 }
 
-export function ClipsDisplay({clips, setClips, noClipMessage}: ClipsDisplayProps) {
+export function ClipsDisplay({clips, setClips, noClipMessage, linkToGame = false}: ClipsDisplayProps) {
     const [categories, setCategories] = useState<string[]>([])
     const [shouldBeSaved, setShouldBeSaved] = useState<boolean>(true);
     const [nameOfSavedClip, setNameOfSavedClip] = useState<string>("");
@@ -227,7 +237,7 @@ export function ClipsDisplay({clips, setClips, noClipMessage}: ClipsDisplayProps
 
     return <>
         {clips.length ? <>
-            <Modal opened={clipBeingEdited !== undefined} onClose={() => setClipIdxToEdit(-1)} title={'Save Clip'}>
+            <Modal centered opened={clipBeingEdited !== undefined} onClose={() => setClipIdxToEdit(-1)} title={'Save Clip'}>
                 <TextInput
                     w="100%"
                     mb={10}
@@ -284,6 +294,7 @@ export function ClipsDisplay({clips, setClips, noClipMessage}: ClipsDisplayProps
                     }}>
                         <SingleClipDisplay
                             clip={it}
+                            linkToGame={linkToGame}
                             setClips={setClips}
                             setEditingClipIndex={(value) => {
                                 setNameOfSavedClip(it?.name ?? '')
