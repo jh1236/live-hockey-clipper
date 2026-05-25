@@ -5,6 +5,7 @@ import '@mantine/core/styles.css';
 import '@mantine/charts/styles.css';
 
 import {ColorSchemeScript, MantineProvider, mantineHtmlProps} from '@mantine/core';
+import {SettingsProvider} from "@/components/settings";
 
 const geistSans = Geist({
     variable: "--font-geist-sans",
@@ -35,9 +36,11 @@ export default function RootLayout({
         <body
             className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         >
-        <MantineProvider defaultColorScheme="dark">
-            {children}
-        </MantineProvider>
+        <SettingsProvider>
+            <MantineProvider defaultColorScheme="dark">
+                {children}
+            </MantineProvider>
+        </SettingsProvider>
         </body>
         </html>
     );

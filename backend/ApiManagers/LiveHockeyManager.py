@@ -1,8 +1,6 @@
 import asyncio
-import contextlib
 import dataclasses
 import logging
-import os
 import re
 import time
 from datetime import datetime, UTC, timedelta
@@ -11,9 +9,8 @@ from typing import Any, Union
 from dateutil import parser
 from fastapi.encoders import jsonable_encoder
 from pony.orm import db_session, select, commit
-from sanitize_filename import sanitize
 
-import AltiusManager
+from ApiManagers import AltiusManager
 from config import get_config
 from database import Images, Users, Games, Clips, Umpires
 from requester import client
@@ -130,8 +127,8 @@ _LIVEHOCKEY_CODE_TO_ALTIUS_CODE = {i: i for i in set(AltiusManager.FIX_ALTIUS_CO
 }
 
 
-def live_hockey_game_to_db_game(game: dict[str, Any], altius_games: list[AltiusManager.Game] | None,
-                                use_stream_time=True, fix_for_js=False) -> GameDto | dict:
+def live_hockey_game_to_dto(game: dict[str, Any], altius_games: list[AltiusManager.Game] | None,
+                            use_stream_time=True, fix_for_js=False) -> GameDto | dict:
     stream_start = game.get('streamStart', None)
     comp_name = _convert_comp_name(game['competition']['playerLevel']['name'])
     team_one_code = game['homeTeam']['shortName']
@@ -238,16 +235,16 @@ def get_image_for_team(team: dict[str, Any]) -> str:
 
 
 @db_session
-def _db_get_live_hockey_token(username):
+def _db_get_live_hockey_token(username) -> str | None:
     if not username: return None
     user = Users.get(username=username)
     if not user: return None
-    return user.token
+    return user.live_hockey_token
 
 
 @db_session
 def _db_set_live_hockey_token(username, token):
-    Users(username=username, token=token)
+    Users(username=username, live_hockey_token=token)
 
 
 async def _web_get_live_hockey_token(username, password):
@@ -284,85 +281,6 @@ async def get_link_from_blob(blob: str, username=None,
                                 headers={'Authorization': f'Bearer {token}', 'site-id': 'AU_FH_AUS'})).json()[
             'videoUrl']
         return out
-
-
-async def download_clip_for_game(
-        blob: str,
-        clip: Clips,
-        quality: int,
-        username: str = None,
-        password: str = None
-):
-    logger.error('Downloading clip for game %s', blob)
-    clip_start_time = max(clip.start_time - 2, 0)
-    clip_end_time = max(clip.start_time + clip.duration + 2, 0)
-
-    index_url = await get_link_from_blob(blob, username, password)
-    index_file = (await client.get(index_url)).text
-
-    files = []
-    segment_start_time = 0
-    segment_finish_time = 0
-    first_time = -1
-    attempts = 0
-    while attempts < 3:
-        for line in index_file.split('\n'):
-            if line.startswith("#EXTINF:"):
-                segment_start_time = segment_finish_time
-                segment_finish_time += float(line.split("#EXTINF:")[1].split(",")[0])
-            elif not line.startswith(
-                    '#') and segment_finish_time > clip_start_time and segment_start_time < clip_end_time:
-                if first_time < 0:
-                    first_time = segment_start_time
-                files.append(line)
-        if segment_finish_time < clip_end_time:
-            attempts += 1
-            await asyncio.sleep(3)
-        else:
-            break
-
-    if attempts == 4:
-        raise Exception('Too far in future!')
-
-    logger.warning('first time: %s', first_time)
-    logger.warning('files: %s', '\n'.join([re.sub('.*/', '', i) for i in files]))
-
-    folder = get_config().videos_folder + f'/{sanitize(blob)}'
-
-    os.makedirs(folder, exist_ok=True)
-    output_location = f'{folder}/{sanitize(str(clip.id))}.mp4'
-    with contextlib.suppress(FileNotFoundError):
-        os.remove(output_location)
-
-    args: list[str] = [
-        "ffmpeg",
-        "-protocol_whitelist", "file,http,https,tcp,tls,crypto,concat",
-        "-y",
-        "-i", "concat:" + "|".join(files),
-        "-ss", str(clip_start_time - first_time),
-        "-t", str(clip.duration + 4),
-        "-c:v", "libx264",
-        "-c:a", "aac",
-        "-preset", "veryfast",
-        "-crf", f"{40 - 2 * quality}",
-        "-f", "mp4",
-        output_location
-    ]
-    logger.warning(' '.join(args))
-    process = await asyncio.create_subprocess_exec(*args)
-
-    async def kill_after_time():
-        await asyncio.sleep(120)
-        process.terminate()
-
-    tasks = [asyncio.create_task(i) for i in [process.communicate(), kill_after_time()]]
-    await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-    for i in tasks:
-        if not i.done(): i.cancel()
-    if process.returncode:
-        return None
-
-    return f'{ADDRESS}/api/clips/{blob}/{clip.id}.mp4'
 
 
 async def get_recent_games(location: str = 'hockeywa', juniors: bool = False, premier_only: bool = False,
@@ -409,10 +327,7 @@ async def get_recent_games(location: str = 'hockeywa', juniors: bool = False, pr
         ('start-from', format_iso(now)),
         ('start-to', format_iso(date_to)),
     ]
-    upcoming_raw = await client.get(future_base, params=future_params, headers={'site-id': 'AU_FH_AUS'})
-    upcoming_raw = upcoming_raw.json()
     appointments = await AltiusManager.get_appointments()
-    upcoming = [live_hockey_game_to_db_game(g, appointments, False, True) for g in upcoming_raw]
     # Recent games
     past_base, past_params = get_games_from_comps(comps, 8, include_live=False)
     past_params += [
@@ -420,21 +335,16 @@ async def get_recent_games(location: str = 'hockeywa', juniors: bool = False, pr
         ('start-to', format_iso(now)),
         ('start-from', format_iso(one_week_ago)),
     ]
-    recent_raw = (await client.get(past_base, params=past_params, headers={'site-id': 'AU_FH_AUS'})).json()
-    recent = [live_hockey_game_to_db_game(g, appointments, False, True) for g in recent_raw]
+    recent_raw, upcoming_raw = await asyncio.gather(
+        client.get(past_base, params=past_params, headers={'site-id': 'AU_FH_AUS'}),
+        client.get(future_base, params=future_params, headers={'site-id': 'AU_FH_AUS'}))
+    recent_raw = recent_raw.json()
+    upcoming_raw = upcoming_raw.json()
+    upcoming = [live_hockey_game_to_dto(g, appointments, False, True) for g in upcoming_raw]
+    recent = [live_hockey_game_to_dto(g, appointments, False, True) for g in recent_raw]
     update_required_timestamp = min([i["start_time"] / 1000 for i in upcoming] + [date_to.timestamp()])
     get_recent_games.RECENT_GAMES_RESPONSES[key] = (update_required_timestamp, (recent, upcoming))
     return recent, upcoming
 
 
 get_recent_games.RECENT_GAMES_RESPONSES = {}
-
-
-def remove_old_videos():
-    with db_session():
-        two_days_ago = (datetime.now() - timedelta(days=2)).timestamp()
-        clips: list[Clips] = list(select(i for i in Clips if not i.favourite and i.time_created < two_days_ago))
-        for clip in clips:
-            file_path = f'{get_config().videos_folder}/{clip.link.split("/api/clips/")[1]}'
-            clip.delete()
-            os.remove(file_path)

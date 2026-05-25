@@ -7,7 +7,7 @@ import {useLocalStorage} from "react-use";
 import {GamesDisplay} from "@/components/GamesDisplay";
 import {FaSlidersH} from "react-icons/fa";
 import {ClipGame, SERVER_ADDRESS} from "@/serverTypes";
-import {FaFloppyDisk, FaRegStar, FaStar} from "react-icons/fa6";
+import {FaFloppyDisk} from "react-icons/fa6";
 import Link from "next/link";
 
 export default function Page() {

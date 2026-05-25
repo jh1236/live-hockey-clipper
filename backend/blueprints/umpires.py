@@ -1,8 +1,8 @@
 from pony.orm import db_session
-from quart import jsonify, send_file, request
+from quart import jsonify, request
 from quart.blueprints import Blueprint
 
-from AltiusManager import get_officials
+from ApiManagers.AltiusManager import get_officials
 from database import Umpires
 
 umpire_bp = Blueprint('umpire_bp', __name__, url_prefix='/umpires')

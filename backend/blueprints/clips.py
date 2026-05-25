@@ -8,12 +8,10 @@ from quart import jsonify, send_file, request
 from quart.blueprints import Blueprint
 from sanitize_filename import sanitize
 
-import AltiusManager
-import LiveHockeyManager
+from ApiManagers import LiveHockeyManager, AltiusManager, ClipsManager
 from config import get_config
 from database import Games, Clips
 from requester import client
-from utils import time_to_int
 
 clips_bp = Blueprint('clips_bp', __name__, url_prefix='/clips')
 
@@ -65,7 +63,7 @@ async def delete_clip():
         file_path = f'{get_config().videos_folder}/{clip.link.split("/api/clips/")[1]}'
         clip.delete()
         os.remove(file_path)
-        
+
         return '', 204
 
 
@@ -92,7 +90,7 @@ async def add_clip():
             return 'Game not found', 404
 
         database_entry = clip.add_to_database(game.id)
-        link = await LiveHockeyManager.download_clip_for_game(blob, database_entry, quality, username, password)
+        link = await ClipsManager.download_clip_for_game(blob, database_entry, quality, username, password)
         database_entry.link = link
         if not link:
             database_entry.delete()
@@ -121,7 +119,7 @@ async def regenerate_clip():
             return 'Bad Clip', 400
 
         async def worker(clip):
-            link = await LiveHockeyManager.download_clip_for_game(blob, clip, quality, username, password)
+            link = await ClipsManager.download_clip_for_game(blob, clip, quality, username, password)
             clip.link = link
             return clip
 
@@ -150,7 +148,7 @@ async def get_game(blob):
                 client.get(f'https://api.livearenasports.com/broadcast/{blob}', headers={'site-id': 'AU_FH_AUS'}),
                 AltiusManager.get_appointments())
             game = game.json()
-            game = LiveHockeyManager.live_hockey_game_to_db_game(game, appointments)
+            game = LiveHockeyManager.live_hockey_game_to_dto(game, appointments)
             game.save_to_db()
             return jsonify({'game': LiveHockeyManager.fix_game_for_js(game), 'clips': []}), 200
         print(type(game))
@@ -165,3 +163,11 @@ async def stream_file(blob, clip):
     download = request.args.get('download', 'false').lower() == 'true'
     directory = os.path.join(get_config().videos_folder, sanitize(blob), sanitize(clip))
     return await send_file(directory, as_attachment=download)
+
+
+@clips_bp.route('/get')
+async def get_clip_by_id():
+    with db_session():
+        clip_id = int(request.args.get('id'))
+        clip = LiveHockeyManager.db_clip_to_DTO(Clips.get(id=clip_id))
+        return jsonify({'clip': clip}), 200

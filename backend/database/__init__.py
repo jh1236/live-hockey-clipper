@@ -1,3 +1,5 @@
+import os
+
 from pony.orm import Database, PrimaryKey, Required, Optional, Set
 
 from config import get_config
@@ -6,7 +8,8 @@ db = Database()
 
 
 def init_db():
-    db.bind(provider='sqlite', filename=get_config().database_path, create_db=True)
+    path = os.path.abspath(get_config().database_path)
+    db.bind(provider='sqlite', filename=path, create_db=True)
     db.generate_mapping(create_tables=False)
 
 
@@ -64,4 +67,6 @@ class Images(db.Entity):
 class Users(db.Entity):
     id = PrimaryKey(int, auto=True)
     username = Required(str)
-    token = Required(str)
+    live_hockey_token = Optional(str, nullable=True)
+    whistle_iq_token = Optional(str, nullable=True)
+    whistle_iq_session = Optional(str, nullable=True)

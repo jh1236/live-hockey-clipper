@@ -130,7 +130,7 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
         </Flex>
     }
 
-    const timeToClipError = !/^(\d?\d)(:\d\d)?(:\d\d)?$/.test(timeToClip) || game.startTime + hmsToSecondsOnly(timeToClip) > Date.now();
+    const timeToClipError = !/^(0?[0-3])(:\d\d)?(:\d\d)?$/.test(timeToClip) || game.startTime + hmsToSecondsOnly(timeToClip) > Date.now();
     const unnamedCount = clips.filter(it => /^Unsaved Clip \d+$/.test(it?.name ?? '')).map(i => +i!.name.replace('Unsaved Clip', '')).reduce((a, b) => Math.max(a, b), 0) + 1
 
     return <Box>

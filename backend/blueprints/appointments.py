@@ -3,7 +3,7 @@ from datetime import datetime
 from fastapi.encoders import jsonable_encoder
 from quart import Blueprint, jsonify, request
 
-from AltiusManager import get_ladder, get_appointments, YEAR_TO_TOURNAMENT_ID
+from ApiManagers.AltiusManager import get_ladder, get_appointments, YEAR_TO_TOURNAMENT_ID
 
 appointments_bp = Blueprint('appointments_bp', __name__, url_prefix='/appointments')
 
