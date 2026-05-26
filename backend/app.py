@@ -12,18 +12,12 @@ from quart.wrappers.response import DataBody
 from quart_cors import cors
 from quart_tasks import QuartTasks
 
-from ApiManagers import ClipsManager, altius_utils
+from ApiManagers import ClipsManager, AltiusManager
 from blueprints import api
 from config import get_config
 from database import init_db
 
 logging.getLogger().setLevel(logging.INFO)
-
-
-async def scheduled():
-    await update_altius_pages()
-
-
 
 app = Quart(__name__)
 tasks = QuartTasks(app)
@@ -74,7 +68,7 @@ async def to_camel_case(response):
 async def run_periodically():
     if current_process()._name.endswith('-1') and get_config().run_altius_checks:
         # HORRENDOUS HACK!!
-        asyncio.create_task(update_altius_pages())
+        asyncio.create_task(AltiusManager.update_altius_pages())
     if current_process()._name.endswith('-2') and get_config().cleanse_old_videos:
         ClipsManager.remove_old_videos()
 

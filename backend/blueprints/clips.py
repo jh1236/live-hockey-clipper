@@ -28,7 +28,7 @@ async def favourite_clip():
         clip_name = data['clipName']
         categories = data['categories']
         favourite = bool(data['favourite'])
-        game = Games.get(blob=blob)
+        game = Games.get(live_hockey_id=blob)
         game_clips = Clips.select(lambda clip: clip.game == game)
         clip = [i for i in game_clips if i.id == clip_id][0]
         if clip is None:

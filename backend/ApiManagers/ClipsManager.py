@@ -32,7 +32,7 @@ class ClipDto:
     @db_session
     def add_to_database(self, game_id):
         out = Clips(start_time=time_to_int(self.start_time), duration=time_to_int(self.duration), name=self.name,
-                    link=self.link, comment=';'.join(self.categories) if self.categories else '', game_id=game_id,
+                    link=self.link, comment=';'.join(self.categories) if self.categories else '', game=game_id,
                     favourite=self.favourite)
         out.flush()
         self.id = out.id

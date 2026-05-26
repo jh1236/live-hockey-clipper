@@ -75,6 +75,7 @@ class Games(db.Entity):
     home_team_score = NullableOptional(int)
     away_team_score = NullableOptional(int)
     venue = NullableOptional(Venues, column='venue_id')
+    time_created = NullableOptional(int)
     clips = Set('Clips', reverse='game')
 
     def format_for_frontend(self):
@@ -115,6 +116,7 @@ class Clips(db.Entity):
         d['duration'] = int_to_time(self.duration)
         d['categories'] = self.comment.split(';')
         del d['comment']
+        return d
 
 
 class Users(db.Entity):
