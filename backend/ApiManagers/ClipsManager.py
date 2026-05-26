@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import dataclasses
 import logging
 import os
 import re
@@ -8,13 +9,34 @@ from datetime import datetime, timedelta
 from pony.orm import db_session, select
 from sanitize_filename import sanitize
 
-from ApiManagers import LiveHockeyManager
+from ApiManagers.live_hockey_utils import fetch_from_live_hockey
 from config import get_config
 from database import Clips
 from requester import client
+from utils import time_to_int, sleep_for_approx
 
 logger = logging.Logger('ClipsManager')
 
+
+@dataclasses.dataclass
+class ClipDto:
+    id: int | None
+    game_blob: str
+    start_time: str
+    duration: str
+    name: str
+    favourite: bool = False
+    link: str | None = None
+    categories: list[str] | None = None
+
+    @db_session
+    def add_to_database(self, game_id):
+        out = Clips(start_time=time_to_int(self.start_time), duration=time_to_int(self.duration), name=self.name,
+                    link=self.link, comment=';'.join(self.categories) if self.categories else '', game_id=game_id,
+                    favourite=self.favourite)
+        out.flush()
+        self.id = out.id
+        return out
 
 def remove_old_videos():
     with db_session():
@@ -37,7 +59,7 @@ async def download_clip_for_game(
     clip_start_time = max(clip.start_time - 2, 0)
     clip_end_time = max(clip.start_time + clip.duration + 2, 0)
 
-    index_url = await LiveHockeyManager.get_link_from_blob(blob, username, password)
+    index_url = await fetch_from_live_hockey.get_video_link_from_blob(blob, username, password)
     index_file = (await client.get(index_url)).text
 
     files = []
@@ -57,7 +79,7 @@ async def download_clip_for_game(
                 files.append(line)
         if segment_finish_time < clip_end_time:
             attempts += 1
-            await asyncio.sleep(3)
+            await sleep_for_approx(3)
         else:
             break
 

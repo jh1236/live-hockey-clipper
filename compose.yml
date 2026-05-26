@@ -4,7 +4,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        BACKEND_ADDRESS: "https://api.clip.jh1236.top"
+        BACKEND_ADDRESS: "http://localhost:5003"
     image: hockey-clipper-frontend
     container_name: hockey-clipper-frontend-container
     ports:
@@ -26,7 +26,8 @@ services:
     env_file:
       - ./backend/livehockey.env
     environment:
-      ADDRESS: "https://api.clip.jh1236.top"
+      ADDRESS: "http://localhost:5003"
+      CHECK_ALTIUS: "false"
       CACHE_DIRECTORY: '/cache'
       VIDEO_DIRECTORY: '/videos'
       DATABASE_PATH: '/database/database.db'

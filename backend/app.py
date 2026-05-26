@@ -12,8 +12,7 @@ from quart.wrappers.response import DataBody
 from quart_cors import cors
 from quart_tasks import QuartTasks
 
-from ApiManagers import LiveHockeyManager, ClipsManager
-from ApiManagers.AltiusManager import update_altius_pages
+from ApiManagers import ClipsManager, altius_utils
 from blueprints import api
 from config import get_config
 from database import init_db
@@ -25,8 +24,7 @@ async def scheduled():
     await update_altius_pages()
 
 
-DAY_IN_MS = 1000 * 60 * 60 * 24
-HOUR_IN_MS = 1000 * 60 * 60
+
 app = Quart(__name__)
 tasks = QuartTasks(app)
 app.register_blueprint(api)

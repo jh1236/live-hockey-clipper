@@ -2,7 +2,6 @@ from pony.orm import db_session
 from quart import jsonify, request
 from quart.blueprints import Blueprint
 
-from ApiManagers.AltiusManager import get_officials
 from database import Umpires
 
 umpire_bp = Blueprint('umpire_bp', __name__, url_prefix='/umpires')
@@ -27,9 +26,10 @@ async def update_umpire():
         return '', 204
 
 
-@umpire_bp.route('/genders')
-def genders():
-    return jsonify({k: v.gender for k, v in get_officials().items()})
+@umpire_bp.route('/')
+def get_umpires():
+    with db_session():
+        return jsonify({i.name: i for i in Umpires.select()})
 
 # @umpire_bp.route('/db')
 # def db():

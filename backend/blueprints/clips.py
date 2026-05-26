@@ -1,19 +1,20 @@
 import asyncio
 import logging
 import os
+from datetime import datetime
 
 import humps
-from pony.orm import select, db_session
+from pony.orm import select, db_session, desc
 from quart import jsonify, send_file, request
 from quart.blueprints import Blueprint
 from sanitize_filename import sanitize
 
-from ApiManagers import LiveHockeyManager, AltiusManager, ClipsManager
+from ApiManagers import LiveHockeyManager, ClipsManager
 from config import get_config
 from database import Games, Clips
-from requester import client
 
 clips_bp = Blueprint('clips_bp', __name__, url_prefix='/clips')
+HOUR_IN_SEC = 60 * 60
 
 
 @clips_bp.post('/edit')
@@ -27,28 +28,23 @@ async def favourite_clip():
         categories = data['categories']
         favourite = bool(data['favourite'])
         game = Games.get(blob=blob)
-        game_clips = Clips.select(lambda clip: clip.game_id == game)
+        game_clips = Clips.select(lambda clip: clip.game == game)
         clip = [i for i in game_clips if i.id == clip_id][0]
         if clip is None:
             return 'Clip not found', 404
 
-        dto = LiveHockeyManager.db_clip_to_DTO(clip)
         clip.favourite = favourite
-        dto.favourite = favourite
         if not favourite:
             unsaved_count = max(([int(i.name.split('Unsaved Clip ')[1]) for i in game_clips if
                                   not i.favourite and 'Unsaved Clip ' in i.name] + [0])) + 1
             clip.name = f'Unsaved Clip {unsaved_count}'
-            dto.name = f'Unsaved Clip {unsaved_count}'
             clip.comment = ''
-            dto.categories = []
         else:
             clip.name = clip_name
-            dto.name = clip_name
             clip.comment = ';'.join(categories)
-            dto.categories = categories
+        clip.flush()
 
-        return jsonify({'clip': dto}), 200
+        return jsonify({'clip': clip.format_for_frontend()}), 200
 
 
 @clips_bp.delete('/remove')
@@ -70,7 +66,7 @@ async def delete_clip():
 @clips_bp.get('/favourite/get')
 async def get_favourite_clip():
     with db_session():
-        clips = [LiveHockeyManager.db_clip_to_DTO(i) for i in select(i for i in Clips if i.favourite)]
+        clips = [i.format_for_frontend() for i in select(i for i in Clips if i.favourite)]
         return jsonify({'clips': clips}), 200
 
 
@@ -80,7 +76,7 @@ async def add_clip():
         data = humps.decamelize(await request.json)
         logging.error(data)
         blob = data['game_blob']
-        clip = LiveHockeyManager.ClipDto(**data['clip'], id=None)
+        clip = ClipsManager.ClipDto(**data['clip'], id=None)
         quality = data['quality']
         username = data.get('username', None)
         password = data.get('password', None)
@@ -96,7 +92,7 @@ async def add_clip():
             database_entry.delete()
             return 'Bad Clip', 400
 
-        return jsonify({'clip': LiveHockeyManager.db_clip_to_DTO(database_entry)}), 200
+        return jsonify({'clip': database_entry.format_for_frontend()}), 200
 
 
 @clips_bp.post('/regenerate')
@@ -129,32 +125,52 @@ async def regenerate_clip():
 
 
 @clips_bp.route('/games/recent')
-async def get_recent_games_web():
-    location = request.args.get('location', '')
-    juniors = request.args.get('juniors') == 'true'
-    premier_only = request.args.get('premier') == 'true'
-    masters = request.args.get('masters') == 'true'
-    recent, upcoming = await LiveHockeyManager.get_recent_games(location, juniors, premier_only, masters)
+async def get_recent_games():
+    with db_session():
+        location = request.args.get('location', '')
+        juniors = request.args.get('juniors') == 'true'
+        premier_only = request.args.get('premier') == 'true'
+        masters = request.args.get('masters') == 'true'
 
-    return jsonify({'upcoming': upcoming, 'recent': recent})
+        acceptable_ages = ['Seniors']
+        if masters:
+            acceptable_ages.append('Masters')
+        if juniors:
+            acceptable_ages.append('Juniors')
+
+        await LiveHockeyManager.update_games_from_live_hockey(location)
+        recent = [
+            i.format_for_frontend() for i in
+            select(
+                i for i in Games
+                if i.start_time < datetime.now().timestamp() - 2.5 * HOUR_IN_SEC
+                and i.competition.age_level in acceptable_ages
+                and (i.competition.is_premier or not premier_only)
+                and i.live_hockey_id
+            ).order_by(desc(Games.start_time)).limit(8)
+        ]
+        upcoming = [
+            i.format_for_frontend() for i in
+            select(
+                i for i in Games if
+                i.start_time > datetime.now().timestamp() - 2.5 * HOUR_IN_SEC
+                and i.competition.age_level in acceptable_ages
+                and (i.competition.is_premier or not premier_only)
+                and i.live_hockey_id
+            ).order_by(Games.start_time).limit(8)
+        ]
+
+        return jsonify({'upcoming': upcoming, 'recent': recent})
 
 
 @clips_bp.get('/games/<blob>')
 async def get_game(blob):
-    with db_session():
-        game = Games.get(blob=blob)
-        if not game:
-            game, appointments = await asyncio.gather(
-                client.get(f'https://api.livearenasports.com/broadcast/{blob}', headers={'site-id': 'AU_FH_AUS'}),
-                AltiusManager.get_appointments())
-            game = game.json()
-            game = LiveHockeyManager.live_hockey_game_to_dto(game, appointments)
-            game.save_to_db()
-            return jsonify({'game': LiveHockeyManager.fix_game_for_js(game), 'clips': []}), 200
-        print(type(game))
-        clips = [LiveHockeyManager.db_clip_to_DTO(i) for i in select(i for i in Clips if i.game_id == game)]
-
-        return jsonify({'game': LiveHockeyManager.fix_game_for_js(game), 'clips': clips}), 200
+    game = Games.get(live_hockey_id=blob)
+    if not game:
+        game = await LiveHockeyManager.game_from_blob(blob)
+        return jsonify({'game': game.format_for_frontend(), 'clips': []}), 200
+    
+    return jsonify({'game': game.format_for_frontend(), 'clips': [i.format_for_frontend() for i in game.clips]}), 200
 
 
 @clips_bp.route('/<blob>/<clip>')
@@ -169,5 +185,5 @@ async def stream_file(blob, clip):
 async def get_clip_by_id():
     with db_session():
         clip_id = int(request.args.get('id'))
-        clip = LiveHockeyManager.db_clip_to_DTO(Clips.get(id=clip_id))
+        clip = Clips.get(id=clip_id).format_for_frontend()
         return jsonify({'clip': clip}), 200

@@ -4,6 +4,7 @@ from datetime import datetime
 from pony.orm import Database, PrimaryKey, Required, Optional, Set, composite_key
 
 from config import get_config
+from utils import int_to_time
 
 db = Database()
 
@@ -45,6 +46,7 @@ class Competitions(db.Entity):
     is_premier = Required(bool)
     year = Required(int)
     altius_id = NullableOptional(int, unique=True)
+    live_hockey_id = NullableOptional(str, unique=True)
     time_created = NullableOptional(int)
     games = Set('Games', reverse='competition')
     composite_key(gender, level, year)
@@ -52,7 +54,7 @@ class Competitions(db.Entity):
 class Venues(db.Entity):
     id = PrimaryKey(int, auto=True)
     code = Required(str)
-    long_name = Required(str)
+    long_name = NullableOptional(str)
     turf_number = Required(int)
     time_created = NullableOptional(int)
     games = Set('Games', reverse='venue')
@@ -84,6 +86,7 @@ class Games(db.Entity):
             game['officials'].append(self.official_two.name)
             del game['official_two']
         game['competition'] = self.competition.to_dict()
+        game['venue'] = self.venue.to_dict()
         game['start_time'] *= 1000
         if game.get('stream_start_time', None):
             game['stream_start_time'] *= 1000
@@ -100,6 +103,14 @@ class Clips(db.Entity):
     favourite = NullableOptional(bool)
     comment = NullableOptional(str)
     time_created = NullableOptional(int)
+
+    def format_for_frontend(self):
+        d = self.to_dict()
+        d['game_blob'] = self.game.live_hockey_id
+        d['start_time'] = int_to_time(self.start_time)
+        d['duration'] = int_to_time(self.duration)
+        d['categories'] = self.comment.split(';')
+        del d['comment']
 
 
 class Users(db.Entity):

@@ -1,6 +1,26 @@
+import numpy
 import asyncio
 import time
 from datetime import datetime
+
+NUMBERS = [
+    'Zero',
+    'One',
+    'Two',
+    'Three',
+    'Four',
+    'Five',
+    'Six',
+    'Seven',
+    'Eight',
+    'Nine',
+    'Ten',
+    'Eleven',
+    'Twelve',
+    'Thirteen',
+    'Fourteen',
+    'Fifteen'
+]
 
 
 def int_to_time(time_in: int) -> str:
@@ -18,6 +38,9 @@ def format_iso(dt: datetime) -> str:
     return dt.isoformat(timespec='milliseconds').replace('+00:00', '') + 'Z'
 
 
-def async_to_sync(awaitable):
-    loop = asyncio.get_event_loop()
-    return loop.run_until_complete(awaitable)
+async def sleep_for_approx(seconds: int, *, std_dev=None) -> None:
+    # used to make the timing between requests less consistent, so that it's not as obvious that it's not a person
+    if std_dev is None:
+        std_dev = 0.15 + seconds / 10
+    sleep_time = numpy.random.normal(seconds, std_dev)
+    await asyncio.sleep(sleep_time)

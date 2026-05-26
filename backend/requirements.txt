@@ -13,3 +13,4 @@ httpx
 aiohttp
 sanitize_filename
 quart-tasks
+numpy

@@ -1,323 +1,182 @@
 import asyncio
-import dataclasses
 import datetime
 import logging
 import math
 import os
 import re
 from collections import defaultdict
-from functools import reduce
 
-import httpx
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 from dateutil import parser
-from pony.orm import db_session, select
+from pony.orm import select, db_session
 
-from config import get_config
-from requester import client
-from database import Umpires, init_db
+from ApiManagers.altius_utils.fetch_from_altius import get_from_altius
+from bridging import DatabaseAligner, DBCodesManager
+from database import Competitions, init_db
 
+from utils import sleep_for_approx
 
-@dataclasses.dataclass
-class Official:
-    name: str
-    gender: str
-    id: int | None = None
-    time_created: int | None = None
-
-
-YEAR_TO_TOURNAMENT_ID = {
-    2026: {
-        "Prem One Men": 57,
-        "Prem One Women": 58,
-        "Prem Two Men": 59,
-        "Prem Two Women": 60,
-    },
-    2025: {
-        "Prem One Men": 52,
-        "Prem One Women": 51,
-        "Prem Two Men": 54,
-        "Prem Two Women": 53,
-    },
-    2024: {
-        "Prem One Men": 45,
-        "Prem One Women": 46,
-        "Prem Two Men": 43,
-        "Prem Two Women": 44,
-    },
-    2023: {
-        "Prem One Men": 39,
-        "Prem One Women": 40
-    },
-    2022: {
-        "Prem One Men": 33,
-        "Prem One Women": 34
-    },
-    2021: {
-        "Prem One Men": 25,
-        "Prem One Women": 26
-    },
-    2020: {
-        "Prem One Men": 17,
-        "Prem One Women": 18
-    },
-    2019: {
-        "Prem One Men": 12,
-        "Prem One Women": 11
-    },
-    2018: {
-        "Prem One Men": 7,
-        "Prem One Women": 8
-    },
-    2017: {
-        "Prem One Men": 3,
-        "Prem One Women": 4
-    }
-}
-
-TOURNAMENT_ID_TO_GRADE = reduce(lambda og, new: og | {v: k for k, v in new.items()}, YEAR_TO_TOURNAMENT_ID.values(), {})
-
-FIX_ALTIUS_CODE = {
-    'HAL': 'HAL',
-    'VPX': 'VPX',
-    'CUHC': 'CUHC',
-    'WOL': 'WOL',
-    'YMCC': 'YMCC',
-    'REDS': 'REDS',
-    'SUBS': 'SUBS',
-    'WASPS': 'WASPS',
-    'UWA': 'UWA',
-    'MEL': 'MEL',
-    'WHIT': 'WHIT',
-    'NCR': 'NCR',
-    'FCHC': 'FCHC',
-    'NKHC': 'NKHC',
-    'MOGM': 'MOGM',
-    'WOLVES': 'WOL',
-    'WHC': 'WHIT',
-    'LIONS': 'SUBS',
-    'RDHC': 'RDHC',
-    'WSP': 'WASPS',
-    'OA': 'REDS',
-    'CUH': 'CUHC',
-    'LION': 'LIONS',
-    'HALE': 'HAL',
-    'OGM': 'OGMHC',
-    'FRE': 'FCHC',
-    'YM': 'YMCC',
-    'OGMHC': 'OGMHC',
-    'MODS': 'MODS',
-    'WOLV': 'WOL',
-    'MELV': 'MEL'
-}
-
-
-def name_to_code(name):
-    NAME_TO_CODE = {
-        'hale': 'HAL',
-        'vic': 'VPX',
-        'curtin': 'CUHC',
-        'wolves': 'WOL',
-        'ymcc': 'YMCC',
-        'ymca': 'YMCC',
-        'reds': 'REDS',
-        'aquin': 'REDS',
-        'sub': 'SUBS',
-        'lions': 'SUBS',
-        'wasp': 'WASPS',
-        'wesley': 'WASPS',
-        'uwa': 'UWA',
-        'western australia': 'UWA',
-        'university of wa': 'UWA',
-        'melville': 'MEL',
-        'whitford': 'WHIT',
-        'raiders': 'NCR',
-        'fremantle': 'FCHC',
-        'newman': 'NKHC',
-        'modernians': 'MODS',
-        'ogm': 'OGMHC',
-        'guildford': 'OGMHC',
-        'rockingham': 'RDHC',
-    }
-    name = name.lower()
-    if 'mods' in name and ('ogm' in name or 'guildford' in name):
-        return 'MOGM'
-    for i in NAME_TO_CODE:
-        if i in name:
-            return NAME_TO_CODE[i]
-    logging.error(f'Unknown teamname {name}')
-    return None
-
-
-base_url = "https://hockeywa.altiusrt.com/competitions"
-
-
-class Game:
-    def __init__(self):
-        self.teams: list[str] | None = None
-        self.altius_id: str | None = None
-        self.start_time: int = 0
-        self.umpires: list[str] = []
-        self.grade: str | None = None
-        self.tournament_id: int | None
+all_tournaments = [57, 58, 59, 60, 52, 51, 54, 53, 45, 46, 43, 44, 39, 40, 33, 34, 25, 26, 17, 18, 12, 11, 7, 8, 3, 4]
 
 
 @db_session
-def get_officials() -> dict[str, Official]:
-    return {i.name: Official(**i.to_dict()) for i in select(c for c in Umpires)[:]}
+def all_altius_tournaments() -> list[int]:
+    return list(select(i.altius_id for i in Competitions if i.altius_id))
+
+
+@db_session
+def altius_tournaments_for_year(year: int) -> list[int]:
+    return list(select(i.altius_id for i in Competitions if i.altius_id and i.year == year))
+
+
+def _get_comp_from_altius_page(soup, altius_id):
+    comp_header = soup.find("div", attrs={"class": "competition_header"})
+    grade = comp_header.contents[1].text
+    year = int(comp_header.contents[5].text.strip(" \n\t").split(' ')[-1])
+    level = 'Prem Two' if any([i in grade.lower() for i in [' 2 ', ' two ']]) else 'Prem One'
+    gender = 'M' if any([i in grade.lower() for i in [' men', ' male']]) else 'F'
+    comp = DatabaseAligner.get_or_create_comp(level, gender, year)
+    if not comp.altius_id:
+        comp.altius_id = altius_id
+    return gender, level, year
 
 
 async def get_ladder(year='2026'):
     if year.lower() == 'all':
-        tournaments = TOURNAMENT_ID_TO_GRADE.keys()
+        tournaments = all_altius_tournaments()
     else:
-        tournaments = YEAR_TO_TOURNAMENT_ID[int(year)].values()
+        tournaments = altius_tournaments_for_year(int(year))
     out: dict[int, list[str]] = defaultdict(list)
 
-    async def fetch(i):
-        return i, await _get_ladder_from_altius(i)
-
-    htmls: list[tuple[int, str]] = await asyncio.gather(*[fetch(i) for i in tournaments])
-    for t, html in htmls:
-        soup = BeautifulSoup(html, "html.parser")
+    altius_pages = await get_from_altius(tournaments, 'ladder')
+    for t, htmls in altius_pages.items():
+        soup = BeautifulSoup(htmls['ladder'], "html.parser")
         table_container = soup.find("div", attrs={"class": "table-responsive"})
         table = table_container.find("table", attrs={"class": "table-hover"})
         trs = table.find_all("tr")[1:]  # we want to skip the header row
         for tr in trs:
             name = str(tr.find_all("td")[1].find('a').contents[0])
-            name = name_to_code(name)
-            if not name:
-                out[t].append(None)
-                continue
+            name = DBCodesManager.prem_team_name_to_code(name)
             out[t].append(name)
     return out
 
 
-async def get_appointments(tournament=None, year='2026') -> list[Game]:
-    if tournament:
-        tournaments = [tournament]
-    elif year.lower() == 'all':
-        tournaments = TOURNAMENT_ID_TO_GRADE.keys()
-    else:
-        tournaments = YEAR_TO_TOURNAMENT_ID[int(year)].values()
-    out: list[Game] = []
-
-    async def fetch(i):
-        return i, await _get_officials_from_altius(i)
-
-    htmls: list[tuple[int, str]] = await asyncio.gather(*[fetch(i) for i in tournaments])
-    for t, html in htmls:
-        soup = BeautifulSoup(html, "html.parser")
-        table_container = soup.find_all("div", {"class": "tab-content"})[1]
-        for table in table_container.find_all("table"):
-            date = table.parent.get('id').replace('appt_', '')
-            rows = [i for i in table.find_all("tr")]
-            game = Game()
-            teams = None
-            for i in rows[1:]:  # skip the heading row
-                children = i.find_all()
-                if len(children) > 9:  # this row contains a time
-                    teams = children[1].contents[0].text
-                    altius_id = children[1].find('a').get('href')
-                    start_time = children[1].contents[3].strip("\n\t")[:5]
-                    game = Game()
-                    game.tournament_id = t
-                    game.altius_id = altius_id
-                    game.start_time = math.floor(parser.parse(f'{date} {start_time} +0800').timestamp() * 1000)
-                    game_name = teams.split(" (")[0]
-                    game.grade = TOURNAMENT_ID_TO_GRADE[t]
-                    game.teams = [FIX_ALTIUS_CODE[re.sub(r'\d$', '', i)] for i in game_name.split(' v ')]
-                    umpires = [[i.string for i in children][5], [i.string for i in children][7]]
-                else:
-                    umpires = [[i.string for i in children][1], [i.string for i in children][2]]
-                if teams is None:
-                    continue
-                umpires = [' '.join(reversed([j.title() for j in i.split(" (")[0].split(' ')])) for i in umpires if i]
-                if umpires and any(' V ' in i for i in umpires):
-                    # crude Bye handling
-                    continue
-
-                for j in umpires:
-                    if not j.strip("\n\t"): continue
-                    game.umpires.append(j)
-                    if not j in get_officials():
-                        print(f'Gender of umpire {j} is unknown!')
-
-                        @db_session
-                        def add_umpire():
-                            Umpires(name=j, gender='?')
-
-                        add_umpire()
-                if game not in out:
-                    out.append(game)
-    out.sort(key=lambda i: i.start_time)
-    return out
-
-
-async def _get_officials_from_altius(tournament, force_regen=False, *, attempts=3):
-    if attempts == 0:
-        raise Exception('Too many attempts to fetch from altius, and cache is empty!')
-    cache_folder = get_config().cache_folder
-    os.makedirs(cache_folder, exist_ok=True)
-    if os.path.exists(f'{cache_folder}/{tournament}_officials.html') and not force_regen:
-        with open(f'{cache_folder}/{tournament}_officials.html', 'r') as f:
-            return f.read()
-    try:
-        page = await client.get(f"{base_url}/{tournament}/officials")
-        html = page.read().decode("utf-8")
-        with open(f'{cache_folder}/{tournament}_officials.html', 'w+') as f:
-            f.write(html)
-        return html
-    except httpx.HTTPError:
-        logging.warning('Altius API returned HTTP error')
-        if os.path.exists(f'{cache_folder}/{tournament}_officials.html') and force_regen:
-            with open(f'{cache_folder}/{tournament}_officials.html', 'r') as f:
-                return f.read()
+async def fill_officials_from_altius(tournaments=None, year='2026'):
+    if not tournaments:
+        if year.lower() == 'all':
+            tournaments = all_altius_tournaments()
         else:
-            await asyncio.sleep(1)
-            return await _get_officials_from_altius(tournament=tournament, force_regen=force_regen,
-                                                    attempts=attempts - 1)
+            tournaments = altius_tournaments_for_year(int(year))
+
+    altius_pages = await get_from_altius(tournaments, 'officials')
+    with (db_session()):
+        for t, html in altius_pages.items():
+            soup = BeautifulSoup(html['officials'], "html.parser")
+            gender, level, year = _get_comp_from_altius_page(soup, t)
+            table_container = soup.find_all("div", {"class": "tab-content"})[1]
+            for table in table_container.find_all("table"):
+                date = table.parent.get('id').replace('appt_', '')
+                rows = [i for i in table.find_all("tr")]
+                team_one = None
+                team_two = None
+                umpires: list[str] = []
+                start_time_int = -1
+                for i in rows[1:]:  # skip the heading row
+                    children = i.find_all()
+                    if len(children) == 10:  # this row contains a time
+                        teams = children[1].contents[0].text
+                        start_time = children[1].contents[3].strip("\n\t")[:5]
+                        start_time_int = math.floor(parser.parse(f'{date} {start_time} +0800').timestamp())
+                        game_name = teams.split(" (")[0]
+                        altius_id = children[1].find('a').get('href').split(r'/')[-1]
+                        team_one, team_two = [DBCodesManager.fix_code(i, 'altius') for i in game_name.split(' v ')]
+                        umpires = [[i.string for i in children][5]]
+                    elif len(children) == 5:
+                        if not team_one or \
+                                not team_two or \
+                                any(
+                                    [' v ' in i.lower() or 'bye' in i.lower() for i in umpires if i]
+                                ) or \
+                                len(umpires) != 1:
+                            continue
+                        umpires.append([i.string for i in children][1])
+                        game = DatabaseAligner.get_or_create_game(
+                            home_team_code=team_one,
+                            away_team_code=team_two,
+                            start_time=start_time_int,
+                            gender=gender,
+                            level=level,
+                            year=year,
+                        )
+                        if not game.altius_id:
+                            game.altius_id = altius_id
+                        umpires = [' '.join(reversed([j.title() for j in i.split(" (")[0].split(' ')])) for i in umpires
+                                   if
+                                   i and
+                                   i.strip(' \n\t')]
+                        if len(umpires) > 0:
+                            game.official_one = DatabaseAligner.get_or_create_official(umpires[0])
+                            if len(umpires) > 1:
+                                game.official_two = DatabaseAligner.get_or_create_official(umpires[1])
 
 
-async def _get_ladder_from_altius(tournament, force_regen=False, *, attempts=3):
-    if attempts == 0:
-        raise Exception('Too many attempts to fetch from altius, and cache is empty!')
-    cache_folder = get_config().cache_folder
-    os.makedirs(cache_folder, exist_ok=True)
-    if os.path.exists(f'{cache_folder}/{tournament}_ladder.html') and not force_regen:
-        with open(f'{cache_folder}/{tournament}_ladder.html', 'r') as f:
-            return f.read()
-    try:
-        page = await client.get(f"{base_url}/{tournament}/pools")
-        html = page.read().decode("utf-8")
-        with open(f'{cache_folder}/{tournament}_ladder.html', 'w+') as f:
-            f.write(html)
-        return html
-    except httpx.HTTPError:
-        logging.warning('Altius API returned HTTP error')
-        if os.path.exists(f'{cache_folder}/{tournament}_ladders.html') and force_regen:
-            with open(f'{cache_folder}/{tournament}_ladders.html', 'r') as f:
-                return f.read()
+async def fill_venues_from_altius(tournaments=None, year='2026'):
+    if not tournaments:
+        if year.lower() == 'all':
+            tournaments = all_altius_tournaments()
         else:
-            await asyncio.sleep(1)
-            return await _get_ladder_from_altius(tournament=tournament, force_regen=force_regen,
-                                                 attempts=attempts - 1)
+            tournaments = altius_tournaments_for_year(int(year))
+
+    altius_pages = await get_from_altius(tournaments, 'games')
+    with (db_session()):
+        for t, html in altius_pages.items():
+            soup = BeautifulSoup(html['games'], "html.parser")
+            gender, level, year = _get_comp_from_altius_page(soup, t)
+            table_container = soup.find("div", attrs={"class": "table-responsive"})
+            table = table_container.find("table", attrs={"class": "table-hover"})
+            trs = table.find_all("tr")[1:]  # we want to skip the header row
+            for tr in trs:
+                start_time_int = parser.parse(
+                    f'{tr.find("span", {"data-datetimelocal__notimechange": True}).get("data-datetimelocal__notimechange")} +0800').timestamp()
+                game_name_col = tr.find('a', {'href': re.compile(r'^https://hockeywa.altiusrt.com/matches/')})
+                game_name = game_name_col.contents[0].text.split(' (')[0].split(' v ')
+                if 'BYE' in game_name:
+                    continue
+                home_team, away_team = [DBCodesManager.fix_code(i, 'altius') for i in game_name]
+
+                score_col = tr.find("td", attrs={"style": "white-space:nowrap;"})
+                venue_col = [i for i in score_col.next_siblings if isinstance(i, Tag)][1]
+                if not venue_col:
+                    continue
+
+                game = DatabaseAligner.get_or_create_game(home_team_code=home_team, away_team_code=away_team,
+                                                      start_time=start_time_int, gender=gender, level=level, year=year)
+                if not game.altius_id:
+                    game.altius_id = game_name_col.get('href').split('/')[-1]
+                venue = venue_col.contents[0].text.strip(' \n\t')
+                try:
+                    code = 'PHS' if venue.lower() in ['turf 1', 'turf 2'] else DBCodesManager.venue_name_to_code(venue)
+                except Exception as e:
+                    logging.error('MATCH ID: %s', game_name_col.get('href').split('/')[-1])
+                    raise e
+
+                if ' - ' in score_col:
+                    game.home_team_score, game.away_team_score = \
+                    score_col.contents[0].text.replace(' AET', '').strip(' \n\tSO)').split('(')[-1].split(' - ', 1)
+                turf_number = 2 if any(i in venue.lower() for i in ['2', 'two']) else 1
+                game.venue = DatabaseAligner.get_or_create_venue(code=code, turf_number=turf_number)
+
 
 
 async def update_altius_pages():
-    import LiveHockeyManager
-    # reset the cache - we have new data
     logging.warning('Launching Altius Update')
-    LiveHockeyManager.get_recent_games.RECENT_GAMES_RESPONSES = {}
-    for i in YEAR_TO_TOURNAMENT_ID[datetime.datetime.now().year].values():
-        # tonnes of sleeps - altius sucks and will crash without much work
-        await _get_officials_from_altius(i, True)
-        await asyncio.sleep(1)
-        await _get_ladder_from_altius(i, True)
-        await asyncio.sleep(1)
+    tournaments = altius_tournaments_for_year(datetime.datetime.now().year)
+    await get_from_altius(tournaments, 'games', 'ladder', 'officials')
     logging.warning('Altius Update Successful')
 
 
 if __name__ == '__main__':
+    os.environ['DATABASE_PATH'] = '../resources/database.db'
+    os.environ['CACHE_DIRECTORY'] = '../cache'
     init_db()
-    print(get_officials())
+    asyncio.run(fill_venues_from_altius(tournaments=reversed(all_tournaments)))
