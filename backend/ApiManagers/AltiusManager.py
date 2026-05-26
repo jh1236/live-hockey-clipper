@@ -14,8 +14,6 @@ from ApiManagers.altius_utils.fetch_from_altius import get_from_altius
 from bridging import DatabaseAligner, DBCodesManager
 from database import Competitions, init_db
 
-from utils import sleep_for_approx
-
 all_tournaments = [57, 58, 59, 60, 52, 51, 54, 53, 45, 46, 43, 44, 39, 40, 33, 34, 25, 26, 17, 18, 12, 11, 7, 8, 3, 4]
 
 
@@ -148,9 +146,9 @@ async def fill_venues_from_altius(tournaments=None, year='2026'):
                 venue_col = [i for i in score_col.next_siblings if isinstance(i, Tag)][1]
                 if not venue_col:
                     continue
-
                 game = DatabaseAligner.get_or_create_game(home_team_code=home_team, away_team_code=away_team,
-                                                      start_time=start_time_int, gender=gender, level=level, year=year)
+                                                          start_time=start_time_int, gender=gender, level=level,
+                                                          year=year)
                 if not game.altius_id:
                     game.altius_id = game_name_col.get('href').split('/')[-1]
                 venue = venue_col.contents[0].text.strip(' \n\t')
@@ -162,21 +160,22 @@ async def fill_venues_from_altius(tournaments=None, year='2026'):
 
                 if ' - ' in score_col:
                     game.home_team_score, game.away_team_score = \
-                    score_col.contents[0].text.replace(' AET', '').strip(' \n\tSO)').split('(')[-1].split(' - ', 1)
+                        score_col.contents[0].text.replace(' AET', '').strip(' \n\tSO)').split('(')[-1].split(' - ', 1)
                 turf_number = 2 if any(i in venue.lower() for i in ['2', 'two']) else 1
                 game.venue = DatabaseAligner.get_or_create_venue(code=code, turf_number=turf_number)
 
 
-
-async def update_altius_pages():
+async def update_altius_pages(tournaments=None):
     logging.warning('Launching Altius Update')
-    tournaments = altius_tournaments_for_year(datetime.datetime.now().year)
+    tournaments = tournaments or altius_tournaments_for_year(datetime.datetime.now().year)
     await get_from_altius(tournaments, 'games', 'ladder', 'officials')
     logging.warning('Altius Update Successful')
+    await fill_venues_from_altius(tournaments)
+    await fill_officials_from_altius(tournaments)
 
 
 if __name__ == '__main__':
     os.environ['DATABASE_PATH'] = '../resources/database.db'
     os.environ['CACHE_DIRECTORY'] = '../cache'
     init_db()
-    asyncio.run(fill_venues_from_altius(tournaments=reversed(all_tournaments)))
+    asyncio.run(update_altius_pages(all_tournaments))

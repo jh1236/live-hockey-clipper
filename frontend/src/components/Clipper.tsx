@@ -1,7 +1,7 @@
 "use client";
 
 import {useEffect, useState} from "react";
-import {useBoolean, useCopyToClipboard, useInterval, useLocalStorage, useMountedState} from "react-use";
+import {useBoolean, useCopyToClipboard, useLocalStorage, useMountedState} from "react-use";
 import {
     ActionIcon,
     Box,
@@ -22,7 +22,7 @@ import {
     Tooltip
 } from "@mantine/core";
 import {hmsToSecondsOnly, secondsToHMS} from "@/utils";
-import {Clip, ClipGame, SERVER_ADDRESS} from "@/serverTypes";
+import {Clip, Game, SERVER_ADDRESS} from "@/serverTypes";
 import Link from "next/link";
 import Image from "next/image";
 import {FaArrowUpRightFromSquare} from "react-icons/fa6";
@@ -34,12 +34,13 @@ interface ClipperProps {
 
 
 const MINUTE_IN_MS = 1000 * 60
+const HOUR_IN_MS = 60 * MINUTE_IN_MS
 const PRIOR_CLIP_RECORDING = 10;
 
 
 export function Clipper({blob: gameBlob}: ClipperProps) {
     const mounted = useMountedState();
-    const [game, setGame] = useState<ClipGame | null>(null)
+    const [game, setGame] = useState<Game | null>(null)
     const [clips, setClips] = useState<(Clip | undefined)[] | null>(null);
     const [openAddClips, setOpenAddClips] = useBoolean(false);
     const [durationToClip, setDurationToClip] = useState<number>(10);
@@ -56,29 +57,11 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
         setCurrentTime(Date.now());
     }, [])
 
-    useInterval(
-        () => {
-            if (game && currentTime + 5 * MINUTE_IN_MS < game.startTime && Date.now() + 5 * MINUTE_IN_MS > game.startTime && !game.isLive) {
-                // if the game starts in 5 minutes, and the game isn't live, we should check the server and update our game
-                // (there should be no race condition as all games start broadcast 15 mins before the true start time)
-                fetch(`${SERVER_ADDRESS}/api/clips/games/${gameBlob}`).then(it => it.json()).then((it: {
-                    game: ClipGame,
-                    clips: Clip[]
-                }) => {
-                    setGame(it.game)
-                    setClips(it.clips)
-                })
-            }
-            setCurrentTime(Date.now());
-        },
-        (game?.startTime ?? 0) > 0 ? 500 : null
-    )
-
     useEffect(() => {
         if (gameBlob) {
             console.log("Requesting!")
             fetch(`${SERVER_ADDRESS}/api/clips/games/${gameBlob}`).then(it => it.json()).then((it: {
-                game: ClipGame,
+                game: Game,
                 clips: Clip[]
             }) => {
                 setGame(it.game)
@@ -130,7 +113,7 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
         </Flex>
     }
 
-    const timeToClipError = !/^(0?[0-3])(:\d\d)?(:\d\d)?$/.test(timeToClip) || game.startTime + hmsToSecondsOnly(timeToClip) > Date.now();
+    const timeToClipError = !/^(\d?\d)(:\d\d)?(:\d\d)?$/.test(timeToClip) || game.startTime + hmsToSecondsOnly(timeToClip) > Date.now();
     const unnamedCount = clips.filter(it => /^Unsaved Clip \d+$/.test(it?.name ?? '')).map(i => +i!.name.replace('Unsaved Clip', '')).reduce((a, b) => Math.max(a, b), 0) + 1
 
     return <Box>
@@ -199,8 +182,8 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                                     onClick={() => {
                                         const newClip: Omit<Clip, 'link'> = {
                                             name: `Unsaved Clip ${unnamedCount}`,
-                                            timecode: timeToClip,
-                                            length: secondsToHMS(durationToClip),
+                                            startTime: timeToClip,
+                                            duration: secondsToHMS(durationToClip),
                                             gameBlob
                                         };
                                         setClips([...clips!, undefined])
@@ -233,7 +216,7 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
             {/*<Text ta="center" fz="2.5em">{game.competitionName.replace(/^WA /, '').replace(/-/, '')}</Text>*/}
             <Center>
                 <Grid p={20} gap={0}>
-                    <Grid.Col span={5}><Text ta="center" fz="2em">{game.teamOne}</Text></Grid.Col>
+                    <Grid.Col span={5}><Text ta="center" fz="2em">{game.homeTeam.code}</Text></Grid.Col>
                     <Grid.Col span={2}>
                         <Popover>
                             <Popover.Target>
@@ -264,18 +247,15 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                             </Popover.Dropdown>
                         </Popover>
                     </Grid.Col>
-                    <Grid.Col span={5}><Text ta="center" fz="2em">{game.teamTwo}</Text></Grid.Col>
+                    <Grid.Col span={5}><Text ta="center" fz="2em">{game.awayTeam.code}</Text></Grid.Col>
                     <Grid.Col span={5}>
                         <Center>
-                            <Image src={game.teamOneImage} alt="Home team image" width={110} height={110}/>
+                            <Image src={game.homeTeam.imageLink} alt="Home team image" width={110} height={110}/>
                         </Center>
                     </Grid.Col>
                     <Grid.Col span={2}>
 
                         <Stack h="100%" align="center" justify="center">
-                            {game.isLive && <Text ta="center">
-                                {secondsToHMS(Math.round((currentTime - game.startTime) / 1000))}
-                            </Text>}
                             <Popover>
                                 <Popover.Target>
                                     <ActionIcon variant="subtle"><FaArrowUpRightFromSquare/></ActionIcon>
@@ -283,11 +263,11 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                                 <Popover.Dropdown>
                                     <Stack align="center">
                                         <Link
-                                            href={game.altiusLink ?? game.teamstarLink ?? '#'}
-                                            target={game.altiusLink || game.teamstarLink ? '_blank' : undefined}
+                                            href={game.altiusId ? `https://hockeywa.altiusrt.com/matches/${game.altiusId}` : `https://comp.teamstar.team/event/${game.teamstarId}`}
+                                            target='_blank'
                                         >
                                             <Button>
-                                                View on {game.altiusLink ? 'Altius' : 'Teamstar'}
+                                                View on {game.altiusId ? 'Altius' : 'Teamstar'}
                                             </Button>
                                         </Link>
                                         <Link
@@ -308,28 +288,28 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                     </Grid.Col>
                     <Grid.Col span={5}>
                         <Center>
-                            <Image src={game.teamTwoImage} alt="Away team image" width={110} height={110}/>
+                            <Image src={game.awayTeam.imageLink} alt="Away team image" width={110} height={110}/>
                         </Center>
                     </Grid.Col>
                 </Grid>
             </Center>
             {!!game.officials.length &&
                 <Group><Text fw={600}>Officials:</Text> <Text fs="italic">{game.officials.join(', ')}</Text></Group>}
-            <HoverCard disabled={game.isLive || game.startTime <= currentTime}>
+            <HoverCard disabled={game.startTime <= currentTime}>
                 <HoverCard.Target>
                     <Button size="xl" w="60%" m={10} onClick={() => {
-                        if (!game.isLive && game.startTime > currentTime) {
+                        if (game.startTime > currentTime) {
                             return
                         }
                         setTimeToClip(
-                            game.isLive ?
+                            game.startTime <= currentTime ? 
                                 secondsToHMS(Math.max(Math.round((currentTime - game?.startTime) / 1000) - PRIOR_CLIP_RECORDING, 0)) : '00:00:00'
                         );
                         setClipQuality(5)
                         setDurationToClip(PRIOR_CLIP_RECORDING);
                         setOpenAddClips(true);
                     }}
-                            data-disabled={!game.isLive && game.startTime > currentTime}
+                            data-disabled={game.startTime > currentTime}
                     >Add Clip</Button>
                 </HoverCard.Target>
                 <HoverCard.Dropdown>

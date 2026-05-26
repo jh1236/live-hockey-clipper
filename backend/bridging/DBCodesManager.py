@@ -196,7 +196,7 @@ def fix_code(code: str, source: Literal['altius'] | Literal['live_hockey'] | Lit
     code = code.upper()
     match source:
         case 'altius':
-            _fix_altius_code(code)
+            return _fix_altius_code(code)
         case 'live_hockey':
             return _fix_live_hockey_code(code, name_for_diagnostic)
         case 'whistle_iq':

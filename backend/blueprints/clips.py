@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 
 import humps
-from pony.orm import select, db_session, desc
+from pony.orm import select, db_session, desc, flush
 from quart import jsonify, send_file, request
 from quart.blueprints import Blueprint
 from sanitize_filename import sanitize
@@ -15,6 +15,7 @@ from database import Games, Clips
 
 clips_bp = Blueprint('clips_bp', __name__, url_prefix='/clips')
 HOUR_IN_SEC = 60 * 60
+DAY_IN_SEC = HOUR_IN_SEC * 24
 
 
 @clips_bp.post('/edit')
@@ -81,7 +82,7 @@ async def add_clip():
         username = data.get('username', None)
         password = data.get('password', None)
 
-        game = Games.get(blob=blob)
+        game = Games.get(live_hockey_id=blob)
         if game is None:
             return 'Game not found', 404
 
@@ -127,7 +128,7 @@ async def regenerate_clip():
 @clips_bp.route('/games/recent')
 async def get_recent_games():
     with db_session():
-        location = request.args.get('location', '')
+        location = request.args.get('location', 'hockeywa')
         juniors = request.args.get('juniors') == 'true'
         premier_only = request.args.get('premier') == 'true'
         masters = request.args.get('masters') == 'true'
@@ -138,25 +139,32 @@ async def get_recent_games():
         if juniors:
             acceptable_ages.append('Juniors')
 
-        await LiveHockeyManager.update_games_from_live_hockey(location)
+        filter_ = lambda i: i.competition.age_level in acceptable_ages and (
+                    i.competition.is_premier or not premier_only)
+
+        await LiveHockeyManager.update_games_from_live_hockey(location, filter_=filter_)
+        flush()
+        now = datetime.now().timestamp()
         recent = [
             i.format_for_frontend() for i in
             select(
                 i for i in Games
-                if i.start_time < datetime.now().timestamp() - 2.5 * HOUR_IN_SEC
+                if i.start_time < now - 2.5 * HOUR_IN_SEC
                 and i.competition.age_level in acceptable_ages
                 and (i.competition.is_premier or not premier_only)
                 and i.live_hockey_id
+                and i.start_time < now + 4 * DAY_IN_SEC
             ).order_by(desc(Games.start_time)).limit(8)
         ]
         upcoming = [
             i.format_for_frontend() for i in
             select(
                 i for i in Games if
-                i.start_time > datetime.now().timestamp() - 2.5 * HOUR_IN_SEC
+                i.start_time > now - 2.5 * HOUR_IN_SEC
                 and i.competition.age_level in acceptable_ages
                 and (i.competition.is_premier or not premier_only)
                 and i.live_hockey_id
+                and i.start_time > now - 4 * DAY_IN_SEC
             ).order_by(Games.start_time).limit(8)
         ]
 
@@ -165,12 +173,13 @@ async def get_recent_games():
 
 @clips_bp.get('/games/<blob>')
 async def get_game(blob):
-    game = Games.get(live_hockey_id=blob)
-    if not game:
-        game = await LiveHockeyManager.game_from_blob(blob)
-        return jsonify({'game': game.format_for_frontend(), 'clips': []}), 200
+    with db_session():
+        game = Games.get(live_hockey_id=blob)
+        if not game:
+            game = await LiveHockeyManager.game_from_blob(blob)
+            return jsonify({'game': game.format_for_frontend(), 'clips': []}), 200
     
-    return jsonify({'game': game.format_for_frontend(), 'clips': [i.format_for_frontend() for i in game.clips]}), 200
+        return jsonify({'game': game.format_for_frontend(), 'clips': [i.format_for_frontend() for i in game.clips]}), 200
 
 
 @clips_bp.route('/<blob>/<clip>')

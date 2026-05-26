@@ -6,15 +6,15 @@ import {useEffect, useState} from "react";
 import {useLocalStorage} from "react-use";
 import {GamesDisplay} from "@/components/GamesDisplay";
 import {FaSlidersH} from "react-icons/fa";
-import {ClipGame, SERVER_ADDRESS} from "@/serverTypes";
+import {Game, SERVER_ADDRESS} from "@/serverTypes";
 import {FaFloppyDisk} from "react-icons/fa6";
 import Link from "next/link";
 
 export default function Page() {
     const [gameBlob, setGameBlob] = useState<string>("");
     const [error, setError] = useState<string | null>(null)
-    const [upcoming, setUpcoming] = useState<ClipGame[] | null>(null)
-    const [recent, setRecent] = useState<ClipGame[] | null>(null)
+    const [upcoming, setUpcoming] = useState<Game[] | null>(null)
+    const [recent, setRecent] = useState<Game[] | null>(null)
     const [premierOnly, setPremierOnly] = useLocalStorage<boolean>("premierOnly", true);
     const [includeMasters, setIncludeMasters] = useLocalStorage<boolean>("includeMasters", false);
     const [includeJuniors, setIncludeJuniors] = useLocalStorage<boolean>("includeJuniors", false);
@@ -29,7 +29,7 @@ export default function Page() {
         let cancelled = false
         fetch(url)
             .then((it) => it.json())
-            .then((it: { recent: ClipGame[], upcoming: ClipGame[] }) => {
+            .then((it: { recent: Game[], upcoming: Game[] }) => {
                 if (cancelled) return
                 setRecent(it.recent)
                 setUpcoming(it.upcoming)
@@ -103,14 +103,14 @@ export default function Page() {
                 </Box>
             </Group>
             <GamesDisplay
-                games={upcoming?.filter(it => includeJuniors ? true : !it.competitionName.includes('Junior ')) ?? null}
+                games={upcoming ?? null}
                 missingMessage={"There are currently no upcoming games."}
                 error={error}
             />
             <br/>
             <Title order={2} p={20}>Recent Games</Title>
             <GamesDisplay
-                games={recent?.filter(it => includeJuniors ? true : !it.competitionName.includes('Junior ')) ?? null}
+                games={recent ?? null}
                 missingMessage={"There are currently no recent games."}
                 error={error}/>
             <br/>

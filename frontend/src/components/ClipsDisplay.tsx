@@ -271,7 +271,7 @@ function SingleClipDisplay({clip, setEditingClipIndex, clipIndex, setClips, link
             </Group>}
             <Text size="sm" c="dimmed" mb={5} ta="left">
                 <b>Timecode:</b>
-                <br/>{clip.timecode} - {secondsToHMS(hmsToSecondsOnly(clip.timecode) + hmsToSecondsOnly(clip.length))}
+                <br/>{clip.startTime} - {secondsToHMS(hmsToSecondsOnly(clip.startTime) + hmsToSecondsOnly(clip.duration))}
             </Text>
 
 

@@ -3,7 +3,7 @@ import logging
 import os
 from datetime import datetime
 from select import select
-from typing import Any
+from typing import Any, Callable
 
 from dateutil import parser
 from pony.orm import db_session, select
@@ -13,6 +13,7 @@ from ApiManagers.live_hockey_utils.fetch_from_live_hockey import get_games_from_
 from ApiManagers.live_hockey_utils.fix_names import get_comp_details
 from bridging import DBCodesManager, DatabaseAligner
 from database import init_db, Competitions, Games
+from utils import sleep_for_approx
 
 logger = logging.Logger('LiveHockeyManager')
 
@@ -55,14 +56,33 @@ def add_live_hockey_game_to_db(game: dict[str, Any]):
     return out
 
 
-async def update_games_from_live_hockey(location: str = 'hockeywa', date: int | None = None):
+async def update_games_from_live_hockey(location: str = 'hockeywa', filter_: Callable | None = None,
+                                        date: int | None = None, target=8):
     competitions = await get_or_update_comps(location)
-    upcoming, recent = await asyncio.gather(
-        get_games_from_live_hockey(competitions, 4, True, from_date=date),
-        get_games_from_live_hockey(competitions, -4, False, from_date=date)
-    )
-    for i in upcoming + recent:
-        add_live_hockey_game_to_db(i)
+    filter_ = filter_ or (lambda a: True)
+    page = 0
+    upcoming_games = []
+    while len([i for i in upcoming_games if filter_(i)]) < target:
+        upcoming = await get_games_from_live_hockey(competitions, 4, True, date_from_in=date, page=page)
+        if upcoming is None or len(upcoming) == 0:
+            # this means we are out of pages
+            break
+        for i in upcoming:
+            upcoming_games.append(add_live_hockey_game_to_db(i))
+        await sleep_for_approx(0.5)
+        page += 1
+
+    page = 0
+    recent_games = []
+    while len([i for i in recent_games if filter_(i)]) < target:
+        recent = await get_games_from_live_hockey(competitions, -4, True, date_from_in=date, page=page)
+        if recent is None or len(recent) == 0:
+            # this means we are out of pages
+            break
+        for i in recent:
+            recent_games.append(add_live_hockey_game_to_db(i))
+        await sleep_for_approx(0.5)
+        page += 1
 
 
 async def get_or_update_comps(location) -> list[Competitions]:

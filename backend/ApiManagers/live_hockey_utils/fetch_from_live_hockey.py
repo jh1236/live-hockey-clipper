@@ -5,7 +5,7 @@ from pony.orm import db_session
 from config import get_config
 from database import Users, Competitions
 from requester import client
-from utils import format_iso
+from utils import format_iso, sleep_for_approx
 
 ADDRESS = get_config().server_address
 
@@ -18,7 +18,8 @@ def get_header(token: None | str = None):
         'Referer': 'https://www.livehockey.com.au/',
         'site-id': 'AU_FH_AUS',
         'Origin': 'https://www.livehockey.com.au',
-        'Content-Type': 'application/json',
+        # 'Content-Type': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:151.0) Gecko/20100101 Firefox/151.0'
     }
     if token:
         out['Authorization'] = 'Bearer ' + token
@@ -70,13 +71,15 @@ async def get_game_from_live_hockey(blob):
 
 
 async def get_games_from_live_hockey(competitions: list[Competitions], days_in_future: int, include_live: bool,
-                                     from_date: int = None,
-                                     page=1):
-    from_date = datetime.fromtimestamp(from_date) if from_date else datetime.now(UTC)
-
-    date_to = from_date + timedelta(days=days_in_future)
+                                     date_from_in: int = None, page=0):
+    date_from = datetime.fromtimestamp(date_from_in) if date_from_in else datetime.now(UTC)
+    if days_in_future > 0 :
+        date_to = date_from + timedelta(days=days_in_future)
+    else:
+        date_to = date_from - timedelta(days=abs(days_in_future))
+    if date_to < date_from:
+        date_to, date_from = date_from, date_to
     # Upcoming games
-    params = []
     args = {
         'competitionIds': [i.live_hockey_id for i in competitions],
         'includeLive': include_live,
@@ -85,16 +88,18 @@ async def get_games_from_live_hockey(competitions: list[Competitions], days_in_f
         'sortColumn': 'start',
         'sortDirection': 'Ascending' if days_in_future > 0 else 'Descending',
         'startTo': format_iso(date_to),
-        'startFrom': format_iso(from_date),
+        'startFrom': format_iso(date_from),
     }
     # Recent games
     try:
         games = (await client.post('https://api.livearenasports.com/broadcast/query', headers=get_header(),
-                                   json=params)).json()
+                                   json=args))
+        del args['competitionIds']
+        print(args)
         games.raise_for_status()
-        return games.json()
+        games = games.json()
+        return games
     except Exception as e:
-        raise e
         return None
 
 

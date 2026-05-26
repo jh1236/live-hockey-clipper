@@ -79,14 +79,18 @@ class Games(db.Entity):
 
     def format_for_frontend(self):
         game = self.to_dict()
+        game['officials'] = []  
         if self.official_one:
-            game['officials'] = [self.official_one.name]
-            del game['official_one']
+            game['officials'].append(self.official_one.name)
         if self.official_two:
             game['officials'].append(self.official_two.name)
-            del game['official_two']
+        del game['official_one']
+        del game['official_two']
         game['competition'] = self.competition.to_dict()
-        game['venue'] = self.venue.to_dict()
+        game['home_team'] = self.home_team.to_dict()
+        game['away_team'] = self.away_team.to_dict()
+        if self.venue:
+            game['venue'] = self.venue.to_dict()
         game['start_time'] *= 1000
         if game.get('stream_start_time', None):
             game['stream_start_time'] *= 1000

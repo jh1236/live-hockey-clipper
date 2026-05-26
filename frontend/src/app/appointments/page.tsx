@@ -4,7 +4,7 @@ import {AreaChart, BarChart, PieChart} from "@mantine/charts";
 import {Grid, Group, Select, Title, Text} from "@mantine/core";
 import {useEffect, useMemo, useState} from "react";
 import {getMonday} from "@/utils";
-import {AppointmentGame, SERVER_ADDRESS} from "@/serverTypes";
+import {Game, SERVER_ADDRESS} from "@/serverTypes";
 
 const BASE_COLORS = [
     '#e6194b',
@@ -44,7 +44,7 @@ export default function Page() {
         [year: string]: string[]
     }>({'All': ['Premier One Men', 'Premier One Women', 'Premier Two Men', 'Premier Two Women']})
     const [ladders, setLadders] = useState<{ [tournament: string]: string[] }>({});
-    const [allTimeData, setAllTimeData] = useState<{ [key: string]: AppointmentGame[] }>({})
+    const [allTimeData, setAllTimeData] = useState<{ [key: string]: Game[] }>({})
     const data = useMemo(() => allTimeData[year] ?? [], [allTimeData, year]);
     const [genders, setGenders] = useState<{ [key: string]: 'M' | 'F' }>({});
     const [grade, setGrade] = useState<string | null>(null);
@@ -69,15 +69,17 @@ export default function Page() {
         // if we fulfil the exhaustive deps, then the code will run when we update all time data (which is useless)
         // eslint-disable-next-line
     }, [year]);
-    const umpires = useMemo(() => data.flatMap(it => it.umpires)
+    const umpires = useMemo(() => data.flatMap(it => it.officials)
         .filter((v, i, arr) => arr.indexOf(v) === i), [data])
-    const grades = useMemo(() => data.map(it => it.grade)
+    const grades = useMemo(() => data.map(it => it.competition.level)
         .filter((v, i, arr) => arr.indexOf(v) === i).sort(), [data])
 
-    const gradeData = useMemo(() => !grade ? data : data.filter(it => it.grade === grade), [data, grade])
+    const gradeData = useMemo(() =>
+            !grade ? data : data.filter(it => `${it.competition.level} ${it.competition.gender === 'M' ? 'Men' : 'Women'}` === grade)
+        , [data, grade])
 
     const officialColors = useMemo(() => Object.fromEntries(
-            gradeData.flatMap(it => it.umpires)
+            gradeData.flatMap(it => it.officials)
                 .filter((it, i, arr) => arr.indexOf(it) === i)
                 .toSorted()
                 .map((it, i) => [it, COLORS[i % COLORS.length]])
@@ -88,7 +90,7 @@ export default function Page() {
         const outMap = new Map<string, number>();
         for (const game of gradeData) {
             console.log(game);
-            for (const umpire of game.umpires) {
+            for (const umpire of game.officials) {
                 outMap.set(umpire, (outMap.get(umpire) ?? 0) + 1)
             }
         }
@@ -101,32 +103,32 @@ export default function Page() {
 
     const averageLadderForUmpire = useMemo(() => {
         if (!ladders) return []
-        const gamesForOfficial = new Map<string, AppointmentGame[]>();
+        const gamesForOfficial = new Map<string, Game[]>();
         for (const game of gradeData) {
-            for (const umpire of game.umpires) {
+            for (const umpire of game.officials) {
                 gamesForOfficial.set(umpire, [...(gamesForOfficial.get(umpire) ?? []), game])
             }
         }
         return [...gamesForOfficial.entries().filter(([, games]) => games.length > 1).map(([name, games]) => ({
             name: name,
             color: officialColors[name],
-            'Average Ladder Position': Math.round(games.filter(it => it.tournamentId in ladders).flatMap(g => g.teams.map(t => ladders[g.tournamentId.toString()].indexOf(t) + 1)).reduce((a, b) => a + b, 0) / (2 * games.length) * 10) / 10
+            'Average Ladder Position': Math.round(games.filter(it => it.competition.altiusId in ladders).flatMap(g => [g.homeTeam, g.awayTeam].map(t => ladders[g.competition.altiusId.toString()].indexOf(t.code) + 1)).reduce((a, b) => a + b, 0) / (2 * games.length) * 10) / 10
         }))].sort((a, b) => a['Average Ladder Position'] - b['Average Ladder Position'])
 
     }, [gradeData, ladders, officialColors])
 
     const averageLadderDeltaForUmpire = useMemo(() => {
         if (!ladders) return []
-        const gamesForOfficial = new Map<string, AppointmentGame[]>();
+        const gamesForOfficial = new Map<string, Game[]>();
         for (const game of gradeData) {
-            for (const umpire of game.umpires) {
+            for (const umpire of game.officials) {
                 gamesForOfficial.set(umpire, [...(gamesForOfficial.get(umpire) ?? []), game])
             }
         }
         return [...gamesForOfficial.entries().filter(([, games]) => games.length > 1).map(([name, games]) => ({
             name: name,
             color: officialColors[name],
-            'Average Ladder Delta': Math.round(games.filter(it => it.tournamentId in ladders).flatMap(g => g.teams.map(t => ladders[g.tournamentId.toString()].indexOf(t)).reduce((a, b) => Math.abs(a - b))).reduce((a, b) => a + b, 0) / (games.length) * 10) / 10
+            'Average Ladder Delta': Math.round(games.filter(it => it.competition.altiusId in ladders).flatMap(g => [g.homeTeam, g.awayTeam].map(t => ladders[g.competition.altiusId.toString()].indexOf(t.code)).reduce((a, b) => Math.abs(a - b))).reduce((a, b) => a + b, 0) / (games.length) * 10) / 10
         }))].sort((a, b) => a['Average Ladder Delta'] - b['Average Ladder Delta'])
 
     }, [gradeData, ladders, officialColors])
@@ -140,7 +142,7 @@ export default function Page() {
             if (!outMap.has(week)) {
                 outMap.set(week, Object.fromEntries(umpires.map(it => [it, 0])))
             }
-            for (const umpire of game.umpires) {
+            for (const umpire of game.officials) {
                 const toAdd = outMap.get(week) ?? {};
                 outMap.set(week, Object.assign(toAdd, {[umpire]: (toAdd[umpire] ?? 0) + 1}))
             }
@@ -165,7 +167,7 @@ export default function Page() {
     const gamesPerGender = useMemo(() => {
         const outMap = {M: 0, F: 0};
         for (const game of gradeData) {
-            for (const umpire of game.umpires) {
+            for (const umpire of game.officials) {
                 outMap[genders[umpire]] += 1
             }
         }
@@ -183,7 +185,7 @@ export default function Page() {
             if (!outMap.has(week)) {
                 outMap.set(week, {games: 0, women: 0});
             }
-            for (const umpire of game.umpires) {
+            for (const umpire of game.officials) {
                 outMap.get(week)!.games += 1
                 if (genders[umpire] === 'M') continue;
                 outMap.get(week)!.women += 1

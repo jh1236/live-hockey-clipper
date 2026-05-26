@@ -26,8 +26,8 @@ async def _get_officials_from_altius(tournament, force_regen=False, *, attempts=
         page = await client.get(f"{base_url}/{tournament}/officials")
         html = page.read().decode("utf-8")
         with open(f'{cache_folder}/{tournament}_officials.html', 'w+') as f:
-            f.write(html), False
-        return html
+            f.write(html)
+        return html, False
     except httpx.HTTPError:
         logging.warning('Altius API returned HTTP error')
         if os.path.exists(f'{cache_folder}/{tournament}_officials.html') and force_regen:

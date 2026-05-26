@@ -47,7 +47,7 @@ def get_comp_details(comp) -> tuple[str, str, int]:
             # premier divisions
             if any([i in comp for i in ['2', 'two']]):
                 comp = 'Prem Two'
-            if any([i in comp for i in ['3', 'three']]):
+            elif any([i in comp for i in ['3', 'three']]):
                 comp = 'Prem Three'
             else:
                 comp = 'Prem One'
@@ -60,5 +60,4 @@ def get_comp_details(comp) -> tuple[str, str, int]:
                 comp = f'Div {NUMBERS[int(grade_number)]} {black_or_gold}'
             else:
                 comp = f'Div {NUMBERS[int(grade_number)]}'
-
     return comp.title(), gender, this_year

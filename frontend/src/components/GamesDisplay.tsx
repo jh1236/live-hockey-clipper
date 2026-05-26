@@ -4,16 +4,16 @@ import Image from "next/image";
 import classes from '@/components/GamesDisplay.module.css'
 import {HTMLAttributes, useEffect, useState} from "react";
 import {useInterval} from "react-use";
-import {ClipGame} from "@/serverTypes";
+import {Game} from "@/serverTypes";
 
 function PulsingDot(props: HTMLAttributes<HTMLDivElement>) {
     return <span className={classes.statusdot} {...props}></span>
 }
 
 interface GamesDisplayProps {
-    games: ClipGame[] | null;
+    games: Game[] | null;
     missingMessage: string;
-    createLink?: (it: ClipGame) => string;
+    createLink?: (it: Game) => string;
     error?: string | null;
 }
 
@@ -77,7 +77,7 @@ function getDateString(it: number, currentTime: number): string {
 export function GamesDisplay({
                                  games,
                                  missingMessage,
-                                 createLink = it => `/${it.blob}`,
+                                 createLink = it => `/${it.liveHockeyId}`,
                                  error = null
                              }: GamesDisplayProps) {
     const [currentTime, setCurrentTime] = useState<number>(-1);
@@ -135,30 +135,30 @@ export function GamesDisplay({
     }
 
     return games.length ? <Grid flex={3} w="100%" overflow="scroll" rowGap="0.4em" columnGap="0.5em">
-            {games.map((it) => <Grid.Col key={it.blob} span={{
+            {games.map((it) => <Grid.Col key={it.id} span={{
                     base: 6,
                     md: 3,
                     xl: 2
                 }}>
                     <Link href={createLink(it)}>
                         <Card shadow="sm" padding="xs" withBorder>
-                            {it.isLive && <Box h={0}>
+                            {(it?.streamStartTime ?? 0) + 2 * HOUR_IN_MS > currentTime  && <Box h={0}>
                                 <PulsingDot style={{float: 'right', margin: 5}}/>
                             </Box>}
                             <Card.Section pt={10}>
-                                <Text fz="1.4em" ta="center" fw={600}>{it.teamOne} vs {it.teamTwo}</Text>
-                                <Text fz="1em" ta="center">{it.competitionName}</Text>
+                                <Text fz="1.4em" ta="center" fw={600}>{it.homeTeam.code} vs {it.awayTeam.code}</Text>
+                                <Text fz="1em" ta="center">{it.competition.level} {it.competition.gender === 'M' ? 'Men' : 'Women'}</Text>
                                 <Text size="sm" c="dimmed" fs="italic" fz=".75em">
-                                    {it.isLive ? 'Live!' : getDateString(it.startTime, currentTime)}
+                                    {(it?.streamStartTime ?? 0) + 2 * HOUR_IN_MS > currentTime ? 'Live!' : getDateString(it.startTime, currentTime)}
                                 </Text>
                             </Card.Section>
                             <Card.Section p={{base: 1, md: 5}}>
                                 <Group h={{base: 100, md: 120}} w="100%" justify="center" px={5}>
                                     <Center w={{base: '40%', md: '45%'}}>
-                                        <Image src={it.teamOneImage} alt="Home team image" width={100} height={100}/>
+                                        <Image src={it.homeTeam.imageLink} alt="Home team image" width={100} height={100}/>
                                     </Center>
                                     <Center w={{base: '40%', md: '45%'}}>
-                                        <Image src={it.teamTwoImage} alt="Away team image" width={100} height={100}/>
+                                        <Image src={it.awayTeam.imageLink} alt="Away team image" width={100} height={100}/>
                                     </Center>
                                 </Group>
 
@@ -169,7 +169,7 @@ export function GamesDisplay({
                                 <br/><i>{it.officials.length ? it.officials.map(i => {
                                 const [first, last] = i.split(' ', 2)
                                 return `${first[0]}. ${last}`
-                            }).join(', ') : it.altiusLink ? 'Not set on Altius' : 'Game not on Altius'}</i>
+                            }).join(', ') : it.altiusId ? 'Not set on Altius' : 'Game not on Altius'}</i>
                             </Text>
                             
 
