@@ -1,5 +1,6 @@
 from collections import defaultdict
 from datetime import datetime
+from typing import Any
 
 from pony.orm import db_session, select
 from quart import Blueprint, jsonify, request
@@ -27,7 +28,7 @@ async def get_available():
 @appointments_bp.route('/umpires')
 async def get_umpires():
     with db_session():
-        return jsonify({'umpires':[i.format_for_frontend() for i in Officials.select()]})
+        return jsonify({'umpires': [i.format_for_frontend() for i in Officials.select()]})
 
 
 @appointments_bp.route('/')
@@ -44,8 +45,9 @@ async def get_games_per_umpire():
         gender = request.args.get('gender', None)
         level = request.args.get('level', None)
         year = request.args.get('year', None)
-        out = defaultdict(lambda: {'games_umpired': 0, 'games_umpired_every_week': defaultdict(lambda: 0),
-                                   'games_umpired_per_venue': defaultdict(lambda: 0)})
+        out: defaultdict[Any, dict[str, float | defaultdict[Any, int] | list[Any]]] = defaultdict(
+            lambda: {'games_umpired': 0, 'games_umpired_every_week': defaultdict(lambda: 0),
+                     'games_umpired_per_venue': defaultdict(lambda: 0), 'years_umpired': []})
 
         comps = select(i for i in Competitions)
         if gender is not None:
@@ -55,15 +57,26 @@ async def get_games_per_umpire():
         if year is not None:
             comps = comps.filter(lambda a: a.year == year)
 
+        times = defaultdict(set)
+
         for c in comps:
             for g in c.games:
                 for o in [g.umpire_one, g.umpire_two]:
                     if not o: continue
                     out[o.id]['umpire'] = o.format_for_frontend()
                     out[o.id]['games_umpired'] += 1
-                    out[o.id]['games_umpired_every_week'][1000 * int(get_monday(g.start_time).timestamp())] += 1
+                    monday = get_monday(g.start_time)
+                    monday_timestamp = 1000 * int(monday.timestamp())
+                    out[o.id]['games_umpired_every_week'][monday_timestamp] += 1
+                    times[monday.year].add(monday_timestamp)
+                    if monday.year not in out[o.id]['years_umpired']:
+                        out[o.id]['years_umpired'].append(monday.year)
                     if g.venue:
                         out[o.id]['games_umpired_per_venue'][g.venue.code] += 1
+
+        for v in out.values():
+            v['average_games_per_week'] = round(
+                sum(v['games_umpired_every_week'].values()) / sum([len(times[i]) for i in v['years_umpired']]), 2)
 
         return jsonify({'statistic': list(sorted(out.values(), key=lambda a: a['umpire']['name']))})
 

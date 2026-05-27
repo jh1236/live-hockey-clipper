@@ -52,6 +52,7 @@ export default function Page() {
     const [perUmpireStats, setPerUmpireStats] = useState<{
         umpire: Official,
         gamesUmpired: number,
+        averageGamesPerWeek: number,
         gamesUmpiredPerVenue: { [key: string]: number }
         gamesUmpiredEveryWeek: { [key: string]: number }
         color: string
@@ -138,6 +139,11 @@ export default function Page() {
         color: umpiresByName[it.umpire.name].color
     })).sort((a, b) => a.value - b.value);
     console.log(gamesPerUmpire)
+    const avgGamesPerWeek = perUmpireStats?.map(it => ({
+        name: it.umpire.name,
+        value: it.averageGamesPerWeek,
+        color: umpiresByName[it.umpire.name].color
+    })).sort((a, b) => a.value - b.value);
     
     const totalGames = perUmpireStats.reduce((a, b) => a + b.gamesUmpired, 0)
     const gamesByMen = Math.round(100 * perUmpireStats?.filter(it => it.umpire.gender === 'M').reduce((a, b) => a + b.gamesUmpired, 0) / totalGames)
@@ -219,10 +225,38 @@ export default function Page() {
                 }
             </Grid.Col>
             <Grid.Col span={{base: 6, md: 3}} p={10}>
+                <Title order={3} ta="center">Average Games Umpired per Week</Title>
+                <Text onClick={() => setViewAsPieChart(!viewAsPieChart)} my={5} ta="center" c="dimmed" fs="italic"
+                      style={{textDecoration: 'underline'}}>
+                    View as {viewAsPieChart ? 'Bar' : 'Pie'} Chart
+                </Text>
+
+                {viewAsPieChart ?
+                    <PieChart data={avgGamesPerWeek} withTooltip tooltipDataSource="segment" mx="auto" size={250}
+                              startAngle={90} endAngle={360 + 90} strokeWidth={0}>{defs}</PieChart> :
+                    <BarChart data={avgGamesPerWeek}
+                              withTooltip
+                              mx="auto"
+                              series={[
+                                  {label: 'Games Umpired', name: 'value'}
+                              ]}
+                              dataKey="name"
+                              h={300}
+                              referenceLines={[
+                                  {
+                                      y: avgGamesPerWeek.map(it => it.value).reduce((a, b) => a + b, 0) / avgGamesPerWeek.length,
+                                      color: 'dimmed',
+                                      label: 'Average',
+                                      labelPosition: 'insideTopLeft',
+                                  },
+                              ]}></BarChart>
+                }
+            </Grid.Col>
+            <Grid.Col span={{base: 6, md: 3}} p={10}>
                 <Title order={3} ta="center">Weekly Games</Title>
                 {!grade &&
                     <Text my={5} ta="center" c="dimmed" fs="italic">For people who have umpired 2+ games</Text>}
-                <BarChart data={gamesPerWeek} withTooltip mx="auto" type="percent"
+                <BarChart data={year === 'All' ? [] : gamesPerWeek} withTooltip mx="auto" type="percent"
                           h={300}
                           dataKey="week"
                           series={umpires.map(it => ({color: it.color, name: it.name}))}
