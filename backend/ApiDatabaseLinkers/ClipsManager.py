@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from pony.orm import db_session, select
 from sanitize_filename import sanitize
 
-from ApiManagers.live_hockey_utils import fetch_from_live_hockey
+from ApiFetchers import LiveHockeyFetcher
 from config import get_config
 from database import Clips
 from requester import client
@@ -59,7 +59,7 @@ async def download_clip_for_game(
     clip_start_time = max(clip.start_time - 2, 0)
     clip_end_time = max(clip.start_time + clip.duration + 2, 0)
 
-    index_url = await fetch_from_live_hockey.get_video_link_from_blob(blob, username, password)
+    index_url = await LiveHockeyFetcher.get_video_link_from_blob(blob, username, password)
     index_file = (await client.get(index_url)).text
 
     files = []

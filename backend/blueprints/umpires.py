@@ -2,7 +2,7 @@ from pony.orm import db_session
 from quart import jsonify, request
 from quart.blueprints import Blueprint
 
-from database import Umpires
+from database import Officials
 
 umpire_bp = Blueprint('umpire_bp', __name__, url_prefix='/umpires')
 
@@ -16,7 +16,7 @@ async def update_umpire():
         if gender not in ['M', 'F', '?']:
             return f'{gender} is not a valid gender', 400
 
-        umpire = Umpires.get(name=umpire)
+        umpire = Officials.get(name=umpire)
 
         if umpire is None:
             return 'Umpire not found', 404
@@ -29,7 +29,7 @@ async def update_umpire():
 @umpire_bp.route('/')
 def get_umpires():
     with db_session():
-        return jsonify({i.name: i for i in Umpires.select()})
+        return jsonify({i.name: i for i in Officials.select()})
 
 # @umpire_bp.route('/db')
 # def db():

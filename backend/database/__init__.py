@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 
-from pony.orm import Database, PrimaryKey, Required, Optional, Set, composite_key
+from pony.orm import Database, PrimaryKey, Required, Optional, Set, composite_key, db_session
 
 from config import get_config
 from utils import int_to_time
@@ -19,13 +19,21 @@ def NullableOptional(a, *args, **kwargs):
     return Optional(a, nullable=True, *args, **kwargs)
 
 
-class Umpires(db.Entity):
+class Officials(db.Entity):
     id = PrimaryKey(int, auto=True)
     name = Required(str, unique=True)
     gender = Required(str)
     time_created = NullableOptional(int)
+    panel = NullableOptional(str)
+
     games_first_official = Set('Games', reverse='official_one')
     games_second_official = Set('Games', reverse='official_two')
+    games_umpire_manager = Set('Games', reverse='umpire_manager')
+
+    @db_session
+    def format_for_frontend(self):
+        d = self.to_dict()
+        return d
 
 
 class Clubs(db.Entity):
@@ -34,8 +42,14 @@ class Clubs(db.Entity):
     long_name = Required(str)
     image_link = NullableOptional(str)
     time_created = NullableOptional(int)
+
     home_games = Set('Games', reverse='home_team')
     away_games = Set('Games', reverse='away_team')
+
+    @db_session
+    def format_for_frontend(self):
+        d = self.to_dict()
+        return d
 
 
 class Competitions(db.Entity):
@@ -47,9 +61,17 @@ class Competitions(db.Entity):
     year = Required(int)
     altius_id = NullableOptional(int, unique=True)
     live_hockey_id = NullableOptional(str, unique=True)
+    whistle_iq_id = NullableOptional(str, unique=True)
     time_created = NullableOptional(int)
+
     games = Set('Games', reverse='competition')
     composite_key(gender, level, year)
+
+    @db_session
+    def format_for_frontend(self):
+        d = self.to_dict()
+        return d
+
 
 class Venues(db.Entity):
     id = PrimaryKey(int, auto=True)
@@ -57,41 +79,54 @@ class Venues(db.Entity):
     long_name = NullableOptional(str)
     turf_number = Required(int)
     time_created = NullableOptional(int)
+
     games = Set('Games', reverse='venue')
     composite_key(code, turf_number)
 
+    @db_session
+    def format_for_frontend(self):
+        d = self.to_dict()
+        return d
+
+
 class Games(db.Entity):
     id = PrimaryKey(int, auto=True)
-    home_team = Required(Clubs, column='home_team_id')
-    away_team = Required(Clubs, column='away_team_id')
     start_time = Required(int)
-    competition = Required(Competitions, column='competition_id')
-    official_one = NullableOptional(Umpires, column='official_one_id')
-    official_two = NullableOptional(Umpires, column='official_two_id')
     altius_id = NullableOptional(str, unique=True)
     teamstar_id = NullableOptional(str, unique=True)
     live_hockey_id = NullableOptional(str, unique=True)
     stream_start_time = NullableOptional(int)
     home_team_score = NullableOptional(int)
     away_team_score = NullableOptional(int)
-    venue = NullableOptional(Venues, column='venue_id')
     time_created = NullableOptional(int)
+
+    venue = NullableOptional(Venues, column='venue_id')
+    home_team = Required(Clubs, column='home_team_id')
+    away_team = Required(Clubs, column='away_team_id')
+    competition = Required(Competitions, column='competition_id')
+    official_one = NullableOptional(Officials, column='official_one_id')
+    official_two = NullableOptional(Officials, column='official_two_id')
+    umpire_manager = NullableOptional(Officials, column='umpire_manager_id')
+
     clips = Set('Clips', reverse='game')
 
+    @db_session
     def format_for_frontend(self):
         game = self.to_dict()
-        game['officials'] = []  
+        game['officials'] = []
         if self.official_one:
-            game['officials'].append(self.official_one.name)
+            game['officials'].append(self.official_one.format_for_frontend())
         if self.official_two:
-            game['officials'].append(self.official_two.name)
+            game['officials'].append(self.official_two.format_for_frontend())
+        if self.umpire_manager:
+            game['umpire_manager'] = self.umpire_manager.format_for_frontend()
         del game['official_one']
         del game['official_two']
-        game['competition'] = self.competition.to_dict()
-        game['home_team'] = self.home_team.to_dict()
-        game['away_team'] = self.away_team.to_dict()
+        game['competition'] = self.competition.format_for_frontend()
+        game['home_team'] = self.home_team.format_for_frontend()
+        game['away_team'] = self.away_team.format_for_frontend()
         if self.venue:
-            game['venue'] = self.venue.to_dict()
+            game['venue'] = self.venue.format_for_frontend()
         game['start_time'] *= 1000
         if game.get('stream_start_time', None):
             game['stream_start_time'] *= 1000
@@ -109,6 +144,7 @@ class Clips(db.Entity):
     comment = NullableOptional(str)
     time_created = NullableOptional(int)
 
+    @db_session
     def format_for_frontend(self):
         d = self.to_dict()
         d['game_blob'] = self.game.live_hockey_id
@@ -125,3 +161,7 @@ class Users(db.Entity):
     live_hockey_token = NullableOptional(str)
     whistle_iq_token = NullableOptional(str)
     whistle_iq_session = NullableOptional(str)
+
+    @db_session
+    def format_for_frontend(self):
+        raise Exception('Users should not leave the backend!')

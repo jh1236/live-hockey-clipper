@@ -9,7 +9,7 @@ from quart import jsonify, send_file, request
 from quart.blueprints import Blueprint
 from sanitize_filename import sanitize
 
-from ApiManagers import LiveHockeyManager, ClipsManager
+from ApiDatabaseLinkers import LiveHockeyManager, ClipsManager
 from config import get_config
 from database import Games, Clips
 

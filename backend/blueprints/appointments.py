@@ -3,7 +3,7 @@ from datetime import datetime
 from pony.orm import db_session, select
 from quart import Blueprint, jsonify, request
 
-from ApiManagers import AltiusManager
+from ApiDatabaseLinkers import AltiusUpdater
 from database import Competitions, Games
 
 appointments_bp = Blueprint('appointments_bp', __name__, url_prefix='/appointments')

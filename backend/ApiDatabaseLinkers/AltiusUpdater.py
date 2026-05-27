@@ -10,7 +10,7 @@ from bs4 import BeautifulSoup, Tag
 from dateutil import parser
 from pony.orm import select, db_session
 
-from ApiManagers.altius_utils.fetch_from_altius import get_from_altius
+from ApiFetchers import AltiusFetcher
 from bridging import DatabaseAligner, DBCodesManager
 from database import Competitions, init_db
 
@@ -46,7 +46,7 @@ async def get_ladder(year='2026'):
         tournaments = altius_tournaments_for_year(int(year))
     out: dict[int, list[str]] = defaultdict(list)
 
-    altius_pages = await get_from_altius(tournaments, 'ladder')
+    altius_pages = await AltiusFetcher.get_from_altius(tournaments, 'ladder')
     for t, htmls in altius_pages.items():
         soup = BeautifulSoup(htmls['ladder'], "html.parser")
         table_container = soup.find("div", attrs={"class": "table-responsive"})
@@ -66,7 +66,7 @@ async def fill_officials_from_altius(tournaments=None, year='2026'):
         else:
             tournaments = altius_tournaments_for_year(int(year))
 
-    altius_pages = await get_from_altius(tournaments, 'officials')
+    altius_pages = await AltiusFetcher.get_from_altius(tournaments, 'officials')
     with (db_session()):
         for t, html in altius_pages.items():
             soup = BeautifulSoup(html['officials'], "html.parser")
@@ -125,7 +125,7 @@ async def fill_venues_from_altius(tournaments=None, year='2026'):
         else:
             tournaments = altius_tournaments_for_year(int(year))
 
-    altius_pages = await get_from_altius(tournaments, 'games')
+    altius_pages = await AltiusFetcher.get_from_altius(tournaments, 'games')
     with (db_session()):
         for t, html in altius_pages.items():
             soup = BeautifulSoup(html['games'], "html.parser")
@@ -168,7 +168,7 @@ async def fill_venues_from_altius(tournaments=None, year='2026'):
 async def update_altius_pages(tournaments=None):
     logging.warning('Launching Altius Update')
     tournaments = tournaments or altius_tournaments_for_year(datetime.datetime.now().year)
-    await get_from_altius(tournaments, 'games', 'ladder', 'officials')
+    await AltiusFetcher.get_from_altius(tournaments, 'games', 'ladder', 'officials')
     logging.warning('Altius Update Successful')
     await fill_venues_from_altius(tournaments)
     await fill_officials_from_altius(tournaments)

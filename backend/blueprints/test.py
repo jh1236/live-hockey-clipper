@@ -8,7 +8,7 @@ from quart import jsonify, send_file, request
 from quart.blueprints import Blueprint
 from sanitize_filename import sanitize
 
-from ApiManagers import LiveHockeyManager, altius_utils, ClipsManager, WhistleIQManager
+from ApiDatabaseLinkers import LiveHockeyManager, altius_utils, ClipsManager, WhistleIQFetcher
 from config import get_config
 from database import Games, Clips
 from requester import client

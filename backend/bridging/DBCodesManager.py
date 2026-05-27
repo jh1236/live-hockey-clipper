@@ -145,7 +145,11 @@ def venue_name_to_code(name):
         r'super': 'UWA',
         r'aquin': 'AQUIN',
         r'lark\W': 'ROCK',
-        r'rock\W': 'ROCK',
+        r'rock': 'ROCK',
+        r'dayton\W': 'DAYT',
+        r'joondalup': 'JOO',
+        r'toro': 'SOR',
+        r'southern\briver': 'SOR',
 
         # regional associations
         r'goldfields\W': 'EGHA',
@@ -153,7 +157,7 @@ def venue_name_to_code(name):
         r'busselton\W': 'BHA',
         r'geraldton\W': 'GHA',
         r'bunbury\W': 'BDHA',
-        r'narrogin\W': 'UGSHA',
+        r'narrogin\W': 'NRLC',
     }
     name = name.lower()
     for i in NAME_TO_CODE:

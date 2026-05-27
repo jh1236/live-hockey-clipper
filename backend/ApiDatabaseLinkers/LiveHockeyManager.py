@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import re
 from datetime import datetime
 from select import select
 from typing import Any, Callable
@@ -8,15 +9,71 @@ from typing import Any, Callable
 from dateutil import parser
 from pony.orm import db_session, select
 
-from ApiManagers.live_hockey_utils.fetch_from_live_hockey import get_games_from_live_hockey, get_comps_from_live_hockey, \
-    get_game_from_live_hockey
-from ApiManagers.live_hockey_utils.fix_names import get_comp_details
+from ApiFetchers import LiveHockeyFetcher
 from bridging import DBCodesManager, DatabaseAligner
 from database import init_db, Competitions, Games
-from utils import sleep_for_approx
+from utils import sleep_for_approx, NUMBERS
 
 logger = logging.Logger('LiveHockeyManager')
 
+
+def _get_comp_details(comp) -> tuple[str, str, int]:
+    this_year = datetime.now().year
+    comp = re.sub(r'^[\d\s]*wa ', '', comp.lower()).strip()
+    if comp.startswith("j"):
+        # Juniors
+        comp = comp[2:]  # remove the J and the trailing space
+        age, comp_and_div = comp.split(' ', 1)
+        gender = 'M' if comp_and_div.split(' ')[-1] == 'boys' else 'F'
+        comp_and_div = comp_and_div.replace('division ', '')
+        comp_and_div = comp_and_div.split(' ')[:-1]
+
+        if len(comp_and_div) > 1:
+            # this grade has black and Gold
+            comp_and_div, grade = comp_and_div
+            grade = re.sub('[()]', '', grade)
+            comp = f'{age} Div {NUMBERS[int(comp_and_div[0])]} {grade}'
+        else:
+            comp = f'{age} Div {NUMBERS[int(comp_and_div[0])]}'
+    else:
+        if comp.startswith('r'):
+            # this is rae blunt - and it doesn't have a dash before the gender (god knows why)
+            comp = comp.replace('women', '- women')
+        comp, gender = comp.split(' - ')
+        comp = comp.strip()
+        gender = 'F' if 'women' in gender else 'M'
+        if comp.startswith("o") or comp.startswith("r"):
+            # Masters
+            comp.replace('div div', 'div')
+            if 'pool' not in comp:
+                if comp[0] == 'r':
+                    # edge case for o35 d1
+                    age = 'o35'
+                    div = '1'
+                elif comp == 'o35 midweek':
+                    age = 'o35'
+                    div = '1'
+                else:
+                    age, div = comp.replace(' div', '').split(' ')
+                comp = f'{age} Div {NUMBERS[int(div)]}'
+        elif 'premier' in comp:
+            # premier divisions
+            if any([i in comp for i in ['2', 'two']]):
+                comp = 'Prem Two'
+            elif any([i in comp for i in ['3', 'three']]):
+                comp = 'Prem Three'
+            else:
+                comp = 'Prem One'
+        else:
+            # Seniors
+            grade_number = re.sub('div(ision)? ', '', comp).strip()
+            if ' ' in grade_number:
+                grade_number, black_or_gold = grade_number.split(' ')
+                black_or_gold = re.sub('[()]', '', black_or_gold)
+                comp = f'Div {NUMBERS[int(grade_number)]} {black_or_gold}'
+            else:
+                comp = f'Div {NUMBERS[int(grade_number)]}'
+    return comp.title(), gender, this_year
 
 @db_session
 def add_live_hockey_game_to_db(game: dict[str, Any]):
@@ -25,7 +82,7 @@ def add_live_hockey_game_to_db(game: dict[str, Any]):
                                              name_for_diagnostic=game['homeTeam']['longName'])
     away_team_code = DBCodesManager.fix_code(game['awayTeam']['shortName'], 'live_hockey',
                                              name_for_diagnostic=game['awayTeam']['longName'])
-    level, gender, year = get_comp_details(game['competition']['playerLevel']['name'])
+    level, gender, year = _get_comp_details(game['competition']['playerLevel']['name'])
     stream_start: str | None = game.get('streamStart', None)
     stream_start_time = round(parser.parse(stream_start).timestamp()) if stream_start is not None else None
 
@@ -63,7 +120,7 @@ async def update_games_from_live_hockey(location: str = 'hockeywa', filter_: Cal
     page = 0
     upcoming_games = []
     while len([i for i in upcoming_games if filter_(i)]) < target:
-        upcoming = await get_games_from_live_hockey(competitions, 4, True, date_from_in=date, page=page)
+        upcoming = await LiveHockeyFetcher.get_games_from_live_hockey(competitions, 4, True, date_from_in=date, page=page)
         if upcoming is None or len(upcoming) == 0:
             # this means we are out of pages
             break
@@ -75,7 +132,7 @@ async def update_games_from_live_hockey(location: str = 'hockeywa', filter_: Cal
     page = 0
     recent_games = []
     while len([i for i in recent_games if filter_(i)]) < target:
-        recent = await get_games_from_live_hockey(competitions, -4, True, date_from_in=date, page=page)
+        recent = await LiveHockeyFetcher.get_games_from_live_hockey(competitions, -4, True, date_from_in=date, page=page)
         if recent is None or len(recent) == 0:
             # this means we are out of pages
             break
@@ -91,12 +148,12 @@ async def get_or_update_comps(location) -> list[Competitions]:
         if comps:
             return list(comps)
 
-        competitions = await get_comps_from_live_hockey(location)
+        competitions = await LiveHockeyFetcher.get_comps_from_live_hockey(location)
         comps = []
         this_year = str(datetime.now().year)
         for i in competitions:
             if i.get('hidden', False) or this_year not in i['name']: continue
-            level, gender, year = get_comp_details(i["name"])
+            level, gender, year = _get_comp_details(i["name"])
             comp = DatabaseAligner.get_or_create_comp(year=year, gender=gender, level=level)
             comp.live_hockey_id = i['id']
             comps.append(comp)
@@ -108,7 +165,7 @@ async def game_from_blob(blob: str):
     with db_session():
         game = Games.get(live_hockey_id=blob)
         if not game:
-            game_json = await get_game_from_live_hockey(blob)
+            game_json = await LiveHockeyFetcher.get_game_from_live_hockey(blob)
             game = add_live_hockey_game_to_db(game_json)
             game.flush()
             return game

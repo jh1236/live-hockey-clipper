@@ -8,10 +8,12 @@ class Config:
     videos_folder: str = './videos'
     database_path: str = './resources/database.db'
     server_address: str = 'http://localhost:5000'
-    live_hockey_username: str | None = None
     run_altius_checks: bool | None = True
     cleanse_old_videos: bool | None = True
+    live_hockey_username: str | None = None
     live_hockey_password: str | None = None
+    whistle_iq_username: str | None = None
+    whistle_iq_password: str | None = None
 
 
 def get_config() -> Config:
@@ -29,6 +31,8 @@ def get_config() -> Config:
         'database_path': os.environ.get('DATABASE_PATH', None),
         'live_hockey_username': os.environ.get('LIVE_HOCKEY_USER', None),
         'live_hockey_password': os.environ.get('LIVE_HOCKEY_PWD', None),
+        'whistle_iq_username': os.environ.get('WHISTLE_IQ_USER', None),
+        'whistle_iq_password': os.environ.get('WHISTLE_IQ_PWD', None),
         'server_address': os.environ.get('ADDRESS', None),
         'run_altius_checks': check_altius.lower() == 'true' if check_altius is not None else None,
         'cleanse_old_videos': cleanse_videos.lower() == 'true' if cleanse_videos is not None else None,

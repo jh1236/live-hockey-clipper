@@ -1,5 +1,6 @@
 from datetime import datetime, UTC, timedelta
 
+from getuseragent import UserAgent
 from pony.orm import db_session
 
 from config import get_config
@@ -18,8 +19,7 @@ def get_header(token: None | str = None):
         'Referer': 'https://www.livehockey.com.au/',
         'site-id': 'AU_FH_AUS',
         'Origin': 'https://www.livehockey.com.au',
-        # 'Content-Type': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:151.0) Gecko/20100101 Firefox/151.0'
+        'User-Agent': UserAgent().Random(),
     }
     if token:
         out['Authorization'] = 'Bearer ' + token

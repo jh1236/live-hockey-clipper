@@ -6,21 +6,19 @@ It does this by using 'codes' which are short, three-to-six letter codes that re
 """
 
 import re
+from typing import Literal
 
 from pony.orm import db_session, select
 
 import bridging
-from database import Clubs, Games, Competitions, Umpires, Venues
+from database import Clubs, Games, Competitions, Officials, Venues, Users
 
 THIRTY_MINUTES = 30 * 60
 
 
-
-
-
 @db_session
 def get_or_create_game(home_team_code: str, away_team_code: str, year: int, start_time: float, level: str,
-                       gender: str, *, home_team_long_name: str = None, away_team_long_name: str = None):
+                       gender: str, *, home_team_long_name: str = None, away_team_long_name: str = None) -> Games:
     team_one = get_or_create_team(home_team_code, long_name_if_new=home_team_long_name)
     team_two = get_or_create_team(away_team_code, long_name_if_new=away_team_long_name)
     competition = get_or_create_comp(level, gender, year)
@@ -52,17 +50,19 @@ def get_or_create_comp(level: str, gender: str, year: int) -> Competitions:
 
 
 @db_session
-def get_or_create_official(name: str):
-    official = Umpires.get(name=name)
+def get_or_create_official(name: str, *, gender: Literal['M'] | Literal['F'] | None = None) -> Officials:
+    official = Officials.get(name=name)
     if official:
+        if official.gender == '?' and gender:
+            official.gender = gender
         return official
     else:
-        official = Umpires(name=name, gender='?')
+        official = Officials(name=name, gender='?' if not gender else gender)
         return official
 
 
 @db_session
-def get_or_create_team(code: str, *, long_name_if_new=None):
+def get_or_create_team(code: str, *, long_name_if_new=None) -> Clubs:
     team = Clubs.get(code=code)
     if team:
         return team
@@ -72,10 +72,20 @@ def get_or_create_team(code: str, *, long_name_if_new=None):
 
 
 @db_session
-def get_or_create_venue(code: str, turf_number, *, long_name_if_new=None):
+def get_or_create_venue(code: str, turf_number, *, long_name_if_new=None) -> Venues:
     venue = Venues.get(code=code, turf_number=turf_number)
     if venue:
         return venue
     else:
         venue = Venues(code=code, turf_number=turf_number, long_name=long_name_if_new)
         return venue
+
+
+@db_session
+def get_or_create_user(username: str) -> Users:
+    user = Users.get(username=username)
+    if user:
+        return user
+    else:
+        user = Users(username=username)
+        return user

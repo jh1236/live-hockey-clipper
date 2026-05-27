@@ -12,7 +12,7 @@ from quart.wrappers.response import DataBody
 from quart_cors import cors
 from quart_tasks import QuartTasks
 
-from ApiManagers import ClipsManager, AltiusManager
+from ApiDatabaseLinkers import ClipsManager, AltiusUpdater
 from blueprints import api
 from config import get_config
 from database import init_db

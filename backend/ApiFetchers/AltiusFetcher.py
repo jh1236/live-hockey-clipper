@@ -4,6 +4,7 @@ from collections import defaultdict
 from typing import Literal, Callable
 
 import httpx
+from getuseragent import UserAgent
 
 from config import get_config
 from requester import client
@@ -13,6 +14,15 @@ all_tournaments = [57, 58, 59, 60, 52, 51, 54, 53, 45, 46, 43, 44, 39, 40, 33, 3
 
 base_url = "https://hockeywa.altiusrt.com/competitions"
 
+def get_header(token: None | str = None):
+    out = {
+        'Host': 'hockeywa.altiusrt.com',
+        'site-id': 'AU_FH_AUS',
+        'User-Agent': UserAgent().Random(),
+    }
+    if token:
+        out['Authorization'] = 'Bearer ' + token
+    return out
 
 async def _get_officials_from_altius(tournament, force_regen=False, *, attempts=3) -> tuple[str, bool]:
     if attempts == 0:

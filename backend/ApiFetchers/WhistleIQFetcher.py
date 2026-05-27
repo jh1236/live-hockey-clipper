@@ -1,18 +1,25 @@
-from collections import defaultdict
-
+from getuseragent import UserAgent
 from httpx import HTTPError
 from pony.orm import db_session
 
-from database import Users
+from bridging import DatabaseAligner
+from bridging.DatabaseAligner import get_or_create_user
+from config import get_config
+from database import Competitions
 from requester import client
-from utils import NUMBERS
 
 HOCKEY_WA_ORG = "73C71E631121467FBF7CA63043321HWA"
-DEFAULT_HEADERS = {
-    'Host': 'app.whistleiq.com',
-    'Origin': 'https://app.whistleiq.com',
-    'Referer': 'https://app.whistleiq.com',
-}
+
+
+def get_header():
+    return {
+        'Host': 'app.whistleiq.com',
+        'Origin': 'https://app.whistleiq.com',
+        'Referer': 'https://app.whistleiq.com',
+        'User-Agent': UserAgent().Random(),
+    }
+
+
 DEFAULT_FORM_DATA = {
     'appVersion': 'v2.0.0',
     'platform': 'web',
@@ -20,28 +27,25 @@ DEFAULT_FORM_DATA = {
 }
 
 
-SENIOR_GRADES = [f'Prem {NUMBERS[i + 1]} {gender}' for gender in ['Men', 'Women'] for i in range(3)]
-JUNIOR_GRADES = [f'{grade} Div 1 {gender}' for gender in ['Boys', 'Girls'] for grade in ['9/10', '11/12']]
-GRADES = SENIOR_GRADES + JUNIOR_GRADES
-
-
-async def get_session(username, *, force_refresh=False):
+async def get_session(username=None, *, force_refresh=False):
+    username = username or get_config().whistle_iq_username
     with db_session():
-        user = Users.get(username=username)
+        user = DatabaseAligner.get_or_create_user(username=username)
         if not force_refresh and user and user.whistle_iq_session:
             return user.whistle_iq_session
 
-        if user is None:
-            user = Users(username=username)
-        response = await client.get('https://app.whistleiq.com/', headers=DEFAULT_HEADERS)
+
+        response = await client.get('https://app.whistleiq.com/', headers=get_header())
         session_id = response.cookies.get('PHPSESSID')
         user.whistle_iq_session = session_id
         return session_id
 
 
-async def get_cookies(username, password, *, force_refresh=False):
+async def get_cookies(username=None, password=None, *, force_refresh=False):
+    username = username or get_config().whistle_iq_username
+    password = password or get_config().whistle_iq_password
     with db_session():
-        user = Users.get(username=username)
+        user = get_or_create_user(username=username)
         cookies = {'PHPSESSID': await get_session(username, force_refresh=force_refresh)}
         if not force_refresh and user and user.whistle_iq_token:
             return cookies | {'token': user.whistle_iq_token}
@@ -52,10 +56,8 @@ async def get_cookies(username, password, *, force_refresh=False):
         }
         try:
             resp = (await client.post("https://app.whistleiq.com/v2.0.0/api/app/getApiToken/", data=form_data,
-                                      cookies=cookies, headers=DEFAULT_HEADERS)).json()
+                                      cookies=cookies, headers=get_header())).json()
             token = resp['token']
-            if user is None:
-                user = Users(username=username)
             user.whistle_iq_token = token
             return cookies | {'token': token}
         except HTTPError as e:
@@ -65,14 +67,14 @@ async def get_cookies(username, password, *, force_refresh=False):
                 return get_cookies(username, password, force_refresh=True)
 
 
-async def make_request(username, password, payload, *, force_refresh=False):
+async def make_request(payload, username=None, password=None, *, force_refresh=False):
     cookies = await get_cookies(username, password)
     try:
         form_data = DEFAULT_FORM_DATA | {'token': cookies['token']}
         form_data |= payload
         resp = \
             await client.post("https://app.whistleiq.com/v2.0.0/api/app/data/", data=form_data, cookies=cookies,
-                              headers=DEFAULT_HEADERS)
+                              headers=get_header())
         resp.raise_for_status()
         return resp.json()
     except HTTPError as e:
@@ -82,31 +84,17 @@ async def make_request(username, password, payload, *, force_refresh=False):
             return await make_request(username, password, payload, force_refresh=True)
 
 
-async def get_events(username, password) -> dict:
-    org_data = await make_request(username, password, {
+async def get_events(username=None, password=None) -> list[dict]:
+    org_data = await make_request({
         'context': 'getDataForOrganization',
         'orgGuid': HOCKEY_WA_ORG,
-    })
+    }, username=username, password=password)
     return org_data['events']
 
-async def get_event_games(username, password, event_id) -> dict:
+
+async def get_event_games(username, password, comp: Competitions) -> dict:
     org_data = await make_request(username, password, {
         'includeExtendedData': '1',
-        'eventGuid': event_id,
+        'eventGuid': comp.whistle_iq_id,
     })
     return org_data['fixtures']
-
-
-async def _add_event_games_to_dict(username, password, event, appointments_dict):
-    year = int(event['startDateSql'].split('-')[0])
-    games = await get_event_games(username, password, event['eventGuid'])
-    for game in games:
-        game_to_add = None
-
-async def get_appointments(username, password):
-    events = await get_events(username, password)
-    years = defaultdict(lambda: {i: [] for i in GRADES})
-    for i in events:
-        year = int(i['startDateSql'].split('-')[0])
-        
-    return years
