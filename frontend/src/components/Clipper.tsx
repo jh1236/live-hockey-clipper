@@ -293,8 +293,8 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                     </Grid.Col>
                 </Grid>
             </Center>
-            {!!game.officials.length &&
-                <Group><Text fw={600}>Officials:</Text> <Text fs="italic">{game.officials.join(', ')}</Text></Group>}
+            {!!game.umpires.length &&
+                <Group><Text fw={600}>Officials:</Text> <Text fs="italic">{game.umpires.map(it => it.name).join(', ')}</Text></Group>}
             <HoverCard disabled={game.startTime <= currentTime}>
                 <HoverCard.Target>
                     <Button size="xl" w="60%" m={10} onClick={() => {

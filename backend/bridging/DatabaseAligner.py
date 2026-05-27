@@ -10,18 +10,17 @@ from typing import Literal
 
 from pony.orm import db_session, select
 
-import bridging
+from bridging import DBCodesManager
 from database import Clubs, Games, Competitions, Officials, Venues, Users
 
 THIRTY_MINUTES = 30 * 60
 
 
 @db_session
-def get_or_create_game(home_team_code: str, away_team_code: str, year: int, start_time: float, level: str,
-                       gender: str, *, home_team_long_name: str = None, away_team_long_name: str = None) -> Games:
+def get_or_create_game(home_team_code: str, away_team_code: str, start_time: float, competition: Competitions, *,
+                       home_team_long_name: str = None, away_team_long_name: str = None) -> Games:
     team_one = get_or_create_team(home_team_code, long_name_if_new=home_team_long_name)
     team_two = get_or_create_team(away_team_code, long_name_if_new=away_team_long_name)
-    competition = get_or_create_comp(level, gender, year)
     games = list(select(i for i in Games if i.home_team == team_one and i.away_team == team_two and abs(
         i.start_time - start_time) < THIRTY_MINUTES and i.competition == competition))
     if len(games) > 1:
@@ -33,7 +32,7 @@ def get_or_create_game(home_team_code: str, away_team_code: str, year: int, star
 
 
 @db_session
-def get_or_create_comp(level: str, gender: str, year: int) -> Competitions:
+def get_or_create_comp(year: int, level: str, gender: str, ) -> Competitions:
     comp = Competitions.get(level=level, gender=gender, year=year)
     if comp:
         return comp
@@ -50,14 +49,18 @@ def get_or_create_comp(level: str, gender: str, year: int) -> Competitions:
 
 
 @db_session
-def get_or_create_official(name: str, *, gender: Literal['M'] | Literal['F'] | None = None) -> Officials:
+def get_or_create_official(name: str, *, gender_if_new: Literal['M'] | Literal['F'] | None = None,
+                           role_if_new: str | None = None) -> Officials:
     official = Officials.get(name=name)
     if official:
-        if official.gender == '?' and gender:
-            official.gender = gender
+        if official.gender == '?' and gender_if_new:
+            official.gender = gender_if_new
+        if not official.role and role_if_new or official.role in ['Technical Official',
+                                                                  'Tech Official'] and role_if_new == 'Umpire':
+            official.role = role_if_new
         return official
     else:
-        official = Officials(name=name, gender='?' if not gender else gender)
+        official = Officials(name=name, gender='?' if not gender_if_new else gender_if_new)
         return official
 
 
@@ -65,9 +68,11 @@ def get_or_create_official(name: str, *, gender: Literal['M'] | Literal['F'] | N
 def get_or_create_team(code: str, *, long_name_if_new=None) -> Clubs:
     team = Clubs.get(code=code)
     if team:
+        if not team.long_name and long_name_if_new:
+            team.long_name = long_name_if_new
         return team
     else:
-        team = Clubs(code=code, long_name=long_name_if_new or bridging.codes.code_to_name(code))
+        team = Clubs(code=code, long_name=long_name_if_new or DBCodesManager.team_code_to_name(code))
         return team
 
 

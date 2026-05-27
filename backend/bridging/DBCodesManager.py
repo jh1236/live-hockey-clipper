@@ -1,10 +1,11 @@
 import logging
+import os
 import re
 from typing import Literal
 
 from pony.orm import db_session
 
-from database import Clubs
+from database import Clubs, init_db, Officials
 
 logger = logging.Logger(__name__)
 
@@ -39,7 +40,8 @@ _FIX_ALTIUS_CODE = {
     'OGMHC': 'OGMHC',
     'MODS': 'MODS',
     'WOLV': 'WOL',
-    'MELV': 'MEL'
+    'MELV': 'MEL',
+    'SOU': 'SOU'
 }
 
 _FIX_LIVE_HOCKEY_CODE = _FIX_ALTIUS_CODE | {
@@ -64,26 +66,6 @@ _FIX_LIVE_HOCKEY_CODE = _FIX_ALTIUS_CODE | {
     'ROC': 'RDHC',
 }
 
-_CODE_TO_NAME = {
-    'HAL': 'Hale Hockey Club',
-    'VPX': 'Vic Park Xavier Hockey Club',
-    'CUHC': 'Curtin University Hockey Club',
-    'WOL': 'Westside Wolves Hockey Club',
-    'YMCC': 'YMCC Hockey Club',
-    'REDS': 'Old Aquinians Hockey Club',
-    'SUBS': 'Suburban Lions Hockey Club',
-    'WASPS': 'Wesley South Perth Hockey Club',
-    'UWA': 'Univeristy of Western Australia Hockey Club',
-    'MEL': 'Melville City Hockey Club',
-    'WHIT': 'Whitfords Hockey Club',
-    'NCR': 'North Coast Raiders Hockey Club',
-    'FCHC': 'Fremantle Cockburn Hockey Club',
-    'NKHC': 'Newman Knights Hockey Club',
-    'MODS': 'Modernians Hockey Club',
-    'OGMHC': 'Modernians Old Guildford Mundaring Hockey Club',
-    'RDHC': 'Rockingham District Hockey Club',
-}
-
 
 def prem_team_name_to_code(name):
     NAME_TO_CODE = {
@@ -106,11 +88,14 @@ def prem_team_name_to_code(name):
         'whitford': 'WHIT',
         'raiders': 'NCR',
         'fremantle': 'FCHC',
+        'freo': 'FCHC',
         'newman': 'NKHC',
         'modernians': 'MODS',
         'ogm': 'OGMHC',
         'guildford': 'OGMHC',
         'rockingham': 'RDHC',
+        'sthn river': 'SOU',
+        'southern river': 'SOU'
     }
     name = name.lower()
     if 'mods' in name and ('ogm' in name or 'guildford' in name):
@@ -120,44 +105,46 @@ def prem_team_name_to_code(name):
     for i in NAME_TO_CODE:
         if i in name:
             return NAME_TO_CODE[i]
+    logging.warning('Unknown team name: %s', name)
     return None
 
 
 def venue_name_to_code(name):
     NAME_TO_CODE = {
-        r'hale\W': 'HALE',
-        r'pulse\W': 'MELV',
-        r'melville\W': 'MELV',
+        r'hale': 'HALE',
+        r'pulse': 'MELV',
+        r'melville': 'MELV',
         r'melv-': 'MELV',
-        r'lemnos\W': 'LEM',
+        r'lemnos': 'LEM',
+        r'shenton': 'LEM',
         r'lem-': 'LEM',
-        r'perth hockey\W': 'PHS',
-        r'perht hockey\W': 'PHS',  # the good people of HWA can not spell
-        r'phs\W': 'PHS',
-        r'guildford\W': 'GUILD',
+        r'perth hockey': 'PHS',
+        r'perht hockey': 'PHS',  # the good people of HWA can not spell
+        r'phs': 'PHS',
+        r'guildford': 'GUILD',
         r'ogm-t': 'GUILD',
-        r'troy\W': 'TPHC',
+        r'troy': 'TPHC',
         r'whit': 'TPHC',
         r'whc-': 'TPHC',
-        r'warwick\W': 'TPHC',
+        r'warwick': 'TPHC',
         r'lakeland': 'LAKE',
-        r'uwa\W': 'UWA',
+        r'uwa': 'UWA',
         r'super': 'UWA',
         r'aquin': 'AQUIN',
-        r'lark\W': 'ROCK',
+        r'lark': 'ROCK',
         r'rock': 'ROCK',
-        r'dayton\W': 'DAYT',
+        r'dayton': 'DAYT',
         r'joondalup': 'JOO',
         r'toro': 'SOR',
         r'southern\briver': 'SOR',
 
         # regional associations
-        r'goldfields\W': 'EGHA',
-        r'northam\W': 'NRTHM',
-        r'busselton\W': 'BHA',
-        r'geraldton\W': 'GHA',
-        r'bunbury\W': 'BDHA',
-        r'narrogin\W': 'NRLC',
+        r'goldfields': 'EGHA',
+        r'northam': 'NRTHM',
+        r'busselton': 'BHA',
+        r'geraldton': 'GHA',
+        r'bunbury': 'BDHA',
+        r'narrogin': 'NRLC',
     }
     name = name.lower()
     for i in NAME_TO_CODE:
@@ -166,9 +153,7 @@ def venue_name_to_code(name):
     raise Exception(f'Unknown venue {name}')
 
 
-def code_to_name(code):
-    if code in _CODE_TO_NAME:
-        return _CODE_TO_NAME[code]
+def team_code_to_name(code):
     with db_session():
         team = Clubs.get(code=code)
         if team is None:
@@ -190,7 +175,7 @@ def _fix_live_hockey_code(code: str, long_name) -> str:
         converted = prem_team_name_to_code(long_name)
         if converted:
             logging.warning("code '%s' appears to be for team %s, but it is not mapped so", code,
-                            code_to_name(converted))
+                            team_code_to_name(converted))
     return code
 
 
@@ -205,3 +190,33 @@ def fix_code(code: str, source: Literal['altius'] | Literal['live_hockey'] | Lit
             return _fix_live_hockey_code(code, name_for_diagnostic)
         case 'whistle_iq':
             pass
+
+
+def fix_official_name(name: str):
+    first_name_fixes = {
+        'Matt': 'Matthew',
+        'Lachie': 'Lachlan',
+        'Will': 'William',
+        'Jess': 'Jessica',
+        'Ben': 'Benjamin',
+        'John': 'Johnathon',
+        'Dan': 'Daniel',
+        'Tom': 'Thomas',
+        'Dave': 'David',
+        'Deb': 'Deborah',
+        'Joe': 'Joseph',
+        'Josh': 'Joshua',
+        'Mel': 'Melissa',
+        'Sam': 'Samuel'
+    }
+    first_name, last_name = name.split(' ', 1)
+    if first_name in first_name_fixes:
+        first_name = first_name_fixes[first_name]
+    return f'{first_name} {last_name}'.title()
+
+if __name__ == '__main__':
+    os.environ['DATABASE_PATH'] = '../resources/database.db'
+    init_db()
+    with db_session():
+        for i in Officials.select():
+            i.name = fix_official_name(i.name)

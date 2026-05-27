@@ -25,14 +25,23 @@ class Officials(db.Entity):
     gender = Required(str)
     time_created = NullableOptional(int)
     panel = NullableOptional(str)
+    role = NullableOptional(str)
+    email = NullableOptional(str)
+    phone_number = NullableOptional(str)
 
-    games_first_official = Set('Games', reverse='official_one')
-    games_second_official = Set('Games', reverse='official_two')
+    games_first_umpire = Set('Games', reverse='umpire_one')
+    games_second_umpire = Set('Games', reverse='umpire_two')
+    games_reserve_umpire = Set('Games', reverse='reserve_umpire')
+    games_tech_official = Set('Games', reverse='tech_official')
+    games_scoring_judge = Set('Games', reverse='scoring_judge')
+    games_timing_judge = Set('Games', reverse='timing_judge')
     games_umpire_manager = Set('Games', reverse='umpire_manager')
 
     @db_session
     def format_for_frontend(self):
         d = self.to_dict()
+        del d['phone_number']
+        del d['email']
         return d
 
 
@@ -92,7 +101,7 @@ class Venues(db.Entity):
 class Games(db.Entity):
     id = PrimaryKey(int, auto=True)
     start_time = Required(int)
-    altius_id = NullableOptional(str, unique=True)
+    altius_id = NullableOptional(int, unique=True)
     teamstar_id = NullableOptional(str, unique=True)
     live_hockey_id = NullableOptional(str, unique=True)
     stream_start_time = NullableOptional(int)
@@ -104,8 +113,12 @@ class Games(db.Entity):
     home_team = Required(Clubs, column='home_team_id')
     away_team = Required(Clubs, column='away_team_id')
     competition = Required(Competitions, column='competition_id')
-    official_one = NullableOptional(Officials, column='official_one_id')
-    official_two = NullableOptional(Officials, column='official_two_id')
+    umpire_one = NullableOptional(Officials, column='umpire_one_id')
+    umpire_two = NullableOptional(Officials, column='umpire_two_id')
+    reserve_umpire = NullableOptional(Officials, column='reserve_umpire_id')
+    tech_official = NullableOptional(Officials, column='tech_official_id')
+    scoring_judge = NullableOptional(Officials, column='scoring_judge_id')
+    timing_judge = NullableOptional(Officials, column='timing_judge_id')
     umpire_manager = NullableOptional(Officials, column='umpire_manager_id')
 
     clips = Set('Clips', reverse='game')
@@ -113,15 +126,20 @@ class Games(db.Entity):
     @db_session
     def format_for_frontend(self):
         game = self.to_dict()
-        game['officials'] = []
-        if self.official_one:
-            game['officials'].append(self.official_one.format_for_frontend())
-        if self.official_two:
-            game['officials'].append(self.official_two.format_for_frontend())
+        game['umpires'] = []
+        if self.umpire_one:
+            game['umpires'].append(self.umpire_one.format_for_frontend())
+        if self.umpire_two:
+            game['umpires'].append(self.umpire_two.format_for_frontend())
         if self.umpire_manager:
             game['umpire_manager'] = self.umpire_manager.format_for_frontend()
-        del game['official_one']
-        del game['official_two']
+        if self.tech_official:
+            game['tech_official'] = self.tech_official.format_for_frontend()
+        del game['umpire_one']
+        del game['umpire_two']
+        del game['reserve_umpire']
+        del game['timing_judge']
+        del game['scoring_judge']
         game['competition'] = self.competition.format_for_frontend()
         game['home_team'] = self.home_team.format_for_frontend()
         game['away_team'] = self.away_team.format_for_frontend()

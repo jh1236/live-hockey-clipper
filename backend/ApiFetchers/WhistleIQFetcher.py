@@ -7,6 +7,7 @@ from bridging.DatabaseAligner import get_or_create_user
 from config import get_config
 from database import Competitions
 from requester import client
+from utils import sleep_for_approx
 
 HOCKEY_WA_ORG = "73C71E631121467FBF7CA63043321HWA"
 
@@ -33,7 +34,6 @@ async def get_session(username=None, *, force_refresh=False):
         user = DatabaseAligner.get_or_create_user(username=username)
         if not force_refresh and user and user.whistle_iq_session:
             return user.whistle_iq_session
-
 
         response = await client.get('https://app.whistleiq.com/', headers=get_header())
         session_id = response.cookies.get('PHPSESSID')
@@ -81,20 +81,23 @@ async def make_request(payload, username=None, password=None, *, force_refresh=F
         if force_refresh:
             raise e
         else:
-            return await make_request(username, password, payload, force_refresh=True)
+            await sleep_for_approx(1)
+            return await make_request(payload, username, password, force_refresh=True)
 
 
-async def get_events(username=None, password=None) -> list[dict]:
+async def get_hwa_organisation(username=None, password=None) -> dict:
     org_data = await make_request({
         'context': 'getDataForOrganization',
         'orgGuid': HOCKEY_WA_ORG,
     }, username=username, password=password)
-    return org_data['events']
+    return org_data
 
 
-async def get_event_games(username, password, comp: Competitions) -> dict:
-    org_data = await make_request(username, password, {
-        'includeExtendedData': '1',
-        'eventGuid': comp.whistle_iq_id,
-    })
-    return org_data['fixtures']
+async def get_event_games(event_guid, username=None, password=None) -> list[dict]:
+    event_data = await make_request({
+        'context': 'getDataForEvent',
+        'incExtendedData': '1',
+        'eventGuid': event_guid,
+    }, username, password)
+    out = event_data.get('fixtures', [])
+    return out

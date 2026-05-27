@@ -3,7 +3,7 @@ import atexit
 
 import httpx
 
-client = httpx.AsyncClient()
+client = httpx.AsyncClient(timeout=10)
 
 # 
 # def _close_hack():

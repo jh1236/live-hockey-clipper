@@ -1,44 +1,121 @@
 import asyncio
 import json
 import os
-from collections import defaultdict
+import time
+from datetime import datetime
 
 from pony.orm import db_session
 
 from ApiFetchers import WhistleIQFetcher
-from bridging import DatabaseAligner
-from database import init_db, Officials
+from bridging import DatabaseAligner, DBCodesManager
+from database import init_db, Competitions
+from utils import sleep_for_approx
+
+
+def _get_comp_details(label, year) -> Competitions:
+    label = label.lower()
+    gender = 'M' if any(i in label for i in ['boy', 'men']) else 'F'
+    if 'premier' in label:
+        if any(i in label for i in ['2', 'two']):
+            comp = 'Prem Two'
+        elif any(i in label for i in ['3', 'three']):
+            comp = 'Prem Three'
+        else:
+            comp = 'Prem One'
+    elif label.startswith('j'):
+        comp = label[2:].split(' ', 1)[0]
+    elif label[0].isdigit():
+        comp = label.split(' ', 1)[0]
+    else:
+        raise ValueError(f'Invalid comp label "{label}"')
+
+    return DatabaseAligner.get_or_create_comp(year, comp, gender)
 
 
 async def update_umpires():
-    events = sorted(await WhistleIQFetcher.get_events(), key=lambda it: 'Rising' in it['name'])
+    # sorted like this so that the first games to populate are from premier league
+    org = await WhistleIQFetcher.get_hwa_organisation()
+    with open('test.json', 'w+', encoding='utf-8') as f:
+        json.dump(org, f, ensure_ascii=False, indent=4)
+    this_year = datetime.now().year
     out = []
-    bad_names = set()
     with db_session():
-        for i in events:
-            if '2025' in i['startDateSQL']:
-                continue
+        for i in org["users"]:
+            name = DBCodesManager.fix_official_name(f"{i['firstName']} {i['lastName']}")
+            gender = i['sex'].strip() or '?'
+            umpire = DatabaseAligner.get_or_create_official(name, gender_if_new=gender)
+            if not umpire.email:
+                umpire.email = i['email'].strip() or None
+            if not umpire.phone:
+                umpire.phone_number = i['mobile'].strip() or None
+        for i in sorted(org["events"], key=lambda it: ('Rising' in it['name'], '2025' in it['name'])):
             for a in i['assignments']:
-                name = f"{a['firstName']} {a['lastName']}"
+                name = DBCodesManager.fix_official_name(f"{a['firstName']} {a['lastName']}")
                 gender = a['sex'].strip() or '?'
-                if Officials.get(name=name) == None:
-                    bad_names.add(name)
-                    continue
-                umpire = DatabaseAligner.get_or_create_official(name, gender=gender)
+                umpire = DatabaseAligner.get_or_create_official(name, gender_if_new=gender)
                 is_um = a['roleCode'] == 'UM'
-                if (
-                        a['panelName'].strip() and
-                        not umpire.panel and
-                        not (is_um or a['panelName'] not in ['RS 1st Year', 'Standard Panel'])
-                ):
+                if str(this_year) in i['startDateSQL']:
                     umpire.panel = a['panelName']
+                if not umpire.role or umpire.role == 'Technical Official':
+                    if (
+                            a['panelName'].strip() and
+                            not umpire.panel and
+                            (not is_um or a['panelName'] not in ['RS 1st Year', 'Standard Panel'])
+                    ):
+                        umpire.role = 'Umpire' if is_um else a['roleName']
+                    else:
+                        umpire.role = a['roleName']
                 out.append(umpire)
-    print('\n'.join([json.dumps(i.format_for_frontend()) for i in out]))
-    print('\n'.join(bad_names))
 
 
 async def update_appointments():
-    pass
+    events = (await WhistleIQFetcher.get_hwa_organisation())["events"]
+    with db_session():
+        for event in events:
+            year = event['startDateSQL'].split('-')[0]
+            games = await WhistleIQFetcher.get_event_games(event['guid'])
+            await sleep_for_approx(1)
+            for game in games:
+                label = game['competitionName']
+                if not label.strip():
+                    continue
+                competition = _get_comp_details(label, year)
+                
+                if not competition.whistle_iq_id:
+                    competition.whistle_iq_id = game['competitionGuid']
+
+                home_team = DBCodesManager.prem_team_name_to_code(game['homeTeam'])
+                away_team = DBCodesManager.prem_team_name_to_code(game['awayTeam'])
+
+                start_time = int(game['fixtureDateUNIX'])
+
+                db_game = DatabaseAligner.get_or_create_game(home_team, away_team, start_time, competition)
+
+                if not db_game.venue:
+                    turf_number = 2 if any(i in game['subVenue'].lower() for i in ['2', 'two']) else 1
+                    venue_code = DBCodesManager.venue_name_to_code(game['venueName'])
+                    db_game.venue = DatabaseAligner.get_or_create_venue(venue_code, turf_number)
+
+                umpires = []
+                umpire_manager = None
+                for i in game['assignments']:
+                    name = DBCodesManager.fix_official_name(f"{i['firstName']} {i['lastName']}")
+                    official = DatabaseAligner.get_or_create_official(name)
+                    match i['roleCode']:
+                        case 'U1' | 'U2':
+                            umpires.append(official)
+                        case 'UM':
+                            umpire_manager = official
+
+                if (
+                        umpires and 
+                        (not db_game.umpire_one or sorted(umpires) != sorted([db_game.umpire_one, db_game.umpire_two]))
+                ):
+                    db_game.umpire_one = umpires[0]
+                    if len(umpires) > 1:
+                        db_game.umpire_two = umpires[1]
+
+                db_game.umpire_manager = umpire_manager
 
 
 if __name__ == '__main__':
@@ -46,4 +123,5 @@ if __name__ == '__main__':
     os.environ['WHISTLE_IQ_USER'] = 'healy_jared@yahoo.com'
     os.environ['DATABASE_PATH'] = '../resources/database.db'
     init_db()
-    asyncio.run(update_umpires())
+    asyncio.run(update_appointments())
+    time.sleep(2)

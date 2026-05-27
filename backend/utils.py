@@ -1,7 +1,10 @@
-import numpy
 import asyncio
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, date
+from typing import TypeVar, Iterator, Any
+
+import humps
+import numpy
 
 NUMBERS = [
     'Zero',
@@ -45,6 +48,34 @@ async def sleep_for_approx(seconds: float, *, std_dev=None) -> None:
     sleep_time = numpy.random.normal(seconds, std_dev)
     await asyncio.sleep(sleep_time)
 
+
+T = TypeVar('T')
+
+
+def chunks(lst: list[T], n: int) -> Iterator[list[T]]:
+    """Yield successive n-sized chunks from lst."""
+    # snippet from https://stackoverflow.com/a/312464
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
+
+
+def fix_last_first_name(str):
+    return ' '.join(reversed([j for j in str.split(" (")[0].rsplit(' ', 1)]))
+
+
+def get_monday(timestamp: int) -> datetime:
+    now = date.fromtimestamp(timestamp)
+    monday = now - timedelta(days=now.weekday())
+    return datetime.combine(monday, datetime.min.time())
+
+
+def camelise(d) -> Any:
+    if isinstance(d, list):
+        return [camelise(i) for i in d]
+    elif isinstance(d, dict):
+        return {k if ' ' in k else humps.camelize(k): camelise(v) for k, v in d.items()}
+    else:
+        return d
 
 class SafeString(str):
     def lower(self):

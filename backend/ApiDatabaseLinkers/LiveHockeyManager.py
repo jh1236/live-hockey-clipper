@@ -17,7 +17,7 @@ from utils import sleep_for_approx, NUMBERS
 logger = logging.Logger('LiveHockeyManager')
 
 
-def _get_comp_details(comp) -> tuple[str, str, int]:
+def _get_comp(comp) -> Competitions:
     this_year = datetime.now().year
     comp = re.sub(r'^[\d\s]*wa ', '', comp.lower()).strip()
     if comp.startswith("j"):
@@ -73,7 +73,7 @@ def _get_comp_details(comp) -> tuple[str, str, int]:
                 comp = f'Div {NUMBERS[int(grade_number)]} {black_or_gold}'
             else:
                 comp = f'Div {NUMBERS[int(grade_number)]}'
-    return comp.title(), gender, this_year
+    return DatabaseAligner.get_or_create_comp(this_year, comp, gender)
 
 @db_session
 def add_live_hockey_game_to_db(game: dict[str, Any]):
@@ -82,7 +82,7 @@ def add_live_hockey_game_to_db(game: dict[str, Any]):
                                              name_for_diagnostic=game['homeTeam']['longName'])
     away_team_code = DBCodesManager.fix_code(game['awayTeam']['shortName'], 'live_hockey',
                                              name_for_diagnostic=game['awayTeam']['longName'])
-    level, gender, year = _get_comp_details(game['competition']['playerLevel']['name'])
+    competition = _get_comp(game['competition']['playerLevel']['name'])
     stream_start: str | None = game.get('streamStart', None)
     stream_start_time = round(parser.parse(stream_start).timestamp()) if stream_start is not None else None
 
@@ -92,9 +92,7 @@ def add_live_hockey_game_to_db(game: dict[str, Any]):
         away_team_code=away_team_code,
         away_team_long_name=game['awayTeam']['longName'],
         start_time=start_time.timestamp(),
-        level=level,
-        year=year,
-        gender=gender,
+        competition=competition
     )
 
     if game['extSrc'] == 'ALT_WA':
@@ -153,8 +151,7 @@ async def get_or_update_comps(location) -> list[Competitions]:
         this_year = str(datetime.now().year)
         for i in competitions:
             if i.get('hidden', False) or this_year not in i['name']: continue
-            level, gender, year = _get_comp_details(i["name"])
-            comp = DatabaseAligner.get_or_create_comp(year=year, gender=gender, level=level)
+            comp = _get_comp(i["name"])
             comp.live_hockey_id = i['id']
             comps.append(comp)
 

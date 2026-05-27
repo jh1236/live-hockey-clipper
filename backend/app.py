@@ -12,10 +12,11 @@ from quart.wrappers.response import DataBody
 from quart_cors import cors
 from quart_tasks import QuartTasks
 
-from ApiDatabaseLinkers import ClipsManager, AltiusUpdater
+from ApiDatabaseLinkers import ClipsManager, AltiusManager
 from blueprints import api
 from config import get_config
 from database import init_db
+from utils import camelise
 
 logging.getLogger().setLevel(logging.INFO)
 
@@ -50,8 +51,7 @@ async def to_camel_case(response):
         return response
     body = json.loads(body)
     if isinstance(body, dict):
-        new_body = humps.camelize(
-            {k: v for k, v in body.items() if ' ' not in k}) | {k: v for k, v in body.items() if ' ' in k}
+        new_body = camelise(body)
     elif isinstance(body, list):
         new_body = [i if ' ' in i else humps.camelize(i) for i in body]
     else:

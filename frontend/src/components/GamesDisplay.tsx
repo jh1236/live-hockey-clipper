@@ -166,8 +166,8 @@ export function GamesDisplay({
 
                             <Text size="sm" c="dimmed" mb={10}>
                                 <b>Umpires:</b>
-                                <br/><i>{it.officials.length ? it.officials.map(i => {
-                                const [first, last] = i.split(' ', 2)
+                                <br/><i>{it.umpires.length ? it.umpires.map(i => {
+                                const [first, last] = i.name.split(' ', 2)
                                 return `${first[0]}. ${last}`
                             }).join(', ') : it.altiusId ? 'Not set on Altius' : 'Game not on Altius'}</i>
                             </Text>

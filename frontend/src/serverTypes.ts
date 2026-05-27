@@ -20,7 +20,10 @@ export interface Game {
     homeTeamScore: number | null
     id: number
     liveHockeyId: string
-    officials: string[]
+    umpires: Official[]
+    reserve_umpire: Official | null
+    tech_official: Official | null
+    umpire_manager: Official | null
     startTime: number
     streamStartTime: number
     teamstarId: string
@@ -32,6 +35,14 @@ export interface Team {
     id: number
     imageLink: string
     longName: string
+    timeCreated: number
+}
+
+export interface Official {
+    name: string
+    gender: string
+    panel: string | null
+    role: string
     timeCreated: number
 }
 
