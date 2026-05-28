@@ -23,12 +23,12 @@ async def favourite_clip():
     with db_session():
         data = await request.json
         logging.error(data)
-        blob = data['gameBlob']
+        game_id = data['gameId']
         clip_id = data['id']
         clip_name = data['clipName']
         categories = data['categories']
         favourite = bool(data['favourite'])
-        game = Games.get(live_hockey_id=blob)
+        game = Games[game_id]
         game_clips = Clips.select(lambda clip: clip.game == game)
         clip = [i for i in game_clips if i.id == clip_id][0]
         if clip is None:
@@ -57,7 +57,7 @@ async def delete_clip():
         if clip is None:
             return 'Clip not found', 404
 
-        file_path = f'{get_config().videos_folder}/{clip.link.split("/api/clips/")[1]}'
+        file_path = f'{get_config().videos_folder}/{clip.game.id}/{clip.id}.mp4'
         clip.delete()
         os.remove(file_path)
 
@@ -76,18 +76,19 @@ async def add_clip():
     with db_session():
         data = humps.decamelize(await request.json)
         logging.error(data)
-        blob = data['game_blob']
+        game_id = data['game_id']
         clip = ClipsManager.ClipDto(**data['clip'], id=None)
         quality = data['quality']
         username = data.get('username', None)
         password = data.get('password', None)
 
-        game = Games.get(live_hockey_id=blob)
+        game = Games[game_id]
         if game is None:
             return 'Game not found', 404
 
         database_entry = clip.add_to_database(game.id)
-        link = await ClipsManager.download_clip_for_game(blob, database_entry, quality, username, password)
+        link = await ClipsManager.download_clip_for_game(game.live_hockey_id, database_entry, quality, username,
+                                                         password)
         database_entry.link = link
         if not link:
             database_entry.delete()
@@ -101,12 +102,12 @@ async def regenerate_clip():
     with db_session():
 
         data = await request.json
-        blob = data['gameBlob']
+        game_id = data['gameId']
         quality = data['quality']
         username = data.get('username', None)
         password = data.get('password', None)
 
-        game = Games.get(blob=blob)
+        game = Games.get(id=game_id)
         if game is None:
             return 'Game not found', 404
 
@@ -116,7 +117,7 @@ async def regenerate_clip():
             return 'Bad Clip', 400
 
         async def worker(clip):
-            link = await ClipsManager.download_clip_for_game(blob, clip, quality, username, password)
+            link = await ClipsManager.download_clip_for_game(game.live_hockey_id, clip, quality, username, password)
             clip.link = link
             return clip
 
@@ -140,7 +141,7 @@ async def get_recent_games():
             acceptable_ages.append('Juniors')
 
         filter_ = lambda i: i.competition.age_level in acceptable_ages and (
-                    i.competition.is_premier or not premier_only)
+                i.competition.is_premier or not premier_only)
 
         await LiveHockeyManager.update_live_hockey(location, filter_=filter_)
         flush()
@@ -149,7 +150,7 @@ async def get_recent_games():
             i.format_for_frontend() for i in
             select(
                 i for i in Games
-                if i.start_time < now - 2.5 * HOUR_IN_SEC
+                if i.complete
                 and i.competition.age_level in acceptable_ages
                 and (i.competition.is_premier or not premier_only)
                 and i.live_hockey_id
@@ -160,7 +161,7 @@ async def get_recent_games():
             i.format_for_frontend() for i in
             select(
                 i for i in Games if
-                i.start_time > now - 2.5 * HOUR_IN_SEC
+                i.complete == False
                 and i.competition.age_level in acceptable_ages
                 and (i.competition.is_premier or not premier_only)
                 and i.live_hockey_id
@@ -171,23 +172,35 @@ async def get_recent_games():
         return jsonify({'upcoming': upcoming, 'recent': recent})
 
 
-@clips_bp.get('/games/<blob>')
-async def get_game(blob):
+@clips_bp.get('/games/blob/<blob>')
+async def get_game_by_blob(blob):
     with db_session():
         game = Games.get(live_hockey_id=blob)
         if not game:
             game = await LiveHockeyManager.game_from_blob(blob)
             return jsonify({'game': game.format_for_frontend(), 'clips': []}), 200
-    
-        return jsonify({'game': game.format_for_frontend(), 'clips': [i.format_for_frontend() for i in game.clips]}), 200
 
 
-@clips_bp.route('/<blob>/<clip>')
-async def stream_file(blob, clip):
+@clips_bp.get('/games/<game_id>')
+async def get_game(game_id):
+    with db_session():
+        game = Games.get(id=game_id)
+        return jsonify(
+            {'game': game.format_for_frontend(), 'clips': [i.format_for_frontend() for i in game.clips]}), 200
+
+
+@clips_bp.route('/<clip_id>')
+async def stream_file(clip_id):
     """Serve the video stream files"""
-    download = request.args.get('download', 'false').lower() == 'true'
-    directory = os.path.join(get_config().videos_folder, sanitize(blob), sanitize(clip))
-    return await send_file(directory, as_attachment=download)
+    with db_session():
+        clip = Clips[int(clip_id)]
+        download = request.args.get('download', 'false').lower() == 'true'
+        directory = os.path.join(get_config().videos_folder, f'{clip.game.id}', sanitize(f'{clip.id}.mp4'))
+        if download:
+            name = f'{clip.game.name}{f'- {clip.name}' if not clip.name.startswith("Unsaved") else ''}.mp4'
+            return await send_file(directory, as_attachment=True, attachment_filename=name)
+        else:
+            return await send_file(directory, as_attachment=False)
 
 
 @clips_bp.route('/get')

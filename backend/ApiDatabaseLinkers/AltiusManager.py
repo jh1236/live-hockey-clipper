@@ -4,28 +4,78 @@ import logging
 import math
 import os
 import re
-from collections import defaultdict
+from functools import reduce
 
-from bs4 import BeautifulSoup, Tag, PageElement, NavigableString
+from bs4 import BeautifulSoup, Tag
 from dateutil import parser
+from more_itertools.recipes import flatten
 from pony.orm import select, db_session
 
 from ApiFetchers import AltiusFetcher
 from bridging import DatabaseAligner, DBCodesManager
-from database import Competitions, init_db, Officials, LadderPosition
+from database import init_db, Officials, LadderPosition
 from utils import chunks, fix_last_first_name
 
-all_tournaments = [57, 58, 59, 60, 52, 51, 54, 53, 45, 46, 43, 44, 39, 40, 33, 34, 25, 26, 17, 18, 12, 11, 7, 8, 3, 4]
+YEAR_TO_TOURNAMENT_ID = {
+    2026: {
+        "Prem One Men": 57,
+        "Prem One Women": 58,
+        "Prem Two Men": 59,
+        "Prem Two Women": 60,
+    },
+    2025: {
+        "Prem One Men": 52,
+        "Prem One Women": 51,
+        "Prem Two Men": 54,
+        "Prem Two Women": 53,
+    },
+    2024: {
+        "Prem One Men": 45,
+        "Prem One Women": 46,
+        "Prem Two Men": 43,
+        "Prem Two Women": 44,
+    },
+    2023: {
+        "Prem One Men": 39,
+        "Prem One Women": 40
+    },
+    2022: {
+        "Prem One Men": 33,
+        "Prem One Women": 34
+    },
+    2021: {
+        "Prem One Men": 25,
+        "Prem One Women": 26
+    },
+    2020: {
+        "Prem One Men": 17,
+        "Prem One Women": 18
+    },
+    2019: {
+        "Prem One Men": 12,
+        "Prem One Women": 11
+    },
+    2018: {
+        "Prem One Men": 7,
+        "Prem One Women": 8
+    },
+    2017: {
+        "Prem One Men": 3,
+        "Prem One Women": 4
+    }
+}
+
+TOURNAMENT_ID_TO_GRADE = reduce(lambda og, new: og | {v: k for k, v in new.items()}, YEAR_TO_TOURNAMENT_ID.values(), {})
 
 
 @db_session
 def all_altius_tournaments() -> list[int]:
-    return list(select(i.altius_id for i in Competitions if i.altius_id))
+    return list(TOURNAMENT_ID_TO_GRADE.keys())
 
 
 @db_session
 def altius_tournaments_for_year(year: int) -> list[int]:
-    return list(select(i.altius_id for i in Competitions if i.altius_id and i.year == year))
+    return list(YEAR_TO_TOURNAMENT_ID[year].values())
 
 
 def _get_comp_from_altius_page(soup, altius_id):
@@ -40,24 +90,24 @@ def _get_comp_from_altius_page(soup, altius_id):
     return comp
 
 
-async def get_ladder(year='2026'):
-    with db_session():
+async def fill_ladder_from_altius(tournaments=None, year='2026'):
+    if not tournaments:
         if year.lower() == 'all':
             tournaments = all_altius_tournaments()
         else:
             tournaments = altius_tournaments_for_year(int(year))
-        out: dict[int, list[str]] = defaultdict(list)
-
+    print(tournaments, year)
+    with db_session():
         altius_pages = await AltiusFetcher.get_from_altius(tournaments, 'ladder')
 
         for t, htmls in altius_pages.items():
             # remove the ladder that is listed and replace it
             soup = BeautifulSoup(htmls['ladder'], "html.parser")
-            
+
             comp = _get_comp_from_altius_page(soup, t)
             existing_ladder = select(i for i in LadderPosition if i.competition == comp)
             existing_ladder = {i.team.code: i for i in existing_ladder}
-            
+
             table_container = soup.find("div", attrs={"class": "table-responsive"})
             table = table_container.find("table", attrs={"class": "table-hover"})
             trs = table.find_all("tr")[1:]  # we want to skip the header row
@@ -76,7 +126,7 @@ async def fill_officials_from_altius(tournaments=None, year='2026'):
             tournaments = all_altius_tournaments()
         else:
             tournaments = altius_tournaments_for_year(int(year))
-
+    logging.error('Setting %s officials', str(list(tournaments)))
     altius_pages = await AltiusFetcher.get_from_altius(tournaments, 'officials')
     with (db_session()):
         for t, html in altius_pages.items():
@@ -127,6 +177,7 @@ async def fill_officials_from_altius(tournaments=None, year='2026'):
                         away_team_code=team_two,
                         start_time=start_time_int,
                         competition=competition,
+                        source='Altius Officials'
                     )
                     game.umpire_one = top_row_officials[0]
                     game.reserve_umpire = top_row_officials[1]
@@ -168,8 +219,11 @@ async def fill_venues_from_altius(tournaments=None, year='2026'):
                 venue_col = [i for i in score_col.next_siblings if isinstance(i, Tag)][1]
                 if not venue_col:
                     continue
-                game = DatabaseAligner.get_or_create_game(home_team_code=home_team, away_team_code=away_team,
-                                                          start_time=start_time_int, competition=competition)
+                game = DatabaseAligner.get_or_create_game(
+                    home_team_code=home_team, away_team_code=away_team,
+                    start_time=start_time_int, competition=competition,
+                    source='Altius Venues'
+                )
                 if not game.altius_id:
                     game.altius_id = game_name_col.get('href').split('/')[-1]
                 venue = venue_col.contents[0].text.strip(' \n\t')
@@ -187,18 +241,25 @@ async def fill_venues_from_altius(tournaments=None, year='2026'):
                 turf_number = 2 if any(i in venue.lower() for i in ['2', 'two']) else 1
                 game.venue = DatabaseAligner.get_or_create_venue(code=code, turf_number=turf_number)
 
+                if start_time_int < (datetime.datetime.now() + datetime.timedelta(hours=1, minutes=30)).timestamp():
+                    game.complete = True
 
-async def update_altius_pages(tournaments=None):
-    logging.warning('Launching Altius Update')
-    tournaments = tournaments or altius_tournaments_for_year(datetime.datetime.now().year)
-    await AltiusFetcher.get_from_altius(tournaments, 'games', 'ladder', 'officials', force_regen=True)
-    logging.warning('Altius Update Successful')
+
+async def update_altius_pages(tournaments=None, force_regen=True):
+    # we do this to ensure that everything is populated
+    this_year = datetime.datetime.now().year
+    if not tournaments:
+        old_tournaments = list(flatten([list(v.values()) for k, v in YEAR_TO_TOURNAMENT_ID.items() if k != this_year]))
+        await update_altius_pages(tournaments=old_tournaments, force_regen=False)
+    tournaments = tournaments or altius_tournaments_for_year(this_year)
+    await AltiusFetcher.get_from_altius(tournaments, 'games', 'ladder', 'officials', force_regen=force_regen)
     await fill_venues_from_altius(tournaments)
     await fill_officials_from_altius(tournaments)
+    await fill_ladder_from_altius(tournaments)
 
 
 if __name__ == '__main__':
     os.environ['DATABASE_PATH'] = '../resources/database.db'
     os.environ['CACHE_DIRECTORY'] = '../cache'
     init_db()
-    asyncio.run(get_ladder('all'))
+    asyncio.run(fill_ladder_from_altius(year='all'))

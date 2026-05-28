@@ -77,7 +77,7 @@ function getDateString(it: number, currentTime: number): string {
 export function GamesDisplay({
                                  games,
                                  missingMessage,
-                                 createLink = it => `/${it.liveHockeyId}`,
+                                 createLink = it => `/${it.id}`,
                                  error = null
                              }: GamesDisplayProps) {
     const [currentTime, setCurrentTime] = useState<number>(-1);
@@ -133,7 +133,9 @@ export function GamesDisplay({
             )}
         </Grid>
     }
-
+        
+    console.log(games)
+    
     return games.length ? <Grid flex={3} w="100%" overflow="scroll" rowGap="0.4em" columnGap="0.5em">
             {games.map((it) => <Grid.Col key={it.id} span={{
                     base: 6,
@@ -146,7 +148,7 @@ export function GamesDisplay({
                                 <PulsingDot style={{float: 'right', margin: 5}}/>
                             </Box>}
                             <Card.Section pt={10}>
-                                <Text fz="1.4em" ta="center" fw={600}>{it.homeTeam.code} vs {it.awayTeam.code}</Text>
+                                <Text fz="1.4em" ta="center" fw={600}>{it.homeTeam?.code ?? 'HUH'} vs {it.awayTeam?.code ??'What'}</Text>
                                 <Text fz="1em" ta="center">{it.competition.level} {it.competition.gender === 'M' ? 'Men' : 'Women'}</Text>
                                 <Text size="sm" c="dimmed" fs="italic" fz=".75em">
                                     {(it?.streamStartTime ?? 0) + 2 * HOUR_IN_MS > currentTime ? 'Live!' : getDateString(it.startTime, currentTime)}

@@ -68,15 +68,14 @@ async def to_camel_case(response):
 async def run_periodically():
     print(get_config())
     worker_number = int(current_process()._name.split('-')[-1])
-    workers = get_config().workers
-    config = [AltiusManager.update_altius_pages, WhistleIQManager.update_appointments,
-              LiveHockeyManager.update_live_hockey, ClipsManager.remove_old_videos]
-    c = 1
-    for i in config:
-        if worker_number == c:
-            await i()
-        c %= workers
-        c += 1
+    config = [['Altius Updater', AltiusManager.update_altius_pages], ['Whistle IQ Updater', WhistleIQManager.update_appointments],
+              ['Live Hockey Updater', LiveHockeyManager.update_live_hockey], ['Stale Clip remover', ClipsManager.remove_old_videos]]
+
+    for [name, task] in config:
+        if worker_number == 1:
+            logging.warning(f'Beginning task "{name}"')
+            await task()
+            logging.warning(f'Completed task "{name}"')
 
 
 @tasks.periodic(timedelta(minutes=30))

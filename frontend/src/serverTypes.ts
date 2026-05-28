@@ -8,7 +8,7 @@ export type Clip = {
     link: string,
     categories?: string[],
     favourite?: boolean,
-    gameBlob: string
+    gameId: string
 };
 
 export interface Game {
@@ -27,6 +27,7 @@ export interface Game {
     startTime: number
     streamStartTime: number
     teamstarId: string
+    completed: boolean
     venue: Venue
 }
 
@@ -49,6 +50,7 @@ export interface Official {
 export interface Competition {
     ageLevel: string
     altiusId: number
+    whistleIqId: number
     gender: string
     id: number
     isPremier: boolean

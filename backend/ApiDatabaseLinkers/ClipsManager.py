@@ -11,7 +11,7 @@ from sanitize_filename import sanitize
 
 from ApiFetchers import LiveHockeyFetcher
 from config import get_config
-from database import Clips
+from database import Clips, Games
 from requester import client
 from utils import time_to_int, sleep_for_approx
 
@@ -21,7 +21,7 @@ logger = logging.Logger('ClipsManager')
 @dataclasses.dataclass
 class ClipDto:
     id: int | None
-    game_blob: str
+    game_id: str
     start_time: str
     duration: str
     name: str
@@ -31,8 +31,9 @@ class ClipDto:
 
     @db_session
     def add_to_database(self, game_id):
+        game = Games[game_id]
         out = Clips(start_time=time_to_int(self.start_time), duration=time_to_int(self.duration), name=self.name,
-                    link=self.link, comment=';'.join(self.categories) if self.categories else '', game=game_id,
+                    link=self.link, comment=';'.join(self.categories) if self.categories else '', game=game,
                     favourite=self.favourite)
         out.flush()
         self.id = out.id
@@ -90,7 +91,7 @@ async def download_clip_for_game(
     logger.warning('first time: %s', first_time)
     logger.warning('files: %s', '\n'.join([re.sub('.*/', '', i) for i in files]))
 
-    folder = get_config().videos_folder + f'/{sanitize(blob)}'
+    folder = os.path.join(get_config().videos_folder, f'{clip.game.id}') 
 
     os.makedirs(folder, exist_ok=True)
     output_location = f'{folder}/{sanitize(str(clip.id))}.mp4'
@@ -125,4 +126,4 @@ async def download_clip_for_game(
     if process.returncode:
         return None
 
-    return f'{get_config().server_address}/api/clips/{blob}/{clip.id}.mp4'
+    return f'{get_config().server_address}/api/clips/{clip.id}'

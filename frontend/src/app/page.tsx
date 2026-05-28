@@ -130,7 +130,11 @@ export default function Page() {
                         size="compact-sm"
                         data-disabled={!gameBlob || gameBlobError}
                         onClick={() => {
-                            redirect(`/${gameBlob}`)
+                            fetch(`${SERVER_ADDRESS}/api/clips/games/blob/${gameBlob}`)
+                                .then(it => it.json())
+                                .then((it: Game) => {
+                                    redirect(`/${it.id}`)
+                                })
                         }}>
                     Begin
                 </Button>

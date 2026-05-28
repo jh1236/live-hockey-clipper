@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 
 from pony.orm import Database, PrimaryKey, Required, Optional, Set, composite_key, db_session
+from werkzeug.utils import send_file
 
 from config import get_config
 from utils import int_to_time
@@ -109,7 +110,9 @@ class Games(db.Entity):
     stream_start_time = NullableOptional(int)
     home_team_score = NullableOptional(int)
     away_team_score = NullableOptional(int)
+    complete = Required(bool, default=False)
     time_created = NullableOptional(int)
+    source = NullableOptional(str)
 
     venue = NullableOptional(Venues, column='venue_id')
     home_team = Required(Clubs, column='home_team_id')
@@ -124,6 +127,10 @@ class Games(db.Entity):
     umpire_manager = NullableOptional(Officials, column='umpire_manager_id')
 
     clips = Set('Clips', reverse='game')
+
+    @property
+    def name(self):
+        return f'{self.competition.level} {"Men" if self.competition.gender == "M" else "Women"} - {self.home_team.code} v {self.away_team.code}'
 
     @db_session
     def format_for_frontend(self):
@@ -158,16 +165,15 @@ class LadderPosition(db.Entity):
     id = PrimaryKey(int, auto=True)
     competition = Required(Competitions, column='competition_id')
     team = Required(Clubs, column='team_id')
-    position = Required(int)    
+    position = Required(int)
     time_created = NullableOptional(int)
 
     composite_key(competition, team)
-    
+
     @db_session
     def format_for_frontend(self):
         d = self.to_dict()
         return d
-
 
 
 class Clips(db.Entity):
@@ -184,7 +190,7 @@ class Clips(db.Entity):
     @db_session
     def format_for_frontend(self):
         d = self.to_dict()
-        d['game_blob'] = self.game.live_hockey_id
+        d['game_id'] = self.game.id
         d['start_time'] = int_to_time(self.start_time)
         d['duration'] = int_to_time(self.duration)
         d['categories'] = self.comment.split(';')

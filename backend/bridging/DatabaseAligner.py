@@ -6,6 +6,7 @@ It does this by using 'codes' which are short, three-to-six letter codes that re
 """
 
 import re
+from datetime import datetime, timedelta
 from typing import Literal
 
 from pony.orm import db_session, select
@@ -17,18 +18,26 @@ THIRTY_MINUTES = 30 * 60
 
 
 @db_session
-def get_or_create_game(home_team_code: str, away_team_code: str, start_time: float, competition: Competitions, *,
+def get_or_create_game(home_team_code: str, away_team_code: str, start_time: float, competition: Competitions, source: str, *,
                        home_team_long_name: str = None, away_team_long_name: str = None) -> Games:
     team_one = get_or_create_team(home_team_code, long_name_if_new=home_team_long_name)
     team_two = get_or_create_team(away_team_code, long_name_if_new=away_team_long_name)
     games = list(select(i for i in Games if i.home_team == team_one and i.away_team == team_two and abs(
         i.start_time - start_time) < THIRTY_MINUTES and i.competition == competition))
+
     if len(games) > 1:
         raise Exception('Two Games found!')
-    elif len(games) == 1:
+
+    complete = start_time < (datetime.now() + timedelta(hours=1, minutes=30)).timestamp()
+
+    if len(games) == 1:
+        game = games[0]
+        game.complete |= complete
         return games[0]
     else:
-        return Games(home_team=team_one, away_team=team_two, start_time=round(start_time), competition=competition)
+        game = Games(home_team=team_one, away_team=team_two, start_time=round(start_time), competition=competition, source=source)
+        game.complete = complete
+        return game
 
 
 @db_session

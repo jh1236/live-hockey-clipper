@@ -29,7 +29,7 @@ import {FaArrowUpRightFromSquare} from "react-icons/fa6";
 import {ClipsDisplay} from "@/components/ClipsDisplay";
 
 interface ClipperProps {
-    blob: string;
+    id: string;
 }
 
 
@@ -38,7 +38,7 @@ const HOUR_IN_MS = 60 * MINUTE_IN_MS
 const PRIOR_CLIP_RECORDING = 10;
 
 
-export function Clipper({blob: gameBlob}: ClipperProps) {
+export function Clipper({id: gameId}: ClipperProps) {
     const mounted = useMountedState();
     const [game, setGame] = useState<Game | null>(null)
     const [clips, setClips] = useState<(Clip | undefined)[] | null>(null);
@@ -58,9 +58,9 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
     }, [])
 
     useEffect(() => {
-        if (gameBlob) {
+        if (gameId) {
             console.log("Requesting!")
-            fetch(`${SERVER_ADDRESS}/api/clips/games/${gameBlob}`).then(it => it.json()).then((it: {
+            fetch(`${SERVER_ADDRESS}/api/clips/games/${gameId}`).then(it => it.json()).then((it: {
                 game: Game,
                 clips: Clip[]
             }) => {
@@ -68,7 +68,7 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                 setClips(it.clips)
             })
         }
-    }, [gameBlob]);
+    }, [gameId]);
 
 
     if (!game || !clips) {
@@ -184,7 +184,7 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                                             name: `Unsaved Clip ${unnamedCount}`,
                                             startTime: timeToClip,
                                             duration: secondsToHMS(durationToClip),
-                                            gameBlob
+                                            gameId
                                         };
                                         setClips([...clips!, undefined])
                                         fetch(`${SERVER_ADDRESS}/api/clips/add`, {
@@ -193,7 +193,7 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                                                 'Content-Type': "application/json",
                                             },
                                             body: JSON.stringify({
-                                                gameBlob,
+                                                gameId,
                                                 clip: newClip,
                                                 quality: clipQuality,
                                                 username,
@@ -231,14 +231,14 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                                             'Content-Type': "application/json",
                                         },
                                         body: JSON.stringify({
-                                            gameBlob,
+                                            gameId,
                                             quality: clipQuality,
                                             username,
                                             password,
                                         })
                                     }).then(it => it.json()).then(({clips}) => {
                                         setClips(clips)
-                                    }).catch(() => fetch(`${SERVER_ADDRESS}/api/clips/games/${gameBlob}`).then(it => it.json()).then((it: {
+                                    }).catch(() => fetch(`${SERVER_ADDRESS}/api/clips/games/${gameId}`).then(it => it.json()).then((it: {
                                         clips: Clip[]
                                     }) => {
                                         setClips(it.clips)
@@ -271,7 +271,7 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                                             </Button>
                                         </Link>
                                         <Link
-                                            href={`https://www.livehockey.com.au/en/game/${gameBlob}`}
+                                            href={`https://www.livehockey.com.au/en/game/${gameId}`}
                                             target="_blank"
                                         >
                                             <Button>
@@ -294,7 +294,8 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                 </Grid>
             </Center>
             {!!game.umpires.length &&
-                <Group><Text fw={600}>Officials:</Text> <Text fs="italic">{game.umpires.map(it => it.name).join(', ')}</Text></Group>}
+                <Group><Text fw={600}>Officials:</Text> <Text
+                    fs="italic">{game.umpires.map(it => it.name).join(', ')}</Text></Group>}
             <HoverCard disabled={game.startTime <= currentTime}>
                 <HoverCard.Target>
                     <Button size="xl" w="60%" m={10} onClick={() => {
@@ -302,8 +303,8 @@ export function Clipper({blob: gameBlob}: ClipperProps) {
                             return
                         }
                         setTimeToClip(
-                            game.startTime <= currentTime ? 
-                                secondsToHMS(Math.max(Math.round((currentTime - game?.startTime) / 1000) - PRIOR_CLIP_RECORDING, 0)) : '00:00:00'
+                            game.completed ? '00:00:00' :
+                                secondsToHMS(Math.max(Math.round((currentTime - game?.startTime) / 1000) - PRIOR_CLIP_RECORDING, 0))
                         );
                         setClipQuality(5)
                         setDurationToClip(PRIOR_CLIP_RECORDING);

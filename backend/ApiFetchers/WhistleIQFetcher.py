@@ -5,7 +5,6 @@ from pony.orm import db_session
 from bridging import DatabaseAligner
 from bridging.DatabaseAligner import get_or_create_user
 from config import get_config
-from database import Competitions
 from requester import client
 from utils import sleep_for_approx
 

@@ -165,6 +165,7 @@ function SingleClipDisplay({clip, setEditingClipIndex, clipIndex, setClips, link
                                                         mt={5}
                                                         color="red"
                                                         onClick={() => {
+                                                            setClips(prev => prev?.map((it, i) => i === clipIndex ? undefined : it) ?? null)
                                                             fetch(`${SERVER_ADDRESS}/api/clips/remove`, {
                                                                 headers: {
                                                                     'Content-Type': "application/json",
@@ -174,7 +175,7 @@ function SingleClipDisplay({clip, setEditingClipIndex, clipIndex, setClips, link
                                                                     id: clip?.id
                                                                 })
                                                             }).then(() => {
-                                                                setClips(prev => prev!.filter((it) => it?.id === clip?.id))
+                                                                setClips(prev => prev!.filter((_, i, arr) => i !== arr.indexOf(undefined)))
                                                             })
                                                         }}>
                                                         Yes
@@ -286,7 +287,7 @@ function SingleClipDisplay({clip, setEditingClipIndex, clipIndex, setClips, link
                         </Button>
                     </Link>
                     {linkToGame ?
-                        <Link href={`/${clip.gameBlob}`} target="_blank">
+                        <Link href={`/${clip.gameId}`} target="_blank">
                             <ActionIcon hiddenFrom="md" size="lg" color="blue" mt={5}>
                                 <FaArrowUpRightFromSquare/>
                             </ActionIcon>
@@ -327,7 +328,7 @@ export function ClipsDisplay({
     const [shouldBeSaved, setShouldBeSaved] = useState<boolean>(true);
     const [nameOfSavedClip, setNameOfSavedClip] = useState<string>("");
     const [editClipIdx, setEditClipIdx] = useState<number>(-1)
-    const clipNameError = !nameOfSavedClip || (clips?.filter((it, i) => i !== editClipIdx && it !== undefined && it.gameBlob === clips[editClipIdx]?.gameBlob)?.map(it => it!.name).includes(nameOfSavedClip));
+    const clipNameError = !nameOfSavedClip || (clips?.filter((it, i) => i !== editClipIdx && it !== undefined && it.gameId === clips[editClipIdx]?.gameId)?.map(it => it!.name).includes(nameOfSavedClip));
 
     const clipBeingEdited = useMemo(() => clips?.[editClipIdx], [editClipIdx, clips])
 
@@ -380,7 +381,7 @@ export function ClipsDisplay({
                     id: oldValue.id,
                     favourite: shouldBeSaved,
                     categories, //ignored when not saved
-                    gameBlob: oldValue.gameBlob
+                    gameId: oldValue.gameId
                 })
             }).then(it => it.json()).then(({clip}) => {
                 setClips!(prev => prev!.map((it, i, arr) => (arr.indexOf(undefined) === i || it?.id === clip.id) ? clip : it))

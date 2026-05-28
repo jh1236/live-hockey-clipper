@@ -15,6 +15,7 @@ interface StatsForUmpire {
     gamesUmpired: number
     gamesUmpiredEveryWeek: { [epoch: string]: number }
     gamesUmpiredPerVenue: { [venue: string]: number }
+    gamesWithUmpireManagers: { [umpireManager: string]: number }
     umpire: Official
     yearsUmpired: number[]
 }
@@ -27,7 +28,7 @@ export default function Page() {
     const [umpires, setUmpires] = useState<(Official & { color: string })[]>([])
     const [gradesInYears, setGradesInYears] = useState<{
         [year: string]: string[]
-    }>({'-': ['Prem One Men', 'Prem One Women', 'Prem Two Men', 'Prem Two Women']})
+    }>({'-': ['Prem One Men', 'Prem One Women', 'Prem Two Men', 'Prem Two Women', '11/12 Div One Boys', '11/12 Div One Boys', '9/10 Div One Boys', '9/10 Div One Girls']})
     const gradesInRange = useMemo(() => {
         let out = new Set();
         (gradesInYears[fromYear] ?? []).forEach(it => {
@@ -43,8 +44,7 @@ export default function Page() {
             })
             out = out.intersection(temp)
         }
-        console.log(out)
-        return [...out, 'All'] as string[]
+        return [...out, 'All', 'Premier'] as string[]
     }, [fromYear, gradesInYears, toYear])
     const [perWeekStats, setPerWeekStats] = useState<{
         [key: string]: { [key: string]: number }
@@ -61,7 +61,10 @@ export default function Page() {
                 if (!(key in out)) {
                     out[key] = []
                 }
-                out[key].push(`${comp.level} ${comp.gender === 'M' ? 'Men' : 'Women'}`)
+                const gender = comp.ageLevel === 'Juniors' ?
+                    (comp.gender === 'M' ? 'Boys' : 'Girls') :
+                    (comp.gender === 'M' ? 'Men' : 'Women');
+                out[key].push(`${comp.level} ${gender}`)
             }
             setGradesInYears(prev => Object.assign(prev, out))
         });
@@ -84,10 +87,11 @@ export default function Page() {
 
         if (grade !== 'All') {
             per_ump_url.searchParams.set('level', grade.replace(/\s\S*$/, ''))
-            per_ump_url.searchParams.set('gender', grade.toLowerCase().includes('women') ? 'F' : 'M')
+            const gender = grade.toLowerCase().includes('women') || grade.toLowerCase().includes('girl');
+            per_ump_url.searchParams.set('gender', gender ? 'F' : 'M')
 
             per_week_url.searchParams.set('level', grade.replace(/\s\S*$/, ''))
-            per_week_url.searchParams.set('gender', grade.toLowerCase().includes('women') ? 'F' : 'M')
+            per_week_url.searchParams.set('gender', gender ? 'F' : 'M')
         }
         let cancelled = false;
         fetch(per_ump_url)
@@ -170,6 +174,20 @@ export default function Page() {
         .map(it => ({
             name: it.umpire.name,
             value: it.averageScoreDifference,
+            color: umpiresByName[it.umpire.name]?.color ?? 'pink'
+        })).sort((a, b) => a.value - b.value);
+
+    const umpireManagedGames = perUmpireStats?.map(
+        it => ({
+            name: it.umpire.name,
+            value: Object.values(it?.gamesWithUmpireManagers ?? {}).reduce((a, b) => a + b, 0),
+            color: umpiresByName[it.umpire.name]?.color ?? 'pink'
+        })).sort((a, b) => a.value - b.value);
+
+    const percentUmpireManagedGames = perUmpireStats?.map(
+        it => ({
+            name: it.umpire.name,
+            value: Math.round(100 * Object.values(it?.gamesWithUmpireManagers ?? {}).reduce((a, b) => a + b, 0) / it.gamesUmpired),
             color: umpiresByName[it.umpire.name]?.color ?? 'pink'
         })).sort((a, b) => a.value - b.value);
 
@@ -370,6 +388,52 @@ export default function Page() {
                     ]}
 
                     data={averageScoreDeltaForUmpire}
+                    dataKey="name"
+                    type='stacked'
+                    series={[{
+                        name: 'value',
+                        label: 'Average Score Difference'
+                    }]}
+                    tickLine="y"
+                >{defs}</BarChart>
+            </Grid.Col>
+            <Grid.Col span={{base: 6, md: 3}} p={10}>
+                <Title order={3} ta="center">Amount of Games with Umpire Manager</Title>
+                <BarChart
+                    h={300}
+                    referenceLines={[
+                        {
+                            y: umpireManagedGames.map(it => it.value).reduce((a, b) => a + b, 0) / averageScoreDeltaForUmpire.length,
+                            color: 'dimmed',
+                            label: 'Average',
+                            labelPosition: 'insideTopLeft',
+                        },
+                    ]}
+
+                    data={umpireManagedGames}
+                    dataKey="name"
+                    type='stacked'
+                    series={[{
+                        name: 'value',
+                        label: 'Average Games UM\'d'
+                    }]}
+                    tickLine="y"
+                >{defs}</BarChart>
+            </Grid.Col>
+            <Grid.Col span={{base: 6, md: 3}} p={10}>
+                <Title order={3} ta="center">Percentage of Games with Umpire Manager</Title>
+                <BarChart
+                    h={300}
+                    referenceLines={[
+                        {
+                            y: percentUmpireManagedGames.map(it => it.value).reduce((a, b) => a + b, 0) / percentUmpireManagedGames.length,
+                            color: 'dimmed',
+                            label: 'Average',
+                            labelPosition: 'insideTopLeft',
+                        },
+                    ]}
+
+                    data={percentUmpireManagedGames}
                     dataKey="name"
                     type='stacked'
                     series={[{

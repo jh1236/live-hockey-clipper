@@ -5,6 +5,7 @@ from typing import Any
 from pony.orm import db_session, select
 from quart import Blueprint, jsonify, request
 
+from ApiDatabaseLinkers import AltiusManager
 from database import Competitions, Games, Officials, LadderPosition
 from utils import get_monday
 
@@ -29,7 +30,11 @@ async def ladder():  # put application's code here
 @appointments_bp.route('/available')
 async def get_available():
     with db_session():
-        return jsonify([i.format_for_frontend() for i in select(i for i in Competitions if i.altius_id)])
+        comps = set()
+        for i in Games.select():
+            if not i.umpire_one: continue
+            comps.add(i.competition)
+        return jsonify([i.format_for_frontend() for i in comps])
 
 
 @appointments_bp.route('/umpires')
@@ -54,6 +59,8 @@ async def get_games_per_umpire():
         level = request.args.get('level', None)
         from_year = request.args.get('from_year', None)
         to_year = request.args.get('to_year', None)
+
+
         out: defaultdict[Any, dict[str, float | defaultdict[Any, int] | list[Any]]] = defaultdict(
             lambda: {
                 'games_umpired': 0,
@@ -64,6 +71,7 @@ async def get_games_per_umpire():
                 'average_ladder_difference': 0,
                 'average_ladder_position': 0,
                 'games_per_team': defaultdict(int),
+                'games_with_umpire_managers': defaultdict(int),
             })
 
         non_returned_values = defaultdict(lambda: {
@@ -74,8 +82,11 @@ async def get_games_per_umpire():
         games = select(i for i in Games)
         if gender is not None:
             games = games.filter(lambda a: a.competition.gender == gender)
-        if level is not None:
-            games = games.filter(lambda a: a.competition.level == level)
+        if level is not None and level.lower() != 'all':
+            if level.lower() == 'premier':
+                games = games.filter(lambda a: a.competition.altius_id != None)
+            else:
+                games = games.filter(lambda a: a.competition.level == level)
         if from_year is not None:
             games = games.filter(lambda a: a.competition.year >= int(from_year))
         if to_year is not None:
@@ -115,6 +126,9 @@ async def get_games_per_umpire():
                     ump_dict['average_ladder_position'] += home_team_pos.position + away_team_pos.position
                     non_returned_values[o.id]['ladder_games'] += 1
 
+                if g.umpire_manager:
+                    ump_dict['games_with_umpire_managers'][g.umpire_manager.name] += 1
+
                 if monday.year not in ump_dict['years_umpired']:
                     ump_dict['years_umpired'].append(monday.year)
                 if g.venue:
@@ -150,8 +164,11 @@ async def get_games_per_week():
         games = select(i for i in Games)
         if gender is not None:
             games = games.filter(lambda a: a.competition.gender == gender)
-        if level is not None:
-            games = games.filter(lambda a: a.competition.level == level)
+        if level is not None and level.lower() != 'all':
+            if level.lower() == 'premier':
+                games = games.filter(lambda a: a.competition.altius_id != None)
+            else:
+                games = games.filter(lambda a: a.competition.level == level)
         if from_year is not None:
             games = games.filter(lambda a: a.competition.year >= int(from_year))
         if to_year is not None:

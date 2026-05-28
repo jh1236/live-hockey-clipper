@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from select import select
 from typing import Any, Callable
 
@@ -75,8 +75,9 @@ def _get_comp(comp) -> Competitions:
                 comp = f'Div {NUMBERS[int(grade_number)]}'
     return DatabaseAligner.get_or_create_comp(this_year, comp, gender)
 
+
 @db_session
-def add_live_hockey_game_to_db(game: dict[str, Any]):
+def add_live_hockey_game_to_db(game: dict[str, Any], source: str):
     start_time = parser.parse(game['start'])
     home_team_code = DBCodesManager.fix_code(game['homeTeam']['shortName'], 'live_hockey',
                                              name_for_diagnostic=game['homeTeam']['longName'])
@@ -92,8 +93,15 @@ def add_live_hockey_game_to_db(game: dict[str, Any]):
         away_team_code=away_team_code,
         away_team_long_name=game['awayTeam']['longName'],
         start_time=start_time.timestamp(),
-        competition=competition
+        competition=competition,
+        source=f'Live Hockey {source}',
     )
+
+    if (
+            game.get('streamEnd', False) or
+            start_time.timestamp() < (datetime.now() + timedelta(hours=1, minutes=30)).timestamp()
+    ):
+        out.complete = True
 
     if game['extSrc'] == 'ALT_WA':
         if not out.altius_id:
@@ -118,24 +126,26 @@ async def update_live_hockey(location: str = 'hockeywa', filter_: Callable | Non
     page = 0
     upcoming_games = []
     while len([i for i in upcoming_games if filter_(i)]) < target:
-        upcoming = await LiveHockeyFetcher.get_games_from_live_hockey(competitions, 4, True, date_from_in=date, page=page)
+        upcoming = await LiveHockeyFetcher.get_games_from_live_hockey(competitions, 4, True, date_from_in=date,
+                                                                      page=page)
         if upcoming is None or len(upcoming) == 0:
             # this means we are out of pages
             break
         for i in upcoming:
-            upcoming_games.append(add_live_hockey_game_to_db(i))
+            upcoming_games.append(add_live_hockey_game_to_db(i, 'Upcoming'))
         await sleep_for_approx(0.5)
         page += 1
 
     page = 0
     recent_games = []
     while len([i for i in recent_games if filter_(i)]) < target:
-        recent = await LiveHockeyFetcher.get_games_from_live_hockey(competitions, -4, True, date_from_in=date, page=page)
+        recent = await LiveHockeyFetcher.get_games_from_live_hockey(competitions, -4, True, date_from_in=date,
+                                                                    page=page)
         if recent is None or len(recent) == 0:
             # this means we are out of pages
             break
         for i in recent:
-            recent_games.append(add_live_hockey_game_to_db(i))
+            recent_games.append(add_live_hockey_game_to_db(i, 'Recent'))
         await sleep_for_approx(0.5)
         page += 1
 

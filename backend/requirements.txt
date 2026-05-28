@@ -15,3 +15,4 @@ sanitize_filename
 quart-tasks
 numpy
 getuseragent
+more-itertools
