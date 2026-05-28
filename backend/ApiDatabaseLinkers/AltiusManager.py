@@ -12,7 +12,7 @@ from pony.orm import select, db_session
 
 from ApiFetchers import AltiusFetcher
 from bridging import DatabaseAligner, DBCodesManager
-from database import Competitions, init_db, Officials
+from database import Competitions, init_db, Officials, LadderPosition
 from utils import chunks, fix_last_first_name
 
 all_tournaments = [57, 58, 59, 60, 52, 51, 54, 53, 45, 46, 43, 44, 39, 40, 33, 34, 25, 26, 17, 18, 12, 11, 7, 8, 3, 4]
@@ -41,23 +41,33 @@ def _get_comp_from_altius_page(soup, altius_id):
 
 
 async def get_ladder(year='2026'):
-    if year.lower() == 'all':
-        tournaments = all_altius_tournaments()
-    else:
-        tournaments = altius_tournaments_for_year(int(year))
-    out: dict[int, list[str]] = defaultdict(list)
+    with db_session():
+        if year.lower() == 'all':
+            tournaments = all_altius_tournaments()
+        else:
+            tournaments = altius_tournaments_for_year(int(year))
+        out: dict[int, list[str]] = defaultdict(list)
 
-    altius_pages = await AltiusFetcher.get_from_altius(tournaments, 'ladder')
-    for t, htmls in altius_pages.items():
-        soup = BeautifulSoup(htmls['ladder'], "html.parser")
-        table_container = soup.find("div", attrs={"class": "table-responsive"})
-        table = table_container.find("table", attrs={"class": "table-hover"})
-        trs = table.find_all("tr")[1:]  # we want to skip the header row
-        for tr in trs:
-            name = str(tr.find_all("td")[1].find('a').contents[0])
-            name = DBCodesManager.prem_team_name_to_code(name)
-            out[t].append(name)
-    return out
+        altius_pages = await AltiusFetcher.get_from_altius(tournaments, 'ladder')
+
+        for t, htmls in altius_pages.items():
+            # remove the ladder that is listed and replace it
+            soup = BeautifulSoup(htmls['ladder'], "html.parser")
+            
+            comp = _get_comp_from_altius_page(soup, t)
+            existing_ladder = select(i for i in LadderPosition if i.competition == comp)
+            existing_ladder = {i.team.code: i for i in existing_ladder}
+            
+            table_container = soup.find("div", attrs={"class": "table-responsive"})
+            table = table_container.find("table", attrs={"class": "table-hover"})
+            trs = table.find_all("tr")[1:]  # we want to skip the header row
+            for pos, tr in enumerate(trs, start=1):
+                name = str(tr.find_all("td")[1].find('a').contents[0])
+                code = DBCodesManager.prem_team_name_to_code(name)
+                if code in existing_ladder:
+                    existing_ladder[code].position = pos
+                else:
+                    LadderPosition(team=DatabaseAligner.get_or_create_team(code), competition=comp, position=pos)
 
 
 async def fill_officials_from_altius(tournaments=None, year='2026'):
@@ -191,4 +201,4 @@ if __name__ == '__main__':
     os.environ['DATABASE_PATH'] = '../resources/database.db'
     os.environ['CACHE_DIRECTORY'] = '../cache'
     init_db()
-    asyncio.run(update_altius_pages())
+    asyncio.run(get_ladder('all'))

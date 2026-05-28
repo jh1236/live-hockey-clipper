@@ -98,7 +98,7 @@ def prem_team_name_to_code(name):
         'southern river': 'SOU'
     }
     name = name.lower()
-    if 'mods' in name and ('ogm' in name or 'guildford' in name):
+    if ('mods' in name or 'modernians' in name) and ('ogm' in name or 'guildford' in name):
         # check to ensure that we can match mods-guildford properly 
         # (because they have merged, they need to be handled specially)
         return 'MOGM'
@@ -157,7 +157,8 @@ def team_code_to_name(code):
     with db_session():
         team = Clubs.get(code=code)
         if team is None:
-            raise Exception(f'Team {code} not found')
+            logger.error(f'Team {code} not found')
+            return None
         return team.long_name
 
 
@@ -213,6 +214,7 @@ def fix_official_name(name: str):
     if first_name in first_name_fixes:
         first_name = first_name_fixes[first_name]
     return f'{first_name} {last_name}'.title()
+
 
 if __name__ == '__main__':
     os.environ['DATABASE_PATH'] = '../resources/database.db'

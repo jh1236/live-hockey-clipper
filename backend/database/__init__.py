@@ -48,9 +48,10 @@ class Officials(db.Entity):
 class Clubs(db.Entity):
     id = PrimaryKey(int, auto=True)
     code = Required(str, unique=True)
-    long_name = Required(str)
+    long_name = NullableOptional(str)
     image_link = NullableOptional(str)
     time_created = NullableOptional(int)
+    ladder_positions = Set('LadderPosition', reverse='team')
 
     home_games = Set('Games', reverse='home_team')
     away_games = Set('Games', reverse='away_team')
@@ -74,6 +75,7 @@ class Competitions(db.Entity):
     time_created = NullableOptional(int)
 
     games = Set('Games', reverse='competition')
+    ladder = Set('LadderPosition', reverse='competition')
     composite_key(gender, level, year)
 
     @db_session
@@ -149,6 +151,23 @@ class Games(db.Entity):
         if game.get('stream_start_time', None):
             game['stream_start_time'] *= 1000
         return game
+
+
+class LadderPosition(db.Entity):
+    _table_ = "ladder_position"
+    id = PrimaryKey(int, auto=True)
+    competition = Required(Competitions, column='competition_id')
+    team = Required(Clubs, column='team_id')
+    position = Required(int)    
+    time_created = NullableOptional(int)
+
+    composite_key(competition, team)
+    
+    @db_session
+    def format_for_frontend(self):
+        d = self.to_dict()
+        return d
+
 
 
 class Clips(db.Entity):
