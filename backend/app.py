@@ -78,7 +78,7 @@ async def run_periodically():
             logging.warning(f'Completed task "{name}"')
 
 
-@tasks.periodic(timedelta(minutes=30))
+@tasks.periodic(timedelta(hours=12))
 async def update():
     await run_periodically()
 

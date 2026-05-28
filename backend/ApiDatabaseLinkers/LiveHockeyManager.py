@@ -120,13 +120,13 @@ def add_live_hockey_game_to_db(game: dict[str, Any], source: str):
 
 
 async def update_live_hockey(location: str = 'hockeywa', filter_: Callable | None = None,
-                             date: int | None = None, target=8):
+                             date: int | None = None, target=-1):
     competitions = await get_or_update_comps(location)
     filter_ = filter_ or (lambda a: True)
     page = 0
     upcoming_games = []
-    while len([i for i in upcoming_games if filter_(i)]) < target:
-        upcoming = await LiveHockeyFetcher.get_games_from_live_hockey(competitions, 4, True, date_from_in=date,
+    while target == -1 or len([i for i in upcoming_games if filter_(i)]) < target:
+        upcoming = await LiveHockeyFetcher.get_games_from_live_hockey(competitions, 7, True, date_from_in=date,
                                                                       page=page)
         if upcoming is None or len(upcoming) == 0:
             # this means we are out of pages
@@ -138,8 +138,8 @@ async def update_live_hockey(location: str = 'hockeywa', filter_: Callable | Non
 
     page = 0
     recent_games = []
-    while len([i for i in recent_games if filter_(i)]) < target:
-        recent = await LiveHockeyFetcher.get_games_from_live_hockey(competitions, -4, True, date_from_in=date,
+    while target == -1 or len([i for i in recent_games if filter_(i)]) < target:
+        recent = await LiveHockeyFetcher.get_games_from_live_hockey(competitions, -7, True, date_from_in=date,
                                                                     page=page)
         if recent is None or len(recent) == 0:
             # this means we are out of pages

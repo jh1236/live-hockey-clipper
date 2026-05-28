@@ -140,10 +140,6 @@ async def get_recent_games():
         if juniors:
             acceptable_ages.append('Juniors')
 
-        filter_ = lambda i: i.competition.age_level in acceptable_ages and (
-                i.competition.is_premier or not premier_only)
-
-        await LiveHockeyManager.update_live_hockey(location, filter_=filter_)
         flush()
         now = datetime.now().timestamp()
         recent = [
