@@ -32,11 +32,9 @@ def _get_comp_details(label, year) -> Competitions:
     return DatabaseAligner.get_or_create_comp(year, comp, gender)
 
 
-async def update_umpires():
+async def update_umpires(org=None):
     # sorted like this so that the first games to populate are from premier league
-    org = await WhistleIQFetcher.get_hwa_organisation()
-    with open('test.json', 'w+', encoding='utf-8') as f:
-        json.dump(org, f, ensure_ascii=False, indent=4)
+    org = org or await WhistleIQFetcher.get_hwa_organisation()
     this_year = datetime.now().year
     out = []
     with db_session():
@@ -68,8 +66,8 @@ async def update_umpires():
                 out.append(umpire)
 
 
-async def update_appointments():
-    events = (await WhistleIQFetcher.get_hwa_organisation())["events"]
+async def update_appointments(org=None):
+    events = (org or await WhistleIQFetcher.get_hwa_organisation())["events"]
     with db_session():
         for event in events:
             year = event['startDateSQL'].split('-')[0]
@@ -117,6 +115,11 @@ async def update_appointments():
 
                 db_game.umpire_manager = umpire_manager
 
+
+async def update_whistle_iq():
+    org = await WhistleIQFetcher.get_hwa_organisation()
+    await update_umpires(org=org)
+    await update_appointments(org=org)
 
 if __name__ == '__main__':
     os.environ['WHISTLE_IQ_PWD'] = 'Jared'

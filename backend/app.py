@@ -12,7 +12,7 @@ from quart.wrappers.response import DataBody
 from quart_cors import cors
 from quart_tasks import QuartTasks
 
-from ApiDatabaseLinkers import ClipsManager, AltiusManager
+from ApiDatabaseLinkers import ClipsManager, AltiusManager, WhistleIQManager, LiveHockeyManager
 from blueprints import api
 from config import get_config
 from database import init_db
@@ -66,11 +66,17 @@ async def to_camel_case(response):
 
 
 async def run_periodically():
-    if current_process()._name.endswith('-1') and get_config().run_altius_checks:
-        # HORRENDOUS HACK!!
-        asyncio.create_task(AltiusManager.update_altius_pages())
-    if current_process()._name.endswith('-2') and get_config().cleanse_old_videos:
-        ClipsManager.remove_old_videos()
+    print(get_config())
+    worker_number = int(current_process()._name.split('-')[-1])
+    workers = get_config().workers
+    config = [AltiusManager.update_altius_pages, WhistleIQManager.update_appointments,
+              LiveHockeyManager.update_live_hockey, ClipsManager.remove_old_videos]
+    c = 1
+    for i in config:
+        if worker_number == c:
+            await i()
+        c %= workers
+        c += 1
 
 
 @tasks.periodic(timedelta(minutes=30))

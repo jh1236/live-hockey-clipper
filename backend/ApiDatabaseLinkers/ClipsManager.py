@@ -38,7 +38,8 @@ class ClipDto:
         self.id = out.id
         return out
 
-def remove_old_videos():
+async def remove_old_videos():
+    #needs to be async for task managing
     with db_session():
         two_days_ago = (datetime.now() - timedelta(days=2)).timestamp()
         clips: list[Clips] = list(select(i for i in Clips if not i.favourite and i.time_created < two_days_ago))

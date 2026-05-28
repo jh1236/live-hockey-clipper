@@ -111,8 +111,8 @@ def add_live_hockey_game_to_db(game: dict[str, Any]):
     return out
 
 
-async def update_games_from_live_hockey(location: str = 'hockeywa', filter_: Callable | None = None,
-                                        date: int | None = None, target=8):
+async def update_live_hockey(location: str = 'hockeywa', filter_: Callable | None = None,
+                             date: int | None = None, target=8):
     competitions = await get_or_update_comps(location)
     filter_ = filter_ or (lambda a: True)
     page = 0
@@ -173,4 +173,4 @@ async def game_from_blob(blob: str):
 if __name__ == '__main__':
     os.environ['DATABASE_PATH'] = '../resources/database.db'
     init_db()
-    asyncio.run(update_games_from_live_hockey())
+    asyncio.run(update_live_hockey())

@@ -11,5 +11,6 @@ WORKDIR /app
 
 EXPOSE 5000
 
-
-CMD ["hypercorn", "app:app", "--workers=4", "-b", "0.0.0.0:5000"]
+ARG WORKERS=4
+ENV WORKERS=$WORKERS
+CMD hypercorn app:app --workers=$WORKERS -b 0.0.0.0:5000

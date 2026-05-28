@@ -45,6 +45,8 @@ async def get_cookies(username=None, password=None, *, force_refresh=False):
     username = username or get_config().whistle_iq_username
     password = password or get_config().whistle_iq_password
     with db_session():
+        if not username:
+            raise Exception('Username not provided')
         user = get_or_create_user(username=username)
         cookies = {'PHPSESSID': await get_session(username, force_refresh=force_refresh)}
         if not force_refresh and user and user.whistle_iq_token:

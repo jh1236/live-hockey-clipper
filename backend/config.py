@@ -14,6 +14,7 @@ class Config:
     live_hockey_password: str | None = None
     whistle_iq_username: str | None = None
     whistle_iq_password: str | None = None
+    workers: int | None = None
 
 
 def get_config() -> Config:
@@ -34,6 +35,7 @@ def get_config() -> Config:
         'whistle_iq_username': os.environ.get('WHISTLE_IQ_USER', None),
         'whistle_iq_password': os.environ.get('WHISTLE_IQ_PWD', None),
         'server_address': os.environ.get('ADDRESS', None),
+        'workers': int(os.environ.get('WORKERS', 1)),
         'run_altius_checks': check_altius.lower() == 'true' if check_altius is not None else None,
         'cleanse_old_videos': cleanse_videos.lower() == 'true' if cleanse_videos is not None else None,
     }
