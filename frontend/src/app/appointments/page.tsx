@@ -20,6 +20,8 @@ interface StatsForUmpire {
     yearsUmpired: number[]
 }
 
+const ORDER_GRADES = ['Prem One Men', 'Prem One Women', 'Prem Two Men', 'Prem Two Women', '11/12 Div One Boys', '11/12 Div One Girls', '9/10 Div One Boys', '9/10 Div One Girls']
+
 export default function Page() {
     const [viewAsPieChart, setViewAsPieChart] = useState<boolean>(true);
     const [fromYear, setFromYear] = useState<number>(new Date().getFullYear());
@@ -31,7 +33,7 @@ export default function Page() {
     }>({'-': ['Prem One Men', 'Prem One Women', 'Prem Two Men', 'Prem Two Women', '11/12 Div One Boys', '11/12 Div One Boys', '9/10 Div One Boys', '9/10 Div One Girls']})
     const gradesInRange = useMemo(() => {
         let out = new Set();
-        (gradesInYears[fromYear] ?? []).forEach(it => {
+        (gradesInYears['-']).forEach(it => {
             console.log(it)
             out.add(it)
         })
@@ -44,12 +46,13 @@ export default function Page() {
             })
             out = out.intersection(temp)
         }
-        return [...out, 'All', 'Premier'] as string[]
+        return ([...out, 'All', 'Premier'] as string[]).toSorted((a, b) => ORDER_GRADES.indexOf(a) - ORDER_GRADES.indexOf(b)) as string[]
     }, [fromYear, gradesInYears, toYear])
     const [perWeekStats, setPerWeekStats] = useState<{
         [key: string]: { [key: string]: number }
     }>({})
     const [perUmpireStats, setPerUmpireStats] = useState<(StatsForUmpire & { color: string })[]>([])
+    const [perEmailProviderStats, setPerEmailProviderStats] = useState<({ emailProvider: string, umpires: number, gamesUmpired: number } & { color: string })[]>([])
 
     const umpiresByName = useMemo(() => Object.fromEntries(umpires.map(it => [it.name, it])), [umpires])
 
@@ -78,21 +81,27 @@ export default function Page() {
         if (!toYear || !fromYear) return
         const per_ump_url = new URL(`${SERVER_ADDRESS}/api/appointments/per_umpire_stats`)
         const per_week_url = new URL(`${SERVER_ADDRESS}/api/appointments/per_week_stats`)
+        const per_email_url = new URL(`${SERVER_ADDRESS}/api/appointments/per_email_provider_stats`)
 
         per_ump_url.searchParams.set('to_year', toYear.toString())
         per_week_url.searchParams.set('to_year', toYear.toString())
+        per_email_url.searchParams.set('to_year', toYear.toString())
 
         per_ump_url.searchParams.set('from_year', fromYear.toString())
         per_week_url.searchParams.set('from_year', fromYear.toString())
+        per_email_url.searchParams.set('from_year', fromYear.toString())
 
-        if (grade !== 'All') {
-            per_ump_url.searchParams.set('level', grade.replace(/\s\S*$/, ''))
+
+        per_ump_url.searchParams.set('level', grade.replace(/\s\S*$/, ''))
+        per_week_url.searchParams.set('level', grade.replace(/\s\S*$/, ''))
+        per_email_url.searchParams.set('level', grade.replace(/\s\S*$/, ''))
+        if (!['all', 'premier'].includes(grade.toLowerCase())) {
             const gender = grade.toLowerCase().includes('women') || grade.toLowerCase().includes('girl');
             per_ump_url.searchParams.set('gender', gender ? 'F' : 'M')
-
-            per_week_url.searchParams.set('level', grade.replace(/\s\S*$/, ''))
             per_week_url.searchParams.set('gender', gender ? 'F' : 'M')
+            per_email_url.searchParams.set('gender', gender ? 'F' : 'M')
         }
+
         let cancelled = false;
         fetch(per_ump_url)
             .then(it => it.json())
@@ -101,6 +110,15 @@ export default function Page() {
                     setPerUmpireStats(it.statistic)
                 }
             })
+        
+        fetch(per_email_url)
+            .then(it => it.json())
+            .then(it => {
+                if (!cancelled) {
+                    setPerEmailProviderStats(it.statistic)
+                }
+            })
+        
         fetch(per_week_url)
             .then(it => it.json())
             .then(it => {
@@ -118,6 +136,18 @@ export default function Page() {
         name: it.umpire.name,
         value: it.gamesUmpired,
         color: umpiresByName[it.umpire.name]?.color ?? 'pink'
+    })).sort((a, b) => a.value - b.value);
+
+    const gamesPerEmailProvider = perEmailProviderStats?.map((it, i) => ({
+        name: it.emailProvider,
+        value: it.gamesUmpired,
+        color: COLORS[i % COLORS.length]
+    })).sort((a, b) => a.value - b.value);
+
+    const avgGamesPerEmailProvider = perEmailProviderStats?.map((it, i) => ({
+        name: it.emailProvider,
+        value: Math.round(it.gamesUmpired / it.umpires * 100)  / 100,
+        color: COLORS[i % COLORS.length]
     })).sort((a, b) => a.value - b.value);
 
     const avgGamesPerWeek = perUmpireStats?.map(it => ({
@@ -182,14 +212,14 @@ export default function Page() {
             name: it.umpire.name,
             value: Object.values(it?.gamesWithUmpireManagers ?? {}).reduce((a, b) => a + b, 0),
             color: umpiresByName[it.umpire.name]?.color ?? 'pink'
-        })).sort((a, b) => a.value - b.value);
+        })).filter(it => it.value > 0).sort((a, b) => a.value - b.value);
 
     const percentUmpireManagedGames = perUmpireStats?.map(
         it => ({
             name: it.umpire.name,
             value: Math.round(100 * Object.values(it?.gamesWithUmpireManagers ?? {}).reduce((a, b) => a + b, 0) / it.gamesUmpired),
             color: umpiresByName[it.umpire.name]?.color ?? 'pink'
-        })).sort((a, b) => a.value - b.value);
+        })).filter(it => it.value > 0).sort((a, b) => a.value - b.value);
 
     return <>
 
@@ -279,7 +309,7 @@ export default function Page() {
                               ]}></BarChart>
                 }
             </Grid.Col>
-            <Grid.Col span={{base: 6, md: 3}} p={10}>
+            {toYear === fromYear && <Grid.Col span={{base: 6, md: 3}} p={10}>
                 <Title order={3} ta="center">Weekly Games</Title>
                 {!grade &&
                     <Text my={5} ta="center" c="dimmed" fs="italic">For people who have umpired 2+ games</Text>}
@@ -288,7 +318,7 @@ export default function Page() {
                           dataKey="week"
                           series={umpires.map(it => ({color: it.color, name: it.name}))}
                 >{defs}</BarChart>
-            </Grid.Col>
+            </Grid.Col>}
             <Grid.Col span={{base: 6, md: 3}} p={10}>
                 <Title order={3} ta="center">Games by Gender</Title>
                 <PieChart data={[{
@@ -438,7 +468,53 @@ export default function Page() {
                     type='stacked'
                     series={[{
                         name: 'value',
-                        label: 'Average Score Difference'
+                        label: '% Games UM\'d'
+                    }]}
+                    tickLine="y"
+                >{defs}</BarChart>
+            </Grid.Col>
+            <Grid.Col span={{base: 6, md: 3}} p={10}>
+                <Title order={3} ta="center">Games Umpired By Email Provider</Title>
+                <BarChart
+                    h={300}
+                    referenceLines={[
+                        {
+                            y: gamesPerEmailProvider.map(it => it.value).reduce((a, b) => a + b, 0) / gamesPerEmailProvider.length,
+                            color: 'dimmed',
+                            label: 'Average',
+                            labelPosition: 'insideTopLeft',
+                        },
+                    ]}
+
+                    data={gamesPerEmailProvider}
+                    dataKey="name"
+                    type='stacked'
+                    series={[{
+                        name: 'value',
+                        label: 'Games Umpired'
+                    }]}
+                    tickLine="y"
+                >{defs}</BarChart>
+            </Grid.Col>
+            <Grid.Col span={{base: 6, md: 3}} p={10}>
+                <Title order={3} ta="center">Average Games Umpired By Email Provider</Title>
+                <BarChart
+                    h={300}
+                    referenceLines={[
+                        {
+                            y: avgGamesPerEmailProvider.map(it => it.value).reduce((a, b) => a + b, 0) / avgGamesPerEmailProvider.length,
+                            color: 'dimmed',
+                            label: 'Average',
+                            labelPosition: 'insideTopLeft',
+                        },
+                    ]}
+
+                    data={avgGamesPerEmailProvider}
+                    dataKey="name"
+                    type='stacked'
+                    series={[{
+                        name: 'value',
+                        label: 'Average Games Umpired'
                     }]}
                     tickLine="y"
                 >{defs}</BarChart>

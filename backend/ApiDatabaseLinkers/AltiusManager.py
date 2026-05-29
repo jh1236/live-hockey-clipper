@@ -127,7 +127,6 @@ async def fill_officials_from_altius(tournaments=None, year='2026'):
             tournaments = all_altius_tournaments()
         else:
             tournaments = altius_tournaments_for_year(int(year))
-    logging.error('Setting %s officials', str(list(tournaments)))
     altius_pages = await AltiusFetcher.get_from_altius(tournaments, 'officials')
     with (db_session()):
         for t, html in altius_pages.items():

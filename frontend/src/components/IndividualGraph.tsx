@@ -35,6 +35,7 @@ const BASE_COLORS = [
 ]
 export const COLORS = BASE_COLORS
     .concat(BASE_COLORS.map((_, i) => `url(#diagonal${i})`))
+    .concat(BASE_COLORS.map((_, i) => `url(#checkers${i})`))
     .concat(BASE_COLORS.map((_, i) => `url(#dots${i})`));
 
 
@@ -55,21 +56,16 @@ export const defs = <defs>
                     fill={color}
                 />
             </pattern>
-            <svg xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                    <pattern id="a" width="40" height="40" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
-                        <rect width="100%" height="100%" fill="#2b2b31"/>
-                        <path fill="#ecc94b" d="M11 6a5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5 5 5 0 0 1 5 5"/>
-                    </pattern>
-                </defs>
-
-                <rect width="800%" height="800%" fill="url(#a)"/>
-            </svg>
+            <pattern id={`checkers${i}`} x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse" patternTransform="rotate(45)scale(0.5)">
+                <rect x="0" width="10" height="10" y="0" fill={color}></rect>
+                <rect x="10" width="10" height="10" y="10" fill={color}></rect>
+            </pattern>
             <pattern id={`dots${i}`} width={20} height={20} patternTransform="rotate(45)scale(0.5)"
                      patternUnits="userSpaceOnUse">
                 <rect width="100%" height="100%" fill="#2b2b31"/>
                 <path fill={color} d="M11 6a5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5 5 5 0 0 1 5 5"/>
             </pattern>
+
         </Fragment>
     )}
 </defs>

@@ -1,3 +1,5 @@
+import logging
+import re
 from collections import defaultdict
 from datetime import datetime
 from typing import Any
@@ -6,6 +8,7 @@ from pony.orm import db_session, select
 from quart import Blueprint, jsonify, request
 
 from ApiDatabaseLinkers import AltiusManager
+from ApiFetchers.LiveHockeyFetcher import live_hockey_logger
 from database import Competitions, Games, Officials, LadderPosition
 from utils import get_monday
 
@@ -59,7 +62,6 @@ async def get_games_per_umpire():
         level = request.args.get('level', None)
         from_year = request.args.get('from_year', None)
         to_year = request.args.get('to_year', None)
-
 
         out: defaultdict[Any, dict[str, float | defaultdict[Any, int] | list[Any]]] = defaultdict(
             lambda: {
@@ -147,6 +149,54 @@ async def get_games_per_umpire():
                 round(v['average_score_difference'] / (non_returned_values[k]['scored_games'] or 1), 3)
 
         ret = list(sorted(out.values(), key=lambda a: a['umpire']['name']))
+        if len(ret) == 1:
+            ret = ret[0]
+        return jsonify({'statistic': ret})
+
+
+@appointments_bp.route('/per_email_provider_stats')
+async def get_games_per_email():
+    with (db_session()):
+        gender = request.args.get('gender', None)
+        level = request.args.get('level', None)
+        from_year = request.args.get('from_year', None)
+        to_year = request.args.get('to_year', None)
+
+        out = defaultdict(
+            lambda: {
+                'games_umpired': 0,
+                'umpires': set()
+            })
+
+        games = select(i for i in Games)
+        if gender is not None:
+            games = games.filter(lambda a: a.competition.gender == gender)
+        if level is not None and level.lower() != 'all':
+            if level.lower() == 'premier':
+                games = games.filter(lambda a: a.competition.altius_id != None)
+            else:
+                games = games.filter(lambda a: a.competition.level == level)
+        if from_year is not None:
+            games = games.filter(lambda a: a.competition.year >= int(from_year))
+        if to_year is not None:
+            games = games.filter(lambda a: a.competition.year <= int(to_year))
+
+        for g in games:
+            for o in [g.umpire_one, g.umpire_two]:
+                if not o or not o.email: continue
+                email = o.email.split('@')[1]
+                email = re.sub(r'\.com?.*', '', email)
+                email = re.sub(r'\.net.*', '', email)
+                email = re.sub(r'\.wa.*', '', email)
+                email = re.sub(r'\.au.*', '', email)
+                ump_dict = out[email]
+                ump_dict['games_umpired'] += 1
+                ump_dict['umpires'].add(o.id)
+                
+        for k, v in out.items():
+            v['email_provider'] = k
+            v['umpires'] = len(v['umpires'])
+        ret = list(out.values())
         if len(ret) == 1:
             ret = ret[0]
         return jsonify({'statistic': ret})

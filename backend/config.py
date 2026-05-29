@@ -8,7 +8,7 @@ class Config:
     videos_folder: str = './videos'
     database_path: str = './resources/database.db'
     server_address: str = 'http://localhost:5000'
-    run_altius_checks: bool | None = True
+    run_initial_checks: bool | None = True
     cleanse_old_videos: bool | None = True
     live_hockey_username: str | None = None
     live_hockey_password: str | None = None
@@ -19,11 +19,11 @@ class Config:
 
 def get_config() -> Config:
     cleanse_videos = os.environ.get('REMOVE_STALE_CLIPS', None)
-    check_altius = os.environ.get('CHECK_ALTIUS', None)
+    check_initial = os.environ.get('INITIAL_CHECK', None)
 
-    if check_altius is not None and check_altius.lower() not in ['true', 'false']:
+    if check_initial is not None and check_initial.lower() not in ['true', 'false']:
         raise ValueError('CHECK_ALTIUS must be true or false')
-    if cleanse_videos is not None and check_altius.lower() not in ['true', 'false']:
+    if cleanse_videos is not None and cleanse_videos.lower() not in ['true', 'false']:
         raise ValueError('REMOVE_STALE_CLIPS must be true or false')
 
     args = {
@@ -36,7 +36,7 @@ def get_config() -> Config:
         'whistle_iq_password': os.environ.get('WHISTLE_IQ_PWD', None),
         'server_address': os.environ.get('ADDRESS', None),
         'workers': int(os.environ.get('WORKERS', 1)),
-        'run_altius_checks': check_altius.lower() == 'true' if check_altius is not None else None,
+        'run_initial_checks': check_initial.lower() == 'true' if check_initial is not None else None,
         'cleanse_old_videos': cleanse_videos.lower() == 'true' if cleanse_videos is not None else None,
     }
     args = {k: v for k, v in args.items() if v is not None}

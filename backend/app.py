@@ -72,7 +72,7 @@ def run_periodically():
     async def work():
         config = [['Live Hockey Updater', LiveHockeyManager.update_live_hockey],
                   ['Altius Updater', AltiusManager.update_altius_pages],
-                  ['Whistle IQ Updater', WhistleIQManager.update_appointments],
+                  ['Whistle IQ Updater', WhistleIQManager.update_whistle_iq],
                   ['Stale Clip remover', ClipsManager.remove_old_videos]]
         for [name, task] in config:
             logging.info(f'Beginning task "{name}"')
@@ -97,7 +97,8 @@ async def update():
 
 @app.before_serving
 async def before_serving():
-    run_periodically()
+    if get_config().run_initial_checks:
+        run_periodically()
 
 
 if __name__ == '__main__':

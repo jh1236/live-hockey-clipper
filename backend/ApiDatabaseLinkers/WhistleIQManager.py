@@ -15,7 +15,7 @@ from utils import sleep_for_approx
 
 def _get_comp_details(label, year) -> Competitions:
     label = label.lower()
-    gender = 'M' if any(i in label for i in ['boy', 'men']) else 'F'
+    gender = 'M' if any(i in label for i in ['boy', ' men']) else 'F'
     if 'premier' in label:
         if any(i in label for i in ['2', 'two']):
             comp = 'Prem Two'
@@ -43,9 +43,8 @@ async def update_umpires(org=None):
             name = DBCodesManager.fix_official_name(f"{i['firstName']} {i['lastName']}")
             gender = i['sex'].strip() or '?'
             umpire = DatabaseAligner.get_or_create_official(name, gender_if_new=gender)
-            if not umpire.email:
-                umpire.email = i['email'].strip() or None
-            if not umpire.phone:
+            umpire.email = i['email'].strip() or None
+            if not umpire.phone_number:
                 umpire.phone_number = i['mobile'].strip() or None
         for i in sorted(org["events"], key=lambda it: ('Rising' in it['name'], '2025' in it['name'])):
             for a in i['assignments']:
@@ -134,5 +133,5 @@ if __name__ == '__main__':
     os.environ['WHISTLE_IQ_USER'] = 'healy_jared@yahoo.com'
     os.environ['DATABASE_PATH'] = '../resources/database.db'
     init_db()
-    asyncio.run(update_appointments())
+    asyncio.run(update_whistle_iq())
     time.sleep(2)
