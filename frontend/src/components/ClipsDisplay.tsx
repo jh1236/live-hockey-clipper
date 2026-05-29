@@ -7,7 +7,7 @@ import {
     Button,
     Card,
     Center,
-    Checkbox,
+    Checkbox, Dialog,
     Flex,
     Grid,
     Group,
@@ -25,10 +25,10 @@ import {
 import {hmsToSecondsOnly, secondsToHMS} from "@/utils";
 import Link from "next/link";
 import {FaArrowUpRightFromSquare, FaFloppyDisk, FaMinus, FaPencil, FaTrash, FaTv} from "react-icons/fa6";
-import {FaEllipsisH, FaFileDownload} from "react-icons/fa";
+import {FaEllipsisH, FaFileDownload, FaShareAlt} from "react-icons/fa";
 import {Dispatch, SetStateAction, useMemo, useState} from "react";
 import {useSetting} from "@/components/settings";
-import {useBoolean} from "react-use";
+import {useBoolean, useCopyToClipboard} from "react-use";
 
 const CATEGORIES = [
     'Stick Obstruction',
@@ -91,11 +91,17 @@ interface LoadedCardProps {
 
 function SingleClipDisplay({clip, setEditingClipIndex, clipIndex, setClips, linkToGame}: LoadedCardProps) {
     const [simplified] = useSetting('useSimplified')
+    const [state, copyToClipboard] = useCopyToClipboard()
+    const [copyOpen, setCopyOpen] = useBoolean(false);
     const [menuOpen, setMenuOpen] = useBoolean(false);
     if (!clip) {
         return <LoadingClip/>
     }
     return <>
+        <Dialog opened={copyOpen}>
+            <Text c={state.value === undefined ? 'red' : 'green'}
+                  fw={600}>{state.value === undefined ? `Copy failed: ${state.error}` : 'Link Copied!'}</Text>
+        </Dialog>
         <Card shadow="sm" p={10} pt={0} withBorder>
             <Box right={0} pos="absolute" m={5}>
                 {simplified ?
@@ -114,9 +120,20 @@ function SingleClipDisplay({clip, setEditingClipIndex, clipIndex, setClips, link
                                     href={clip.link}
                                     target="_blank"
                                     onClick={() => setMenuOpen(false)}
-                                    leftSection={<FaFileDownload size={14}/>}
+                                    leftSection={<FaArrowUpRightFromSquare size={14}/>}
                                 >
                                     Open in new tab
+                                </Menu.Item>
+                                <Menu.Item
+                                    onClick={() => {
+                                        copyToClipboard(clip.link)
+                                        setCopyOpen(true)
+                                        setTimeout(() => setCopyOpen(false), 1000)
+                                        setMenuOpen(false)
+                                    }}
+                                    leftSection={<FaShareAlt size={14}/>}
+                                >
+                                    Copy Link
                                 </Menu.Item>
                                 <Menu.Item
                                     component="a"

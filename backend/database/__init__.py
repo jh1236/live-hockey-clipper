@@ -81,7 +81,7 @@ class Competitions(db.Entity):
 
     @property
     def name(self):
-        year=''
+        year = ''
         if datetime.now().year != int(self.year):
             year = f'{self.year} '
         if self.age_level == 'Juniors':
@@ -204,7 +204,7 @@ class Clips(db.Entity):
         d['game_id'] = self.game.id
         d['start_time'] = int_to_time(self.start_time)
         d['duration'] = int_to_time(self.duration)
-        d['categories'] = self.comment.split(';')
+        d['categories'] = [i for i in self.comment.split(';') if i.strip()]
         del d['comment']
         return d
 

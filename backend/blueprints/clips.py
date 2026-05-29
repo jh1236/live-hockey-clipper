@@ -182,7 +182,7 @@ async def get_game(game_id):
     with db_session():
         game = Games.get(id=game_id)
         return jsonify(
-            {'game': game.format_for_frontend(), 'clips': [i.format_for_frontend() for i in game.clips]}), 200
+            {'game': game.format_for_frontend(), 'clips': [i.format_for_frontend() for i in sorted(game.clips, key=lambda it: it.time_created)]}), 200
 
 
 @clips_bp.route('/<clip_id>')
