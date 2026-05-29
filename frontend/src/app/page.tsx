@@ -104,6 +104,7 @@ export default function Page() {
             </Group>
             <GamesDisplay
                 games={upcoming ?? null}
+                createLink={it => it.liveHockeyId ? `/${it.id}` : '#'}
                 missingMessage={"There are currently no upcoming games."}
                 error={error}
             />
@@ -111,6 +112,7 @@ export default function Page() {
             <Title order={2} p={20}>Recent Games</Title>
             <GamesDisplay
                 games={recent ?? null}
+                createLink={it => it.liveHockeyId ? `/${it.id}` : '#'}
                 missingMessage={"There are currently no recent games."}
                 error={error}/>
             <br/>
@@ -132,8 +134,8 @@ export default function Page() {
                         onClick={() => {
                             fetch(`${SERVER_ADDRESS}/api/clips/games/blob/${gameBlob}`)
                                 .then(it => it.json())
-                                .then((it: Game) => {
-                                    redirect(`/${it.id}`)
+                                .then((it: { game: Game }) => {
+                                    redirect(`/${it.game.id}`)
                                 })
                         }}>
                     Begin

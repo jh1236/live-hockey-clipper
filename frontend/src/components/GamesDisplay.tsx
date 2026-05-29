@@ -71,7 +71,7 @@ function getDateString(it: number, currentTime: number): string {
         return `${DAYS[dateToRender.getDay()]}, ${s}`
     }
 
-    return dateToRender.toLocaleString()
+    return dateToRender.toLocaleString('en-GB')
 }
 
 export function GamesDisplay({

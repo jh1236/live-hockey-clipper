@@ -174,7 +174,8 @@ async def get_game_by_blob(blob):
         game = Games.get(live_hockey_id=blob)
         if not game:
             game = await LiveHockeyManager.game_from_blob(blob)
-            return jsonify({'game': game.format_for_frontend(), 'clips': []}), 200
+            game.flush()
+        return jsonify({'game': game.format_for_frontend(), 'clips': []}), 200
 
 
 @clips_bp.get('/games/<game_id>')
