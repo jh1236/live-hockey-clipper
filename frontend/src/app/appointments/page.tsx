@@ -160,7 +160,7 @@ export default function Page() {
     const gamesByMen = Math.round(100 * perUmpireStats?.filter(it => it.umpire.gender === 'M').reduce((a, b) => a + b.gamesUmpired, 0) / totalGames)
 
     const gamesPerWeek = toYear === fromYear ? Object.entries(perWeekStats).map(([k, v]) => ({
-        ...Object.fromEntries(Object.entries(v).filter(([_, v2]) => (grade !== 'All') || v2 > 1)),
+        ...Object.fromEntries(Object.entries(v).filter(([_, v2]) => (!['all', 'premier'].includes(grade.toLowerCase())) || v2 > 1)),
         week: new Date(+k).toDateString()
     })) : [];
 
