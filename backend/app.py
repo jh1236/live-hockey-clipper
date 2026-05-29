@@ -5,8 +5,10 @@ import os
 import shutil
 from datetime import timedelta
 from multiprocessing.process import current_process
+from threading import Thread
 
 import humps
+from pony.orm import flush
 from quart import Quart
 from quart.wrappers.response import DataBody
 from quart_cors import cors
@@ -18,6 +20,7 @@ from config import get_config
 from database import init_db
 from utils import camelise
 
+logging.getLogger('httpx').setLevel(logging.WARNING)
 logging.getLogger().setLevel(logging.INFO)
 
 app = Quart(__name__)
@@ -65,27 +68,36 @@ async def to_camel_case(response):
     return response
 
 
-async def run_periodically():
-    print(get_config())
-    worker_number = int(current_process()._name.split('-')[-1])
-    config = [['Altius Updater', AltiusManager.update_altius_pages], ['Whistle IQ Updater', WhistleIQManager.update_appointments],
-              ['Live Hockey Updater', LiveHockeyManager.update_live_hockey], ['Stale Clip remover', ClipsManager.remove_old_videos]]
+def run_periodically():
+    async def work():
+        config = [['Live Hockey Updater', LiveHockeyManager.update_live_hockey],
+                  ['Altius Updater', AltiusManager.update_altius_pages],
+                  ['Whistle IQ Updater', WhistleIQManager.update_appointments],
+                  ['Stale Clip remover', ClipsManager.remove_old_videos]]
+        for [name, task] in config:
+            logging.info(f'Beginning task "{name}"')
+            try:
+                await task()
+                flush()
+                logging.info(f'Completed task "{name}"')
+            except Exception as e:
+                logging.error(f'Exception {type(e).__name__} while running task "{name}"')
+                logging.error(e)
+            
 
-    for [name, task] in config:
-        if worker_number == 1:
-            logging.warning(f'Beginning task "{name}"')
-            await task()
-            logging.warning(f'Completed task "{name}"')
+    worker_number = int(current_process()._name.split('-')[-1])
+    if worker_number == 1:
+        Thread(target=lambda: asyncio.run(work()), daemon=True).start()
 
 
 @tasks.periodic(timedelta(hours=12))
 async def update():
-    await run_periodically()
+    run_periodically()
 
 
 @app.before_serving
 async def before_serving():
-    await run_periodically()
+    run_periodically()
 
 
 if __name__ == '__main__':

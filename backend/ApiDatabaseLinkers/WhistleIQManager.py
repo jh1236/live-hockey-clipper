@@ -30,7 +30,7 @@ def _get_comp_details(label, year) -> Competitions:
     else:
         raise ValueError(f'Invalid comp label "{label}"')
 
-    return DatabaseAligner.get_or_create_comp(year, comp, gender)
+    return DatabaseAligner.get_or_create_comp(year, comp.title(), gender)
 
 
 async def update_umpires(org=None):
@@ -83,8 +83,8 @@ async def update_appointments(org=None):
                 if not competition.whistle_iq_id:
                     competition.whistle_iq_id = game['competitionGuid']
 
-                home_team = DBCodesManager.prem_team_name_to_code(game['homeTeam'])
-                away_team = DBCodesManager.prem_team_name_to_code(game['awayTeam'])
+                home_team = DBCodesManager.name_to_code(game['homeTeam'])
+                away_team = DBCodesManager.name_to_code(game['awayTeam'])
 
                 start_time = int(game['fixtureDateUNIX']) - 8 * HOUR_IN_SEC
 
@@ -123,7 +123,9 @@ async def update_appointments(org=None):
 
 async def update_whistle_iq():
     org = await WhistleIQFetcher.get_hwa_organisation()
+    WhistleIQFetcher.whistle_iq_logger.info('Filling Umpires')
     await update_umpires(org=org)
+    WhistleIQFetcher.whistle_iq_logger.info('Filling Appointments')
     await update_appointments(org=org)
 
 

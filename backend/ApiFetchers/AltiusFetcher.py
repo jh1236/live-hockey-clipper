@@ -1,9 +1,9 @@
-import logging
 import os
 from collections import defaultdict
 from typing import Literal, Callable
 
 import httpx
+import logging
 from getuseragent import UserAgent
 
 from config import get_config
@@ -14,6 +14,10 @@ all_tournaments = [57, 58, 59, 60, 52, 51, 54, 53, 45, 46, 43, 44, 39, 40, 33, 3
 
 base_url = "https://hockeywa.altiusrt.com/competitions"
 
+altius_logger = logging.Logger('AltiusManager')
+altius_logger.setLevel(logging.INFO)
+
+
 def get_header(token: None | str = None):
     out = {
         'Host': 'hockeywa.altiusrt.com',
@@ -23,6 +27,7 @@ def get_header(token: None | str = None):
     if token:
         out['Authorization'] = 'Bearer ' + token
     return out
+
 
 async def _get_officials_from_altius(tournament, force_regen=False, *, attempts=3) -> tuple[str, bool]:
     if attempts == 0:
@@ -38,8 +43,8 @@ async def _get_officials_from_altius(tournament, force_regen=False, *, attempts=
         with open(f'{cache_folder}/{tournament}_officials.html', 'w+') as f:
             f.write(html)
         return html, False
-    except httpx.HTTPError:
-        logging.warning('Altius API returned HTTP error')
+    except httpx.HTTPError as e:
+        altius_logger.error(f'Altius API returned HTTP error "{type(e).__name__}"')
         if os.path.exists(f'{cache_folder}/{tournament}_officials.html') and force_regen:
             with open(f'{cache_folder}/{tournament}_officials.html', 'r') as f:
                 return f.read(), False
@@ -63,8 +68,8 @@ async def _get_ladder_from_altius(tournament, force_regen=False, *, attempts=3) 
         with open(f'{cache_folder}/{tournament}_ladder.html', 'w+') as f:
             f.write(html)
         return html, False
-    except httpx.HTTPError:
-        logging.warning('Altius API returned HTTP error')
+    except httpx.HTTPError as e:
+        altius_logger.error(f'Altius API returned HTTP error "{type(e).__name__}"')
         if os.path.exists(f'{cache_folder}/{tournament}_ladder.html') and force_regen:
             with open(f'{cache_folder}/{tournament}_ladder.html', 'r') as f:
                 return f.read(), False
@@ -88,8 +93,8 @@ async def _get_games_from_altius(tournament, force_regen=False, *, attempts=3) -
         with open(f'{cache_folder}/{tournament}_games.html', 'w+') as f:
             f.write(html)
         return html, False
-    except httpx.HTTPError:
-        logging.warning('Altius API returned HTTP error')
+    except httpx.HTTPError as e:
+        altius_logger.error(f'Altius API returned HTTP error "{type(e).__name__}"')
         if os.path.exists(f'{cache_folder}/{tournament}_games.html') and force_regen:
             with open(f'{cache_folder}/{tournament}_games.html', 'r') as f:
                 return f.read(), False
@@ -97,6 +102,7 @@ async def _get_games_from_altius(tournament, force_regen=False, *, attempts=3) -
             await sleep_for_approx(1)
             return await _get_ladder_from_altius(tournament=tournament, force_regen=True,
                                                  attempts=attempts - 1)
+
 
 altius_data = Literal['games'] | Literal['ladder'] | Literal['officials']
 
@@ -106,7 +112,9 @@ _fetchers: dict[altius_data, Callable] = {
     'officials': _get_officials_from_altius,
 }
 
-async def get_from_altius(tournaments: list[int], *fields: altius_data,  force_regen=False) -> dict[int, dict[altius_data, str]]:
+
+async def get_from_altius(tournaments: list[int], *fields: altius_data, force_regen=False) -> dict[
+    int, dict[altius_data, str]]:
     out = defaultdict(dict)
     for tournament in tournaments:
         for field in fields:

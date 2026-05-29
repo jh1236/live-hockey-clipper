@@ -79,6 +79,17 @@ class Competitions(db.Entity):
     ladder = Set('LadderPosition', reverse='competition')
     composite_key(gender, level, year)
 
+    @property
+    def name(self):
+        year=''
+        if datetime.now().year != int(self.year):
+            year = f'{self.year} '
+        if self.age_level == 'Juniors':
+            gender = "Boys" if self.gender == "M" else "Girls"
+        else:
+            gender = "Men" if self.gender == "M" else "Women"
+        return f'{year}{self.level} {gender}'
+
     @db_session
     def format_for_frontend(self):
         d = self.to_dict()
@@ -130,7 +141,7 @@ class Games(db.Entity):
 
     @property
     def name(self):
-        return f'{self.competition.level} {"Men" if self.competition.gender == "M" else "Women"} - {self.home_team.code} v {self.away_team.code}'
+        return f'{self.competition.name} - {self.home_team.code} v {self.away_team.code}'
 
     @db_session
     def format_for_frontend(self):

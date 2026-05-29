@@ -12,6 +12,7 @@ from more_itertools.recipes import flatten
 from pony.orm import select, db_session
 
 from ApiFetchers import AltiusFetcher
+from ApiFetchers.AltiusFetcher import altius_logger
 from bridging import DatabaseAligner, DBCodesManager
 from database import init_db, Officials, LadderPosition
 from utils import chunks, fix_last_first_name
@@ -84,7 +85,7 @@ def _get_comp_from_altius_page(soup, altius_id):
     year = int(comp_header.contents[5].text.strip(" \n\t").split(' ')[-1])
     level = 'Prem Two' if any([i in grade.lower() for i in [' 2 ', ' two ']]) else 'Prem One'
     gender = 'M' if any([i in grade.lower() for i in [' men', ' male']]) else 'F'
-    comp = DatabaseAligner.get_or_create_comp(year, level, gender)
+    comp = DatabaseAligner.get_or_create_comp(year, level.title(), gender)
     if not comp.altius_id:
         comp.altius_id = altius_id
     return comp
@@ -113,7 +114,7 @@ async def fill_ladder_from_altius(tournaments=None, year='2026'):
             trs = table.find_all("tr")[1:]  # we want to skip the header row
             for pos, tr in enumerate(trs, start=1):
                 name = str(tr.find_all("td")[1].find('a').contents[0])
-                code = DBCodesManager.prem_team_name_to_code(name)
+                code = DBCodesManager.name_to_code(name)
                 if code in existing_ladder:
                     existing_ladder[code].position = pos
                 else:
@@ -245,16 +246,20 @@ async def fill_venues_from_altius(tournaments=None, year='2026'):
                     game.complete = True
 
 
-async def update_altius_pages(tournaments=None, force_regen=True):
+async def update_altius_pages(tournaments=None, fix_old_tournaments=False):
     # we do this to ensure that everything is populated
     this_year = datetime.datetime.now().year
     if not tournaments:
+        altius_logger.info('Populating completed Tournaments')
         old_tournaments = list(flatten([list(v.values()) for k, v in YEAR_TO_TOURNAMENT_ID.items() if k != this_year]))
-        await update_altius_pages(tournaments=old_tournaments, force_regen=False)
+        await update_altius_pages(tournaments=old_tournaments, fix_old_tournaments=True)
     tournaments = tournaments or altius_tournaments_for_year(this_year)
-    await AltiusFetcher.get_from_altius(tournaments, 'games', 'ladder', 'officials', force_regen=force_regen)
+    await AltiusFetcher.get_from_altius(tournaments, 'games', 'ladder', 'officials', force_regen=not fix_old_tournaments)
+    altius_logger.info(f'Setting Venues for {'Finished' if fix_old_tournaments else 'Current'} tournaments')
     await fill_venues_from_altius(tournaments)
+    altius_logger.info(f'Setting Officials for {'Finished' if fix_old_tournaments else 'Current'} tournaments')
     await fill_officials_from_altius(tournaments)
+    altius_logger.info(f'Setting Ladder for {'Finished' if fix_old_tournaments else 'Current'} tournaments')
     await fill_ladder_from_altius(tournaments)
 
 

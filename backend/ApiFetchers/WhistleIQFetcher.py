@@ -1,3 +1,5 @@
+import logging
+
 from getuseragent import UserAgent
 from httpx import HTTPError
 from pony.orm import db_session
@@ -9,6 +11,8 @@ from requester import client
 from utils import sleep_for_approx
 
 HOCKEY_WA_ORG = "73C71E631121467FBF7CA63043321HWA"
+whistle_iq_logger = logging.Logger('WhistleIQManager')
+whistle_iq_logger.setLevel(logging.DEBUG)
 
 
 def get_header():
@@ -63,6 +67,7 @@ async def get_cookies(username=None, password=None, *, force_refresh=False):
             return cookies | {'token': token}
         except HTTPError as e:
             if force_refresh:
+                whistle_iq_logger.error(f'Exception {type(e).__name__} occured while logging in')
                 raise e
             else:
                 return get_cookies(username, password, force_refresh=True)
@@ -80,6 +85,7 @@ async def make_request(payload, username=None, password=None, *, force_refresh=F
         return resp.json()
     except HTTPError as e:
         if force_refresh:
+            whistle_iq_logger.error(f'Exception {type(e).__name__} occured while fetching data')
             raise e
         else:
             await sleep_for_approx(1)

@@ -67,7 +67,7 @@ _FIX_LIVE_HOCKEY_CODE = _FIX_ALTIUS_CODE | {
 }
 
 
-def prem_team_name_to_code(name):
+def name_to_code(name):
     NAME_TO_CODE = {
         'hale': 'HAL',
         'vic': 'VPX',
@@ -105,6 +105,10 @@ def prem_team_name_to_code(name):
     for i in NAME_TO_CODE:
         if i in name:
             return NAME_TO_CODE[i]
+    clubs = Clubs.select()
+    for club in clubs:
+        if club.long_name.lower() == name:
+            return club.code
     logging.warning('Unknown team name: %s', name)
     return None
 
@@ -173,7 +177,7 @@ def _fix_live_hockey_code(code: str, long_name) -> str:
     if code.upper() in _FIX_LIVE_HOCKEY_CODE:
         code = _FIX_LIVE_HOCKEY_CODE[code]
     else:
-        converted = prem_team_name_to_code(long_name)
+        converted = name_to_code(long_name)
         if converted:
             logging.warning("code '%s' appears to be for team %s, but it is not mapped so", code,
                             team_code_to_name(converted))

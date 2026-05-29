@@ -14,12 +14,10 @@ from bridging import DBCodesManager, DatabaseAligner
 from database import init_db, Competitions, Games
 from utils import sleep_for_approx, NUMBERS
 
-logger = logging.Logger('LiveHockeyManager')
 
-
-def _get_comp(comp) -> Competitions:
+def _get_comp(comp_in) -> Competitions:
     this_year = datetime.now().year
-    comp = re.sub(r'^[\d\s]*wa ', '', comp.lower()).strip()
+    comp = re.sub(r'^[\d\s]*wa ', '', comp_in.lower()).strip()
     if comp.startswith("j"):
         # Juniors
         comp = comp[2:]  # remove the J and the trailing space
@@ -48,13 +46,14 @@ def _get_comp(comp) -> Competitions:
             if 'pool' not in comp:
                 if comp[0] == 'r':
                     # edge case for o35 d1
-                    age = 'o35'
+                    age = 'O35'
                     div = '1'
                 elif comp == 'o35 midweek':
-                    age = 'o35'
+                    age = 'O35'
                     div = '1'
                 else:
                     age, div = comp.replace(' div', '').split(' ')
+                    age = re.sub(r'o(\d)', r'O\1', age)
                 comp = f'{age} Div {NUMBERS[int(div)]}'
         elif 'premier' in comp:
             # premier divisions
@@ -73,7 +72,7 @@ def _get_comp(comp) -> Competitions:
                 comp = f'Div {NUMBERS[int(grade_number)]} {black_or_gold}'
             else:
                 comp = f'Div {NUMBERS[int(grade_number)]}'
-    return DatabaseAligner.get_or_create_comp(this_year, comp, gender)
+    return DatabaseAligner.get_or_create_comp(this_year, comp.title(), gender)
 
 
 @db_session
@@ -83,7 +82,7 @@ def add_live_hockey_game_to_db(game: dict[str, Any], source: str):
                                              name_for_diagnostic=game['homeTeam']['longName'])
     away_team_code = DBCodesManager.fix_code(game['awayTeam']['shortName'], 'live_hockey',
                                              name_for_diagnostic=game['awayTeam']['longName'])
-    competition = _get_comp(game['competition']['playerLevel']['name'])
+    competition = _get_comp(game['competition']['name'])
     stream_start: str | None = game.get('streamStart', None)
     stream_start_time = round(parser.parse(stream_start).timestamp()) if stream_start is not None else None
 
@@ -125,10 +124,13 @@ async def update_live_hockey(location: str = 'hockeywa', filter_: Callable | Non
     filter_ = filter_ or (lambda a: True)
     page = 0
     upcoming_games = []
+    LiveHockeyFetcher.live_hockey_logger.info('Fetching Upcoming Games')
     while target == -1 or len([i for i in upcoming_games if filter_(i)]) < target:
+        LiveHockeyFetcher.live_hockey_logger.debug(f'Fetching page {page + 1}')
         upcoming = await LiveHockeyFetcher.get_games_from_live_hockey(competitions, 7, True, date_from_in=date,
                                                                       page=page)
         if upcoming is None or len(upcoming) == 0:
+            LiveHockeyFetcher.live_hockey_logger.debug(f'Page {page + 1} is empty!')
             # this means we are out of pages
             break
         for i in upcoming:
@@ -138,10 +140,14 @@ async def update_live_hockey(location: str = 'hockeywa', filter_: Callable | Non
 
     page = 0
     recent_games = []
+    LiveHockeyFetcher.live_hockey_logger.info('Fetching Recent Games')
     while target == -1 or len([i for i in recent_games if filter_(i)]) < target:
+        LiveHockeyFetcher.live_hockey_logger.debug(f'Fetching page {page + 1}')
+
         recent = await LiveHockeyFetcher.get_games_from_live_hockey(competitions, -7, True, date_from_in=date,
                                                                     page=page)
         if recent is None or len(recent) == 0:
+            LiveHockeyFetcher.live_hockey_logger.debug(f'Page {page + 1} is empty!')
             # this means we are out of pages
             break
         for i in recent:
@@ -152,10 +158,6 @@ async def update_live_hockey(location: str = 'hockeywa', filter_: Callable | Non
 
 async def get_or_update_comps(location) -> list[Competitions]:
     with db_session():
-        comps = select(i for i in Competitions if i.live_hockey_id)
-        if comps:
-            return list(comps)
-
         competitions = await LiveHockeyFetcher.get_comps_from_live_hockey(location)
         comps = []
         this_year = str(datetime.now().year)
@@ -164,7 +166,6 @@ async def get_or_update_comps(location) -> list[Competitions]:
             comp = _get_comp(i["name"])
             comp.live_hockey_id = i['id']
             comps.append(comp)
-
         return comps
 
 
