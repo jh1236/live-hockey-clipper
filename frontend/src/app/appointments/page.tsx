@@ -138,6 +138,12 @@ export default function Page() {
         color: umpiresByName[it.umpire.name]?.color ?? 'pink'
     })).sort((a, b) => a.value - b.value);
 
+    const gamesPerUmpirePerYear = perUmpireStats?.map(it => ({
+        name: it.umpire.name,
+        value: Math.round(100 * it.gamesUmpired / it.yearsUmpired.length) / 100,
+        color: umpiresByName[it.umpire.name]?.color ?? 'pink'
+    })).sort((a, b) => a.value - b.value);
+
     const gamesPerEmailProvider = perEmailProviderStats?.map((it, i) => ({
         name: it.emailProvider,
         value: it.gamesUmpired,
@@ -311,13 +317,36 @@ export default function Page() {
             </Grid.Col>
             {toYear === fromYear && <Grid.Col span={{base: 6, md: 3}} p={10}>
                 <Title order={3} ta="center">Weekly Games</Title>
-                {!grade &&
+                {['all','premier'].includes(grade.toLowerCase()) &&
                     <Text my={5} ta="center" c="dimmed" fs="italic">For people who have umpired 2+ games</Text>}
                 <BarChart data={gamesPerWeek} withTooltip mx="auto" type="percent"
                           h={300}
                           dataKey="week"
                           series={umpires.map(it => ({color: it.color, name: it.name}))}
                 >{defs}</BarChart>
+            </Grid.Col>}
+            {toYear !== fromYear && <Grid.Col span={{base: 6, md: 3}} p={10}>
+                <Title order={3} ta="center">Average Games per Year</Title>
+                {viewAsPieChart ?
+                    <PieChart data={gamesPerUmpirePerYear} withTooltip tooltipDataSource="segment" mx="auto" size={250}
+                              startAngle={90} endAngle={360 + 90} strokeWidth={0}>{defs}</PieChart> :
+                    <BarChart data={gamesPerUmpirePerYear}
+                              withTooltip
+                              mx="auto"
+                              series={[
+                                  {label: 'Games Umpired Per Year', name: 'value'}
+                              ]}
+                              dataKey="name"
+                              h={300}
+                              referenceLines={[
+                                  {
+                                      y: gamesPerUmpirePerYear.map(it => it.value).reduce((a, b) => a + b, 0) / gamesPerUmpirePerYear.length,
+                                      color: 'dimmed',
+                                      label: 'Average',
+                                      labelPosition: 'insideTopLeft',
+                                  },
+                              ]}></BarChart>
+                }
             </Grid.Col>}
             <Grid.Col span={{base: 6, md: 3}} p={10}>
                 <Title order={3} ta="center">Games by Gender</Title>
