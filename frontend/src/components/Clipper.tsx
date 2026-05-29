@@ -271,7 +271,7 @@ export function Clipper({id: gameId}: ClipperProps) {
                                             </Button>
                                         </Link>
                                         <Link
-                                            href={`https://www.livehockey.com.au/en/game/${gameId}`}
+                                            href={`https://www.livehockey.com.au/en/game/${game.liveHockeyId}`}
                                             target="_blank"
                                         >
                                             <Button>
