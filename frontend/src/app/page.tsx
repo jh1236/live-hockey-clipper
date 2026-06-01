@@ -18,14 +18,16 @@ export default function Page() {
     const [premierOnly, setPremierOnly] = useLocalStorage<boolean>("premierOnly", true);
     const [includeMasters, setIncludeMasters] = useLocalStorage<boolean>("includeMasters", false);
     const [includeJuniors, setIncludeJuniors] = useLocalStorage<boolean>("includeJuniors", false);
+    const [onlyClippable, setOnlyClippable] = useLocalStorage<boolean>("clippable", true);
 
     useEffect(() => {
-        if (includeJuniors === undefined || premierOnly === undefined || includeMasters === undefined) return;
+        if (includeJuniors === undefined || premierOnly === undefined || includeMasters === undefined || onlyClippable === undefined) return;
         const url = new URL(`${SERVER_ADDRESS}/api/clips/games/recent`, window.location.origin);
         url.searchParams.append('location', 'hockeywa')
         url.searchParams.append('juniors', '' + includeJuniors)
         url.searchParams.append('premier', '' + premierOnly)
-        url.searchParams.append('masters', '' + includeMasters)
+        url.searchParams.append('masters', '' + (!premierOnly && includeMasters))
+        url.searchParams.append('clippable', '' + onlyClippable)
         let cancelled = false
         fetch(url)
             .then((it) => it.json())
@@ -40,7 +42,7 @@ export default function Page() {
         return () => {
             cancelled = true
         }
-    }, [includeJuniors, includeMasters, premierOnly]);
+    }, [includeJuniors, includeMasters, onlyClippable, premierOnly]);
 
 
     const gameBlobError = !/^[0-9a-zA-Z]*$/.test(gameBlob);
@@ -80,6 +82,7 @@ export default function Page() {
                                 m={10}
                                 checked={includeMasters ?? false}
                                 disabled={premierOnly}
+                                indeterminate={premierOnly && includeMasters}
                                 onChange={e => {
                                     setRecent(null)
                                     setUpcoming(null)
@@ -92,12 +95,18 @@ export default function Page() {
                                 onChange={e => {
                                     setRecent(null)
                                     setUpcoming(null)
-                                    if (!e.target.checked) {
-                                        setIncludeMasters(false)
-                                    }
                                     setPremierOnly(!e.target.checked)
                                 }}
                                 label="Include Non Premier Fixtures?"></Checkbox>
+                            <Checkbox
+                                m={10}
+                                checked={!onlyClippable}
+                                onChange={e => {
+                                    setRecent(null)
+                                    setUpcoming(null)
+                                    setOnlyClippable(!e.target.checked)
+                                }}
+                                label="Include Fixtures with no video?"></Checkbox>
                         </Popover.Dropdown>
                     </Popover>
                 </Box>

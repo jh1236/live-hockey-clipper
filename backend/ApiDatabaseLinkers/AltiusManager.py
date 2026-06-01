@@ -97,7 +97,6 @@ async def fill_ladder_from_altius(tournaments=None, year='2026'):
             tournaments = all_altius_tournaments()
         else:
             tournaments = altius_tournaments_for_year(int(year))
-    print(tournaments, year)
     with db_session():
         altius_pages = await AltiusFetcher.get_from_altius(tournaments, 'ladder')
 
@@ -266,4 +265,4 @@ if __name__ == '__main__':
     os.environ['DATABASE_PATH'] = '../resources/database.db'
     os.environ['CACHE_DIRECTORY'] = '../cache'
     init_db()
-    asyncio.run(fill_ladder_from_altius(year='all'))
+    asyncio.run(update_altius_pages())

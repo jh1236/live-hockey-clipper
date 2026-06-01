@@ -259,7 +259,7 @@ export default function Page() {
                     }}/>
         </Group>
         <Grid w="100%" gap={3} p={20}>
-            <Grid.Col span={{base: 6, md: 3}} p={10}>
+            <Grid.Col span={{base: 12, md: 3}} p={10}>
                 <Title order={3} ta="center">Games Umpired</Title>
                 <Text onClick={() => setViewAsPieChart(!viewAsPieChart)} my={5} ta="center" c="dimmed" fs="italic"
                       style={{textDecoration: 'underline'}}>
@@ -287,7 +287,7 @@ export default function Page() {
                               ]}></BarChart>
                 }
             </Grid.Col>
-            <Grid.Col span={{base: 6, md: 3}} p={10}>
+            <Grid.Col span={{base: 12, md: 3}} p={10}>
                 <Title order={3} ta="center">Average Games Umpired per Week</Title>
                 <Text onClick={() => setViewAsPieChart(!viewAsPieChart)} my={5} ta="center" c="dimmed" fs="italic"
                       style={{textDecoration: 'underline'}}>
@@ -315,7 +315,7 @@ export default function Page() {
                               ]}></BarChart>
                 }
             </Grid.Col>
-            {toYear === fromYear && <Grid.Col span={{base: 6, md: 3}} p={10}>
+            {toYear === fromYear && <Grid.Col span={{base: 12, md: 3}} p={10}>
                 <Title order={3} ta="center">Weekly Games</Title>
                 {['all','premier'].includes(grade.toLowerCase()) &&
                     <Text my={5} ta="center" c="dimmed" fs="italic">For people who have umpired 2+ games</Text>}
@@ -325,7 +325,7 @@ export default function Page() {
                           series={umpires.map(it => ({color: it.color, name: it.name}))}
                 >{defs}</BarChart>
             </Grid.Col>}
-            {toYear !== fromYear && <Grid.Col span={{base: 6, md: 3}} p={10}>
+            {toYear !== fromYear && <Grid.Col span={{base: 12, md: 3}} p={10}>
                 <Title order={3} ta="center">Average Games per Year</Title>
                 {viewAsPieChart ?
                     <PieChart data={gamesPerUmpirePerYear} withTooltip tooltipDataSource="segment" mx="auto" size={250}
@@ -348,7 +348,7 @@ export default function Page() {
                               ]}></BarChart>
                 }
             </Grid.Col>}
-            <Grid.Col span={{base: 6, md: 3}} p={10}>
+            <Grid.Col span={{base: 12, md: 3}} p={10}>
                 <Title order={3} ta="center">Games by Gender</Title>
                 <PieChart data={[{
                     name: 'Percentage Umpired by Men',
@@ -366,7 +366,7 @@ export default function Page() {
                     {defs}
                 </PieChart>
             </Grid.Col>
-            <Grid.Col span={{base: 6, md: 3}} p={10}>
+            <Grid.Col span={{base: 12, md: 3}} p={10}>
                 <Title order={3} ta="center">Gender split by week</Title>
                 <AreaChart data={gamesPerGenderPerWeek}
                            yAxisProps={{domain: [0, 100]}}
@@ -385,7 +385,7 @@ export default function Page() {
                     {defs}
                 </AreaChart>
             </Grid.Col>
-            <Grid.Col span={{base: 6, md: 3}} p={10}>
+            <Grid.Col span={{base: 12, md: 3}} p={10}>
                 <Title order={3} ta="center">Average Ladder Position of Game</Title>
                 <Text my={5} ta="center" c="dimmed" fs="italic">For people who have umpired 2+ games</Text>
                 <BarChart
@@ -408,7 +408,7 @@ export default function Page() {
                     tickLine="y"
                 >{defs}</BarChart>
             </Grid.Col>
-            <Grid.Col span={{base: 6, md: 3}} p={10}>
+            <Grid.Col span={{base: 12, md: 3}} p={10}>
                 <Title order={3} ta="center">Average Ladder Difference of Game</Title>
                 <Text my={5} ta="center" c="dimmed" fs="italic">For people who have umpired 2+ games</Text>
                 <BarChart
@@ -432,7 +432,7 @@ export default function Page() {
                     tickLine="y"
                 >{defs}</BarChart>
             </Grid.Col>
-            <Grid.Col span={{base: 6, md: 3}} p={10}>
+            <Grid.Col span={{base: 12, md: 3}} p={10}>
                 <Title order={3} ta="center">Average Score Difference of Game</Title>
                 <Text my={5} ta="center" c="dimmed" fs="italic">For people who have umpired 2+ games</Text>
                 <BarChart
@@ -456,7 +456,7 @@ export default function Page() {
                     tickLine="y"
                 >{defs}</BarChart>
             </Grid.Col>
-            <Grid.Col span={{base: 6, md: 3}} p={10}>
+            <Grid.Col span={{base: 12, md: 3}} p={10}>
                 <Title order={3} ta="center">Amount of Games with Umpire Manager</Title>
                 <BarChart
                     h={300}
@@ -479,7 +479,7 @@ export default function Page() {
                     tickLine="y"
                 >{defs}</BarChart>
             </Grid.Col>
-            <Grid.Col span={{base: 6, md: 3}} p={10}>
+            <Grid.Col span={{base: 12, md: 3}} p={10}>
                 <Title order={3} ta="center">Percentage of Games with Umpire Manager</Title>
                 <BarChart
                     h={300}
@@ -502,7 +502,7 @@ export default function Page() {
                     tickLine="y"
                 >{defs}</BarChart>
             </Grid.Col>
-            <Grid.Col span={{base: 6, md: 3}} p={10}>
+            <Grid.Col span={{base: 12, md: 3}} p={10}>
                 <Title order={3} ta="center">Games Umpired By Email Provider</Title>
                 <BarChart
                     h={300}
@@ -525,7 +525,7 @@ export default function Page() {
                     tickLine="y"
                 >{defs}</BarChart>
             </Grid.Col>
-            <Grid.Col span={{base: 6, md: 3}} p={10}>
+            <Grid.Col span={{base: 12, md: 3}} p={10}>
                 <Title order={3} ta="center">Average Games Umpired By Email Provider</Title>
                 <BarChart
                     h={300}

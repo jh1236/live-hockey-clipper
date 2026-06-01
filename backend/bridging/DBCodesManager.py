@@ -60,8 +60,8 @@ _FIX_LIVE_HOCKEY_CODE = _FIX_ALTIUS_CODE | {
     'MOG': 'MOGM',
     'NEW': 'NKHC',
     'NKH': 'NKHC',
-    'SUB': 'LIONS',
-    'LIO': 'LIONS',
+    'SUB': 'SUBS',
+    'LIO': 'SUBS',
     'YMC': 'YMCC',
     'ROC': 'RDHC',
 }

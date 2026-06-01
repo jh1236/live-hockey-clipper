@@ -133,9 +133,8 @@ export function GamesDisplay({
             )}
         </Grid>
     }
-        
-    console.log(games)
-    
+
+
     return games.length ? <Grid flex={3} w="100%" overflow="scroll" rowGap="0.4em" columnGap="0.5em">
             {games.map((it) => <Grid.Col key={it.id} span={{
                     base: 6,
@@ -144,14 +143,18 @@ export function GamesDisplay({
                 }}>
                     <Link href={createLink(it)}>
                         <Card shadow="sm" padding="xs" withBorder>
-                            {(it?.streamStartTime ?? 0) + 2 * HOUR_IN_MS > currentTime  && <Box h={0}>
+                            {(it?.streamStartTime ?? 0) + 2 * HOUR_IN_MS > currentTime && <Box h={0}>
                                 <PulsingDot style={{float: 'right', margin: 5}}/>
                             </Box>}
                             <Card.Section pt={10}>
-                                <Text fz="1.4em" ta="center" fw={600}>{it.homeTeam?.code ?? 'HUH'} vs {it.awayTeam?.code ??'What'}</Text>
-                                <Text fz="1em" ta="center">{it.competition.level} {it.competition.gender === 'M' ? 'Men' : 'Women'}</Text>
+                                <Text fz="1.4em" ta="center"
+                                      fw={600}>{it.homeTeam?.code ?? 'HUH'} vs {it.awayTeam?.code ?? 'What'}</Text>
+                                <Text fz="1em"
+                                      ta="center">{it.competition.level} {it.competition.gender === 'M' ? 'Men' : 'Women'}</Text>
                                 <Text size="sm" c="dimmed" fs="italic" fz=".75em">
-                                    {(it?.streamStartTime ?? 0) + 2 * HOUR_IN_MS > currentTime ? 'Live!' : getDateString(it.startTime, currentTime)}
+                                    {(it?.streamStartTime ?? 0) + 2 * HOUR_IN_MS > currentTime ? 'Live!' : getDateString(it.startTime, currentTime)}{
+                                    it.venue && ` @ ${it.venue.shortName}`
+                                }
                                 </Text>
                             </Card.Section>
                             <Card.Section p={{base: 1, md: 5}}>
@@ -173,7 +176,7 @@ export function GamesDisplay({
                                 return `${first[0]}. ${last}`
                             }).join(', ') : it.altiusId ? 'Not set on Altius' : 'Game not on Altius'}</i>
                             </Text>
-                            
+
 
                         </Card>
                     </Link>

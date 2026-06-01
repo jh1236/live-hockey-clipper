@@ -100,6 +100,7 @@ class Venues(db.Entity):
     id = PrimaryKey(int, auto=True)
     code = Required(str)
     long_name = NullableOptional(str)
+    short_name = NullableOptional(str)
     turf_number = Required(int)
     time_created = NullableOptional(int)
 

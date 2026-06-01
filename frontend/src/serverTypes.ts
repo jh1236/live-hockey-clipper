@@ -62,8 +62,9 @@ export interface Competition {
 
 
 export interface Venue {
-    code: string
     id: number
+    code: string
+    shortName: string;
     longName: string
     timeCreated: number
     turfNumber: number

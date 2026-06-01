@@ -129,40 +129,52 @@ async def regenerate_clip():
 @clips_bp.route('/games/recent')
 async def get_recent_games():
     with db_session():
-        location = request.args.get('location', 'hockeywa')
         juniors = request.args.get('juniors') == 'true'
         premier_only = request.args.get('premier') == 'true'
         masters = request.args.get('masters') == 'true'
+        only_clippable = request.args.get('clippable') == 'true'
 
         acceptable_ages = ['Seniors']
         if masters:
             acceptable_ages.append('Masters')
         if juniors:
             acceptable_ages.append('Juniors')
-
-        flush()
         now = datetime.now().timestamp()
+
+        query = select(
+            i for i in Games
+            if now + 7 * DAY_IN_SEC > i.start_time
+            and i.start_time > now - 7 * DAY_IN_SEC
+        )
+
+        if premier_only:
+            query = query.filter(lambda i: i.competition.is_premier == True)
+
+        if only_clippable:
+            query = query.filter(lambda i: i.live_hockey_id != None)
+
+        if not masters:
+            query = query.filter(lambda i: i.competition.age_level != 'Masters')
+
+        if not juniors:
+            query = query.filter(lambda i: i.competition.age_level != 'Juniors')
+
+        games = list(query)
+
+        recent_games = sorted([i for i in games if i.complete], key=lambda g: g.start_time, reverse=True)
+        if len(recent_games) > 8:
+            recent_games = recent_games[:8]
+
+        upcoming_games = sorted([i for i in games if not i.complete], key=lambda g: g.start_time)
+        if len(upcoming_games) > 8:
+            upcoming_games = upcoming_games[:8]
+
         recent = [
-            i.format_for_frontend() for i in
-            select(
-                i for i in Games
-                if i.complete
-                and i.competition.age_level in acceptable_ages
-                and (i.competition.is_premier or not premier_only)
-                and i.live_hockey_id
-                and i.start_time < now + 4 * DAY_IN_SEC
-            ).order_by(desc(Games.start_time)).limit(8)
+            i.format_for_frontend() for i in recent_games
         ]
         upcoming = [
             i.format_for_frontend() for i in
-            select(
-                i for i in Games if
-                i.complete == False
-                and i.competition.age_level in acceptable_ages
-                and (i.competition.is_premier or not premier_only)
-                and i.live_hockey_id
-                and i.start_time > now - 4 * DAY_IN_SEC
-            ).order_by(Games.start_time).limit(8)
+            upcoming_games
         ]
 
         return jsonify({'upcoming': upcoming, 'recent': recent})
@@ -183,7 +195,8 @@ async def get_game(game_id):
     with db_session():
         game = Games.get(id=game_id)
         return jsonify(
-            {'game': game.format_for_frontend(), 'clips': [i.format_for_frontend() for i in sorted(game.clips, key=lambda it: it.time_created)]}), 200
+            {'game': game.format_for_frontend(),
+             'clips': [i.format_for_frontend() for i in sorted(game.clips, key=lambda it: it.time_created)]}), 200
 
 
 @clips_bp.route('/<clip_id>')
