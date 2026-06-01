@@ -25,7 +25,6 @@ const BASE_COLORS = [
     '#808000',
     '#ffd8b1',
     '#000075',
-    '#808080',
     '#ffffff',
     '#64609A',
     '#FF9966',
@@ -82,7 +81,6 @@ export function IndividualGraph({name}: IndividualGraphProps) {
     const [gradesInYears, setGradesInYears] = useState<{
         [year: string]: string[]
     }>({'All': ['Prem One Men', 'Prem One Women', 'Prem Two Men', 'Prem Two Women']})
-    const [ladders, setLadders] = useState<{ [tournament: string]: string[] }>({});
     const [perWeekStats, setPerWeekStats] = useState<{
         [key: string]: { [key: string]: number }
     }>({})

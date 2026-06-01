@@ -20,14 +20,53 @@ interface StatsForUmpire {
     yearsUmpired: number[]
 }
 
+const OTHER_THRESHOLD = 0.2
 const ORDER_GRADES = ['Prem One Men', 'Prem One Women', 'Prem Two Men', 'Prem Two Women', '11/12 Div One Boys', '11/12 Div One Girls', '9/10 Div One Boys', '9/10 Div One Girls']
+
+function addOtherField(data: { name: string, value: number, color: string }[], otherIndex = -1, average = false) {
+    const targetValue = Math.min(
+        OTHER_THRESHOLD * data.reduce((a, b) => Math.max(a, b.value), 0),
+        data.toSorted((a, b) => b.value - a.value)?.[29]?.value ?? 0
+    )
+    let value = 0
+    let count = 0
+    const out: { name: string, value: number, color: string }[] = []
+    for (const datum of data) {
+        if (datum.value >= targetValue) {
+            out.push(datum)
+        } else {
+            count++;
+            value += datum.value
+        }
+
+    }
+    if (count === 0) {
+        return data
+    }
+    if (average) {
+        value /= count
+    }
+    if (otherIndex >= 0) {
+        out.splice(otherIndex, 0, {value: Math.round(value * 100) / 100, name: 'Other', color: '#888888'})
+    } else {
+        out.push({value: Math.round(value * 100) / 100, name: 'Other', color: '#888888'})
+    }
+    return out
+}
 
 export default function Page() {
     const [viewAsPieChart, setViewAsPieChart] = useState<boolean>(true);
     const [fromYear, setFromYear] = useState<number>(new Date().getFullYear());
     const [toYear, setToYear] = useState<number>(new Date().getFullYear());
     const [grade, setGrade] = useState<string>('All')
-    const [umpires, setUmpires] = useState<(Official & { color: string })[]>([])
+    const [allUmpires, setAllUmpires] = useState<Official[]>([])
+    const [perUmpireStats, setPerUmpireStats] = useState<StatsForUmpire[]>([])
+    const relevantUmpires =
+        useMemo(() =>
+            allUmpires.filter(it => perUmpireStats?.map(it => it.umpire.name)?.includes(it.name) ?? true).map((it, i) => ({
+                ...it,
+                color: COLORS[i % COLORS.length]
+            })) ?? [], [allUmpires, perUmpireStats])
     const [gradesInYears, setGradesInYears] = useState<{
         [year: string]: string[]
     }>({'-': ['Prem One Men', 'Prem One Women', 'Prem Two Men', 'Prem Two Women', '11/12 Div One Boys', '11/12 Div One Boys', '9/10 Div One Boys', '9/10 Div One Girls']})
@@ -51,10 +90,15 @@ export default function Page() {
     const [perWeekStats, setPerWeekStats] = useState<{
         [key: string]: { [key: string]: number }
     }>({})
-    const [perUmpireStats, setPerUmpireStats] = useState<(StatsForUmpire & { color: string })[]>([])
-    const [perEmailProviderStats, setPerEmailProviderStats] = useState<({ emailProvider: string, umpires: number, gamesUmpired: number } & { color: string })[]>([])
+    const [perEmailProviderStats, setPerEmailProviderStats] = useState<({
+        emailProvider: string,
+        umpires: number,
+        gamesUmpired: number
+    } & { color: string })[]>([])
 
-    const umpiresByName = useMemo(() => Object.fromEntries(umpires.map(it => [it.name, it])), [umpires])
+    const gamesTillRelevant = Math.round(1.5 * (1 + toYear - fromYear))
+
+    const umpiresByName = useMemo(() => Object.fromEntries(relevantUmpires.map(it => [it.name, it])), [relevantUmpires])
 
     useEffect(() => {
         fetch(`${SERVER_ADDRESS}/api/appointments/available`).then(res => res.json()).then((comps: Competition[]) => {
@@ -73,12 +117,15 @@ export default function Page() {
         });
         fetch(`${SERVER_ADDRESS}/api/appointments/umpires`).then(res => res.json())
             .then(it => {
-                setUmpires(it.umpires.map((it: any, i: number) => ({...it, color: COLORS[i % COLORS.length]})))
+                setAllUmpires(it.umpires.map((it: any, i: number) => ({...it, color: COLORS[i % COLORS.length]})))
             })
     }, []);
 
     useEffect(() => {
         if (!toYear || !fromYear) return
+        setPerUmpireStats([])
+        setPerEmailProviderStats([])
+        setPerWeekStats({})
         const per_ump_url = new URL(`${SERVER_ADDRESS}/api/appointments/per_umpire_stats`)
         const per_week_url = new URL(`${SERVER_ADDRESS}/api/appointments/per_week_stats`)
         const per_email_url = new URL(`${SERVER_ADDRESS}/api/appointments/per_email_provider_stats`)
@@ -110,7 +157,7 @@ export default function Page() {
                     setPerUmpireStats(it.statistic)
                 }
             })
-        
+
         fetch(per_email_url)
             .then(it => it.json())
             .then(it => {
@@ -118,7 +165,7 @@ export default function Page() {
                     setPerEmailProviderStats(it.statistic)
                 }
             })
-        
+
         fetch(per_week_url)
             .then(it => it.json())
             .then(it => {
@@ -136,13 +183,14 @@ export default function Page() {
         name: it.umpire.name,
         value: it.gamesUmpired,
         color: umpiresByName[it.umpire.name]?.color ?? 'pink'
-    })).sort((a, b) => a.value - b.value);
+    })).sort((a, b) => a.value - b.value)
+
 
     const gamesPerUmpirePerYear = perUmpireStats?.map(it => ({
         name: it.umpire.name,
         value: Math.round(100 * it.gamesUmpired / it.yearsUmpired.length) / 100,
         color: umpiresByName[it.umpire.name]?.color ?? 'pink'
-    })).sort((a, b) => a.value - b.value);
+    })).sort((a, b) => a.value - b.value)
 
     const gamesPerEmailProvider = perEmailProviderStats?.map((it, i) => ({
         name: it.emailProvider,
@@ -152,7 +200,7 @@ export default function Page() {
 
     const avgGamesPerEmailProvider = perEmailProviderStats?.map((it, i) => ({
         name: it.emailProvider,
-        value: Math.round(it.gamesUmpired / it.umpires * 100)  / 100,
+        value: Math.round(it.gamesUmpired / it.umpires * 100) / 100,
         color: COLORS[i % COLORS.length]
     })).sort((a, b) => a.value - b.value);
 
@@ -160,7 +208,7 @@ export default function Page() {
         name: it.umpire.name,
         value: it.averageGamesPerWeek,
         color: umpiresByName[it.umpire.name]?.color ?? 'pink'
-    })).sort((a, b) => a.value - b.value);
+    })).sort((a, b) => a.value - b.value)
 
     const totalGames = perUmpireStats.reduce((a, b) => a + b.gamesUmpired, 0)
     const gamesByMen = Math.round(100 * perUmpireStats?.filter(it => it.umpire.gender === 'M').reduce((a, b) => a + b.gamesUmpired, 0) / totalGames)
@@ -179,7 +227,7 @@ export default function Page() {
                     out[key] = {male: 0, total: 0}
                 }
                 out[key].total += count
-                if (umpiresByName[ump].gender === 'M') {
+                if (umpiresByName[ump]?.gender === 'M') {
                     out[key].male += count
                 }
             }
@@ -192,21 +240,21 @@ export default function Page() {
     }, [umpiresByName, perWeekStats])
 
 
-    const averageLadderForUmpire = perUmpireStats?.filter(it => it.gamesUmpired > 1)
+    const averageLadderForUmpire = perUmpireStats?.filter(it => it.gamesUmpired >= gamesTillRelevant && it.averageLadderPosition > 0)
         .map(it => ({
             name: it.umpire.name,
             value: it.averageLadderPosition,
             color: umpiresByName[it.umpire.name]?.color ?? 'pink'
         })).sort((a, b) => a.value - b.value);
 
-    const averageLadderDeltaForUmpire = perUmpireStats?.filter(it => it.gamesUmpired > 1)
+    const averageLadderDeltaForUmpire = perUmpireStats?.filter(it => it.gamesUmpired >= gamesTillRelevant && it.averageLadderPosition > 0)
         .map(it => ({
             name: it.umpire.name,
             value: it.averageLadderDifference,
             color: umpiresByName[it.umpire.name]?.color ?? 'pink'
         })).sort((a, b) => a.value - b.value);
 
-    const averageScoreDeltaForUmpire = perUmpireStats?.filter(it => it.gamesUmpired > 1)
+    const averageScoreDeltaForUmpire = perUmpireStats?.filter(it => it.gamesUmpired >= gamesTillRelevant)
         .map(it => ({
             name: it.umpire.name,
             value: it.averageScoreDifference,
@@ -267,9 +315,10 @@ export default function Page() {
                 </Text>
 
                 {viewAsPieChart ?
-                    <PieChart data={gamesPerUmpire} withTooltip tooltipDataSource="segment" mx="auto" size={250}
+                    <PieChart data={addOtherField(gamesPerUmpire, 0)} withTooltip tooltipDataSource="segment" mx="auto"
+                              size={250}
                               startAngle={90} endAngle={360 + 90} strokeWidth={0}>{defs}</PieChart> :
-                    <BarChart data={gamesPerUmpire}
+                    <BarChart data={addOtherField(gamesPerUmpire, 0)}
                               withTooltip
                               mx="auto"
                               series={[
@@ -287,50 +336,54 @@ export default function Page() {
                               ]}></BarChart>
                 }
             </Grid.Col>
-            <Grid.Col span={{base: 12, md: 3}} p={10}>
-                <Title order={3} ta="center">Average Games Umpired per Week</Title>
-                <Text onClick={() => setViewAsPieChart(!viewAsPieChart)} my={5} ta="center" c="dimmed" fs="italic"
-                      style={{textDecoration: 'underline'}}>
-                    View as {viewAsPieChart ? 'Bar' : 'Pie'} Chart
-                </Text>
-
-                {viewAsPieChart ?
-                    <PieChart data={avgGamesPerWeek} withTooltip tooltipDataSource="segment" mx="auto" size={250}
-                              startAngle={90} endAngle={360 + 90} strokeWidth={0}>{defs}</PieChart> :
-                    <BarChart data={avgGamesPerWeek}
-                              withTooltip
-                              mx="auto"
-                              series={[
-                                  {label: 'Games Umpired', name: 'value'}
-                              ]}
-                              dataKey="name"
-                              h={300}
-                              referenceLines={[
-                                  {
-                                      y: avgGamesPerWeek.map(it => it.value).reduce((a, b) => a + b, 0) / avgGamesPerWeek.length,
-                                      color: 'dimmed',
-                                      label: 'Average',
-                                      labelPosition: 'insideTopLeft',
-                                  },
-                              ]}></BarChart>
-                }
-            </Grid.Col>
             {toYear === fromYear && <Grid.Col span={{base: 12, md: 3}} p={10}>
                 <Title order={3} ta="center">Weekly Games</Title>
-                {['all','premier'].includes(grade.toLowerCase()) &&
-                    <Text my={5} ta="center" c="dimmed" fs="italic">For people who have umpired 2+ games</Text>}
+                {['all', 'premier'].includes(grade.toLowerCase()) &&
+                    <Text my={5} ta="center" c="dimmed" fs="italic">For people who have umpired {gamesTillRelevant}+
+                        games</Text>}
                 <BarChart data={gamesPerWeek} withTooltip mx="auto" type="percent"
                           h={300}
                           dataKey="week"
-                          series={umpires.map(it => ({color: it.color, name: it.name}))}
+                          series={relevantUmpires.map(it => ({color: it.color, name: it.name}))}
                 >{defs}</BarChart>
             </Grid.Col>}
-            {toYear !== fromYear && <Grid.Col span={{base: 12, md: 3}} p={10}>
+            {toYear !== fromYear && <>
+                <Grid.Col span={{base: 12, md: 3}} p={10}>
+                    <Title order={3} ta="center">Average Games Umpired per Week</Title>
+                    <Text onClick={() => setViewAsPieChart(!viewAsPieChart)} my={5} ta="center" c="dimmed" fs="italic"
+                          style={{textDecoration: 'underline'}}>
+                        View as {viewAsPieChart ? 'Bar' : 'Pie'} Chart
+                    </Text>
+
+                    {viewAsPieChart ?
+                        <PieChart data={addOtherField(avgGamesPerWeek, 0, true)} withTooltip tooltipDataSource="segment"
+                                  mx="auto" size={250}
+                                  startAngle={90} endAngle={360 + 90} strokeWidth={0}>{defs}</PieChart> :
+                        <BarChart data={addOtherField(avgGamesPerWeek, 0, true)}
+                                  withTooltip
+                                  mx="auto"
+                                  series={[
+                                      {label: 'Games Umpired', name: 'value'}
+                                  ]}
+                                  dataKey="name"
+                                  h={300}
+                                  referenceLines={[
+                                      {
+                                          y: avgGamesPerWeek.map(it => it.value).reduce((a, b) => a + b, 0) / avgGamesPerWeek.length,
+                                          color: 'dimmed',
+                                          label: 'Average',
+                                          labelPosition: 'insideTopLeft',
+                                      },
+                                  ]}></BarChart>
+                    }
+                </Grid.Col><Grid.Col span={{base: 12, md: 3}} p={10}>
                 <Title order={3} ta="center">Average Games per Year</Title>
                 {viewAsPieChart ?
-                    <PieChart data={gamesPerUmpirePerYear} withTooltip tooltipDataSource="segment" mx="auto" size={250}
+                    <PieChart data={addOtherField(gamesPerUmpirePerYear, 0, true)} withTooltip
+                              tooltipDataSource="segment"
+                              mx="auto" size={250}
                               startAngle={90} endAngle={360 + 90} strokeWidth={0}>{defs}</PieChart> :
-                    <BarChart data={gamesPerUmpirePerYear}
+                    <BarChart data={addOtherField(gamesPerUmpirePerYear, 0, true)}
                               withTooltip
                               mx="auto"
                               series={[
@@ -347,7 +400,7 @@ export default function Page() {
                                   },
                               ]}></BarChart>
                 }
-            </Grid.Col>}
+            </Grid.Col></>}
             <Grid.Col span={{base: 12, md: 3}} p={10}>
                 <Title order={3} ta="center">Games by Gender</Title>
                 <PieChart data={[{
@@ -387,7 +440,8 @@ export default function Page() {
             </Grid.Col>
             <Grid.Col span={{base: 12, md: 3}} p={10}>
                 <Title order={3} ta="center">Average Ladder Position of Game</Title>
-                <Text my={5} ta="center" c="dimmed" fs="italic">For people who have umpired 2+ games</Text>
+                <Text my={5} ta="center" c="dimmed" fs="italic">For people who have umpired {gamesTillRelevant}+
+                    games</Text>
                 <BarChart
                     h={300}
                     referenceLines={[
@@ -410,7 +464,8 @@ export default function Page() {
             </Grid.Col>
             <Grid.Col span={{base: 12, md: 3}} p={10}>
                 <Title order={3} ta="center">Average Ladder Difference of Game</Title>
-                <Text my={5} ta="center" c="dimmed" fs="italic">For people who have umpired 2+ games</Text>
+                <Text my={5} ta="center" c="dimmed" fs="italic">For people who have umpired {gamesTillRelevant}+
+                    games</Text>
                 <BarChart
                     h={300}
                     referenceLines={[
@@ -434,7 +489,8 @@ export default function Page() {
             </Grid.Col>
             <Grid.Col span={{base: 12, md: 3}} p={10}>
                 <Title order={3} ta="center">Average Score Difference of Game</Title>
-                <Text my={5} ta="center" c="dimmed" fs="italic">For people who have umpired 2+ games</Text>
+                <Text my={5} ta="center" c="dimmed" fs="italic">For people who have umpired {gamesTillRelevant}+
+                    games</Text>
                 <BarChart
                     h={300}
                     referenceLines={[
@@ -456,52 +512,57 @@ export default function Page() {
                     tickLine="y"
                 >{defs}</BarChart>
             </Grid.Col>
-            <Grid.Col span={{base: 12, md: 3}} p={10}>
-                <Title order={3} ta="center">Amount of Games with Umpire Manager</Title>
-                <BarChart
-                    h={300}
-                    referenceLines={[
-                        {
-                            y: umpireManagedGames.map(it => it.value).reduce((a, b) => a + b, 0) / averageScoreDeltaForUmpire.length,
-                            color: 'dimmed',
-                            label: 'Average',
-                            labelPosition: 'insideTopLeft',
-                        },
-                    ]}
+            {/*Coaching data only begins in 2026*/}
+            {toYear >= 2026 &&
+                <>
+                    <Grid.Col span={{base: 12, md: 3}} p={10}>
+                        <Title order={3} ta="center">Amount of Games with Umpire Manager</Title>
+                        <BarChart
+                            h={300}
+                            referenceLines={[
+                                {
+                                    y: umpireManagedGames.map(it => it.value).reduce((a, b) => a + b, 0) / averageScoreDeltaForUmpire.length,
+                                    color: 'dimmed',
+                                    label: 'Average',
+                                    labelPosition: 'insideTopLeft',
+                                },
+                            ]}
 
-                    data={umpireManagedGames}
-                    dataKey="name"
-                    type='stacked'
-                    series={[{
-                        name: 'value',
-                        label: 'Average Games UM\'d'
-                    }]}
-                    tickLine="y"
-                >{defs}</BarChart>
-            </Grid.Col>
-            <Grid.Col span={{base: 12, md: 3}} p={10}>
-                <Title order={3} ta="center">Percentage of Games with Umpire Manager</Title>
-                <BarChart
-                    h={300}
-                    referenceLines={[
-                        {
-                            y: percentUmpireManagedGames.map(it => it.value).reduce((a, b) => a + b, 0) / percentUmpireManagedGames.length,
-                            color: 'dimmed',
-                            label: 'Average',
-                            labelPosition: 'insideTopLeft',
-                        },
-                    ]}
+                            data={umpireManagedGames}
+                            dataKey="name"
+                            type='stacked'
+                            series={[{
+                                name: 'value',
+                                label: 'Average Games UM\'d'
+                            }]}
+                            tickLine="y"
+                        >{defs}</BarChart>
+                    </Grid.Col>
+                    <Grid.Col span={{base: 12, md: 3}} p={10}>
+                        <Title order={3} ta="center">Percentage of Games with Umpire Manager</Title>
+                        <BarChart
+                            h={300}
+                            referenceLines={[
+                                {
+                                    y: percentUmpireManagedGames.map(it => it.value).reduce((a, b) => a + b, 0) / percentUmpireManagedGames.length,
+                                    color: 'dimmed',
+                                    label: 'Average',
+                                    labelPosition: 'insideTopLeft',
+                                },
+                            ]}
 
-                    data={percentUmpireManagedGames}
-                    dataKey="name"
-                    type='stacked'
-                    series={[{
-                        name: 'value',
-                        label: '% Games UM\'d'
-                    }]}
-                    tickLine="y"
-                >{defs}</BarChart>
-            </Grid.Col>
+                            data={percentUmpireManagedGames}
+                            dataKey="name"
+                            type='stacked'
+                            series={[{
+                                name: 'value',
+                                label: '% Games UM\'d'
+                            }]}
+                            tickLine="y"
+                        >{defs}</BarChart>
+                    </Grid.Col>
+                </>
+            }
             <Grid.Col span={{base: 12, md: 3}} p={10}>
                 <Title order={3} ta="center">Games Umpired By Email Provider</Title>
                 <BarChart
