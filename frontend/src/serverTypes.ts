@@ -69,3 +69,17 @@ export interface Venue {
     timeCreated: number
     turfNumber: number
 }
+
+export interface StatsForUmpire {
+    averageGamesPerWeek: number
+    averageLadderDifference: number
+    averageLadderPosition: number
+    averageScoreDifference: number
+    gamesPerTeam: { [team: string]: number }
+    gamesUmpired: number
+    gamesUmpiredEveryWeek: { [epoch: string]: number }
+    gamesUmpiredPerVenue: { [venue: string]: number }
+    gamesWithUmpireManagers: { [umpireManager: string]: number }
+    umpire: Official
+    yearsUmpired: number[]
+}
