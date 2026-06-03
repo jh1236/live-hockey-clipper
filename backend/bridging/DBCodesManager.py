@@ -57,6 +57,7 @@ _FIX_LIVE_HOCKEY_CODE = _FIX_ALTIUS_CODE | {
     'RED': 'REDS',
     'VIC': 'VPX',
     'MOD': 'MOGM',
+    'GUI': 'MOGM',
     'MOG': 'MOGM',
     'NEW': 'NKHC',
     'NKH': 'NKHC',

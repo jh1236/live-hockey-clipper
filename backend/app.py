@@ -69,6 +69,8 @@ async def to_camel_case(response):
 
 
 def run_periodically():
+    if current_process() == 'MainProcess':
+        return
     async def work():
         config = [['Live Hockey Updater', LiveHockeyManager.update_live_hockey],
                   ['Altius Updater', AltiusManager.update_altius_pages],
@@ -83,7 +85,7 @@ def run_periodically():
             except Exception as e:
                 logging.error(f'Exception {type(e).__name__} while running task "{name}"')
                 logging.error(e)
-            
+        
 
     worker_number = int(current_process()._name.split('-')[-1])
     if worker_number == 1:
