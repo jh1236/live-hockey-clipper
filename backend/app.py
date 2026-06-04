@@ -35,11 +35,6 @@ if not os.path.exists(get_config().database_path):
 init_db()
 
 
-@app.before_request
-async def before_request():
-    pass
-
-
 @app.after_request
 async def to_camel_case(response):
     if response.status[0] != '2':
@@ -56,12 +51,12 @@ async def to_camel_case(response):
     if isinstance(body, dict):
         new_body = camelise(body)
     elif isinstance(body, list):
-        new_body = [i if ' ' in i else humps.camelize(i) for i in body]
+        new_body = [i if ' ' in i else camelise(i) for i in body]
     else:
         if ' ' in body:
             new_body = body
         else:
-            new_body = humps.camelize(body)
+            new_body = camelise(body)
     encoded = json.dumps(new_body, separators=(',', ':')).encode('utf-8')
     response.headers.set('Content-Length', str(len(encoded)))
     response.response = DataBody(encoded)
@@ -69,6 +64,8 @@ async def to_camel_case(response):
 
 
 def run_periodically():
+    if current_process() == 'MainProcess':
+        return
     async def work():
         config = [['Live Hockey Updater', LiveHockeyManager.update_live_hockey],
                   ['Altius Updater', AltiusManager.update_altius_pages],
@@ -83,7 +80,7 @@ def run_periodically():
             except Exception as e:
                 logging.error(f'Exception {type(e).__name__} while running task "{name}"')
                 logging.error(e)
-            
+        
 
     worker_number = int(current_process()._name.split('-')[-1])
     if worker_number == 1:

@@ -93,6 +93,7 @@ class Competitions(db.Entity):
     @db_session
     def format_for_frontend(self):
         d = self.to_dict()
+        d['name'] = self.name
         return d
 
 

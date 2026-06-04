@@ -69,11 +69,12 @@ def get_monday(timestamp: int) -> datetime:
     return datetime.combine(monday, datetime.min.time())
 
 
-def camelise(d) -> Any:
+def camelise(d: T) -> T:
     if isinstance(d, list):
         return [camelise(i) for i in d]
     elif isinstance(d, dict):
-        return {k if ' ' in k else humps.camelize(k): camelise(v) for k, v in d.items()}
+        d: dict[str, Any]
+        return {k if ' ' in k or k[0].isupper() else humps.camelize(k): camelise(v) for k, v in d.items()}
     else:
         return d
 

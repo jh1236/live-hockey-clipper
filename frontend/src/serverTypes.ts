@@ -1,4 +1,4 @@
-export const SERVER_ADDRESS = process.env.NEXT_PUBLIC_BACKEND_ADDRESS
+export const SERVER_ADDRESS = process.env.NEXT_PUBLIC_BACKEND_ADDRESS ?? 'http://localhost:5003'
 
 export type Clip = {
     startTime: string,
@@ -58,6 +58,7 @@ export interface Competition {
     liveHockeyId: string
     timeCreated: number
     year: number
+    name: string
 }
 
 
@@ -70,16 +71,24 @@ export interface Venue {
     turfNumber: number
 }
 
-export interface StatsForUmpire {
+export interface UmpireStatsResponse {
+    umpire: Official,
+    umpireStats: UmpireStats,
+    managerStats: Omit<UmpireStats, 'gamesWithUmpireManagers'>
+}
+
+interface UmpireStats {
     averageGamesPerWeek: number
     averageLadderDifference: number
     averageLadderPosition: number
     averageScoreDifference: number
     gamesPerTeam: { [team: string]: number }
-    gamesUmpired: number
-    gamesUmpiredEveryWeek: { [epoch: string]: number }
-    gamesUmpiredPerVenue: { [venue: string]: number }
+    games: number
+    gamesEveryWeek: { [epoch: string]: number }
+    compsEveryWeek: { [epoch: string]: { [comp: string]: number } }
+    gamesPerVenue: { [venue: string]: number }
     gamesWithUmpireManagers: { [umpireManager: string]: number }
-    umpire: Official
-    yearsUmpired: number[]
+    gamesWithUmpires: { [umpire: string]: number }
+    years: number[]
+    competitions: Competition[]
 }
