@@ -150,7 +150,7 @@ export function GamesDisplay({
                                 <Text fz="1.4em" ta="center"
                                       fw={600}>{it.homeTeam?.code ?? 'HUH'} vs {it.awayTeam?.code ?? 'What'}</Text>
                                 <Text fz="1em"
-                                      ta="center">{it.competition.level} {it.competition.gender === 'M' ? 'Men' : 'Women'}</Text>
+                                      ta="center">{it.competition.name}</Text>
                                 <Text size="sm" c="dimmed" fs="italic" fz=".75em">
                                     {(it?.streamStartTime ?? 0) + 2 * HOUR_IN_MS > currentTime ? 'Live!' : getDateString(it.startTime, currentTime)}{
                                     it.venue && ` @ ${it.venue.shortName}`

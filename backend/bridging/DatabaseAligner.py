@@ -52,7 +52,7 @@ def get_or_create_comp(year: int, level: str, gender: str, ) -> Competitions:
             age = 'Juniors'
         else:
             age = 'Seniors'
-        premier = bool(level.lower().startswith('p') or re.search(r'[90]/[1]\d div one', level.lower()))
+        premier = bool(level.lower().startswith('p') or re.search(r'(9|11)/1[02] div one', level.lower()))
         comp = Competitions(level=level, gender=gender, year=year, age_level=age, is_premier=premier)
         return comp
 
