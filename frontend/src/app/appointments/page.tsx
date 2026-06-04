@@ -1,11 +1,13 @@
 'use client'
 
 import {Group, Select, Tabs, Title} from "@mantine/core";
-import {useEffect, useMemo, useState} from "react";
+import {useCallback, useEffect, useMemo, useState} from "react";
 import {Competition, SERVER_ADDRESS, UmpireStatsResponse} from "@/serverTypes";
 import {AllUmpiresGraphs} from "@/components/AllUmpiresGraphs";
 import {FaUser, FaUserGraduate, FaUserGroup} from "react-icons/fa6";
 import {UmpireManagerGraphs} from "@/components/UmpireManagerGraph";
+import {UmpireGraphs} from "@/components/UmpireGraph";
+import {usePathname, useRouter, useSearchParams} from "next/navigation";
 
 
 type RealGrades = 'Prem One' | 'Prem Two' | '11/12 Div One' | '9/10 Div One'
@@ -14,10 +16,20 @@ export type AllGrades = RealGrades | 'All' | 'Premier'
 const ORDER_GRADES = ['Prem One', 'Prem Two', '11/12 Div One', '9/10 Div One'] as RealGrades[]
 
 export default function Page() {
+    const pathname = usePathname()
+    const router = useRouter()
+    const searchParams = useSearchParams()
+    
+    const setTab = useCallback((tab: string) => {
+        router.push(pathname + `?tab=${tab}`)
+    }, [pathname, router])
+    
+    const tab = searchParams.get('tab') ?? 'allUmpires'
+    
     const [fromYear, setFromYear] = useState<number>(new Date().getFullYear());
     const [toYear, setToYear] = useState<number>(new Date().getFullYear());
     const [umpireData, setUmpireData] = useState<UmpireStatsResponse[]>([])
-
+    const [pieChart, setPieChart] = useState<boolean>(true);
     const [level, setLevel] = useState<AllGrades>('All')
     const [gender, setGender] = useState<'M' | 'F' | '-'>('-')
     const [levelsInYears, setLevelsInYears] = useState<{
@@ -53,6 +65,7 @@ export default function Page() {
             }
             setLevelsInYears(prev => Object.assign({}, prev, level))
         });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     useEffect(() => {
@@ -150,7 +163,7 @@ export default function Page() {
                         setToYear(+e)
                     }}/>
         </Group>
-        <Tabs keepMounted={false} defaultValue="allUmpires">
+        <Tabs keepMounted={false} value={tab} onChange={it => setTab(it ?? 'allUmpires')}>
             <Tabs.List grow>
                 <Tabs.Tab value="allUmpires" leftSection={<FaUserGroup size={12}/>}>
                     All Umpires
@@ -163,15 +176,15 @@ export default function Page() {
                 </Tabs.Tab>
             </Tabs.List>
             <Tabs.Panel value="allUmpires">
-                <AllUmpiresGraphs fromYear={fromYear} toYear={toYear} level={level} gender={gender}
+                <AllUmpiresGraphs pieChart={pieChart} setPieChart={setPieChart} fromYear={fromYear} toYear={toYear} level={level} gender={gender}
                                   umpireData={umpireData}></AllUmpiresGraphs>
             </Tabs.Panel>
             <Tabs.Panel value="umpire">
-                <AllUmpiresGraphs fromYear={fromYear} toYear={toYear} level={level} gender={gender}
-                                  umpireData={umpireData}></AllUmpiresGraphs>
+                <UmpireGraphs pieChart={pieChart} setPieChart={setPieChart} fromYear={fromYear} toYear={toYear} level={level} gender={gender}
+                                  umpireData={umpireData}></UmpireGraphs>
             </Tabs.Panel>
             <Tabs.Panel value="umpireManager">
-                <UmpireManagerGraphs fromYear={fromYear} toYear={toYear} level={level} gender={gender}
+                <UmpireManagerGraphs pieChart={pieChart} setPieChart={setPieChart} fromYear={fromYear} toYear={toYear} level={level} gender={gender}
                                   umpireData={umpireData}></UmpireManagerGraphs>
             </Tabs.Panel>
         </Tabs>

@@ -58,6 +58,7 @@ export interface Competition {
     liveHockeyId: string
     timeCreated: number
     year: number
+    name: string
 }
 
 
@@ -84,8 +85,10 @@ interface UmpireStats {
     gamesPerTeam: { [team: string]: number }
     games: number
     gamesEveryWeek: { [epoch: string]: number }
+    compsEveryWeek: { [epoch: string]: { [comp: string]: number } }
     gamesPerVenue: { [venue: string]: number }
     gamesWithUmpireManagers: { [umpireManager: string]: number }
+    gamesWithUmpires: { [umpire: string]: number }
     years: number[]
     competitions: Competition[]
 }

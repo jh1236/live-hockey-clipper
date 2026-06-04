@@ -35,11 +35,6 @@ if not os.path.exists(get_config().database_path):
 init_db()
 
 
-@app.before_request
-async def before_request():
-    pass
-
-
 @app.after_request
 async def to_camel_case(response):
     if response.status[0] != '2':
@@ -56,12 +51,12 @@ async def to_camel_case(response):
     if isinstance(body, dict):
         new_body = camelise(body)
     elif isinstance(body, list):
-        new_body = [i if ' ' in i else humps.camelize(i) for i in body]
+        new_body = [i if ' ' in i else camelise(i) for i in body]
     else:
         if ' ' in body:
             new_body = body
         else:
-            new_body = humps.camelize(body)
+            new_body = camelise(body)
     encoded = json.dumps(new_body, separators=(',', ':')).encode('utf-8')
     response.headers.set('Content-Length', str(len(encoded)))
     response.response = DataBody(encoded)

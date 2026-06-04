@@ -4,7 +4,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        BACKEND_ADDRESS: "http://localhost:5003"
+        BACKEND_ADDRESS: "https://api.clip.jh1236.top"
     image: hockey-clipper-frontend
     container_name: hockey-clipper-frontend-container
     ports:
@@ -28,8 +28,7 @@ services:
       - ./backend/whistleiq.env
     environment:
       WORKERS: 4
-      INITIAL_CHECK: 'false'
-      ADDRESS: "http://localhost:5003"
+      ADDRESS: "https://api.clip.jh1236.top"
       CACHE_DIRECTORY: '/cache'
       VIDEO_DIRECTORY: '/videos'
       DATABASE_PATH: '/database/database.db'

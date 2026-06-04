@@ -1,16 +1,17 @@
 'use client'
 
 import {BarChart, PieChart} from "@mantine/charts";
-import {Grid, Group, Select, Text, Title} from "@mantine/core";
-import {Dispatch, SetStateAction, useCallback, useEffect, useMemo, useState} from "react";
+import {Grid, Group, Select, Table, Text, Title} from "@mantine/core";
+import {Dispatch, SetStateAction, useCallback, useMemo} from "react";
 import {UmpireStatsResponse} from "@/serverTypes";
 import {COLORS, defs} from "@/graphUtils";
 import {levelComparer} from "@/components/AllUmpiresGraphs";
 import {AllGrades} from "@/app/appointments/page";
+import {urlFix} from "@/components/UmpireManagerGraph";
 import {usePathname, useRouter, useSearchParams} from "next/navigation";
 
 
-interface UmpireMangerGraphsParams {
+interface UmpireGraphsParams {
     fromYear: number;
     toYear: number;
     level: AllGrades;
@@ -20,68 +21,127 @@ interface UmpireMangerGraphsParams {
     setPieChart: Dispatch<SetStateAction<boolean>>;
 }
 
-export const urlFix = (toFix: string) => toFix.replace(' ', '_').toLowerCase()
 
-export function UmpireManagerGraphs({
-                                        fromYear,
-                                        toYear,
-                                        level,
-                                        gender,
-                                        umpireData,
-                                        pieChart,
-                                        setPieChart
-                                    }: UmpireMangerGraphsParams) {
-    const router = useRouter()
-    const pathname = usePathname()
+export function UmpireGraphs({
+                                 fromYear,
+                                 toYear,
+                                 level,
+                                 gender,
+                                 umpireData,
+                                 pieChart,
+                                 setPieChart
+                             }: UmpireGraphsParams) {
+
     const searchParams = useSearchParams()
-
-    const relevantUMs = useMemo(() =>
-            umpireData.filter(it => it.managerStats).filter(it =>
-                it.managerStats.competitions.filter(c =>
+    const pathname = usePathname()
+    const router = useRouter()
+    const relevantUmpires = useMemo(() =>
+            umpireData.filter(it => it.umpireStats).filter(it =>
+                it.umpireStats.competitions.filter(c =>
                     fromYear <= c.year && c.year <= toYear && levelComparer(level, c) && (gender === '-' || c.gender === gender)
                 ).length
             ) ?? [],
         [fromYear, gender, level, umpireData, toYear]
     )
 
-    const setSelectedUM = useCallback((umpire: string | null) => {
+
+    const setSelectedUmpire = useCallback((umpire: string | null) => {
         if (umpire) {
-            router.push(pathname + `?tab=umpireManager&name=${urlFix(umpire)}`)
+            router.push(pathname + `?tab=umpire&name=${urlFix(umpire)}`)
         } else {
-            router.push(pathname + `?tab=umpireManager`)
+            router.push(pathname + `?tab=umpire`)
         }
     }, [pathname, router])
 
-    const selectedUM = useMemo(() => relevantUMs.find(it => urlFix(it.umpire.name) === searchParams.get('name')) ?? relevantUMs[0] ?? null, [relevantUMs, searchParams]);
+    const selectedUmpire = useMemo(() => relevantUmpires.find(it => urlFix(it.umpire.name) === searchParams.get('name')) ?? relevantUmpires[0] ?? null, [relevantUmpires, searchParams]);
 
 
-    const gamesPerVenue = Object.entries(selectedUM?.managerStats.gamesPerVenue ?? {}).map(([k, v], i) =>
+    const gamesPerVenue = Object.entries(selectedUmpire?.umpireStats.gamesPerVenue ?? {}).map(([k, v], i) =>
         ({name: k, value: v, color: COLORS[i % COLORS.length]})
     ).toSorted((a, b) => a.value - b.value)
 
-    const gamesPerTeam = Object.entries(selectedUM?.managerStats.gamesPerTeam ?? {}).map(([k, v], i) =>
+    const gamesPerTeam = Object.entries(selectedUmpire?.umpireStats.gamesPerTeam ?? {}).map(([k, v], i) =>
         ({name: k, value: v, color: COLORS[i % COLORS.length]})
     ).toSorted((a, b) => a.value - b.value)
 
-    const gamesPerUmpire = Object.entries(selectedUM?.managerStats.gamesWithUmpires ?? {}).map(([k, v], i) =>
+    const gamesPerUmpire = Object.entries(selectedUmpire?.umpireStats.gamesWithUmpires ?? {}).map(([k, v], i) =>
         ({name: k, value: v, color: COLORS[i % COLORS.length]})
     ).toSorted((a, b) => a.value - b.value)
 
-    const gamesPerWeek = Object.entries(selectedUM?.managerStats.compsEveryWeek ?? {}).map(([k, v]) =>
+    const gamesPerWeek = Object.entries(selectedUmpire?.umpireStats.compsEveryWeek ?? {}).map(([k, v]) =>
         Object.assign({week: new Date(+k).toLocaleDateString()}, ...Object.entries(v).map(([k, v]) => ({[k]: v})))
     )
 
+    console.log(gamesPerWeek)
 
     return <>
         <Group ta="center" w="100%" align="center" justify="center" pt={15}>
-            <Title order={3} ta="center">Umpire Manager: </Title>
+            <Title order={3} ta="center">Umpire: </Title>
             <Select w={200}
-                    data={relevantUMs.map(it => it.umpire.name)}
-                    value={selectedUM?.umpire.name ?? '-'}
-                    onChange={it => setSelectedUM(it)}/>
+                    searchable
+                    data={relevantUmpires.map(it => it.umpire.name)}
+                    value={selectedUmpire?.umpire.name ?? '-'}
+                    onChange={it => setSelectedUmpire(it)}/>
         </Group>
 
         <Grid w="100%" gap={3} p={20}>
+            <Grid.Col span={{base: 12, md: 3}} p={10}>
+                <Title order={3} ta="center">Stats</Title>
+                <Table>
+                    <Table.Thead>
+                        <Table.Tr>
+                            <Table.Th>
+                                Statistic
+                            </Table.Th>
+                            <Table.Th>
+                                Value
+                            </Table.Th>
+                        </Table.Tr>
+                    </Table.Thead>
+                    <Table.Tbody>
+                        <Table.Tr>
+                            <Table.Th>
+                                Games Umpired
+                            </Table.Th>
+                            <Table.Td>
+                                {selectedUmpire?.umpireStats?.games}
+                            </Table.Td>
+                        </Table.Tr>
+                        <Table.Tr>
+                            <Table.Th>
+                                Average Games Umpired per Week
+                            </Table.Th>
+                            <Table.Td>
+                                {selectedUmpire?.umpireStats?.averageGamesPerWeek}
+                            </Table.Td>
+                        </Table.Tr>
+                        <Table.Tr>
+                            <Table.Th>
+                                Average Games Umpired per Year
+                            </Table.Th>
+                            <Table.Td>
+                                {Math.round(100 * (selectedUmpire?.umpireStats?.games ?? 0) / (selectedUmpire?.umpireStats?.years?.length ?? 1)) / 100}
+                            </Table.Td>
+                        </Table.Tr>
+                        <Table.Tr>
+                            <Table.Th>
+                                First year Umpiring
+                            </Table.Th>
+                            <Table.Td>
+                                {Math.min(...(selectedUmpire?.umpireStats?.years ?? [0]))}
+                            </Table.Td>
+                        </Table.Tr>
+                        <Table.Tr>
+                            <Table.Th>
+                                Years Umpired
+                            </Table.Th>
+                            <Table.Td>
+                                {Math.max(...(selectedUmpire?.umpireStats?.years ?? [0])) - Math.min(...(selectedUmpire?.umpireStats?.years ?? [0])) + 1}
+                            </Table.Td>
+                        </Table.Tr>
+                    </Table.Tbody>
+                </Table>
+            </Grid.Col>
             <Grid.Col span={{base: 12, md: 3}} p={10}>
                 <Title order={3} ta="center">Games Per Venue</Title>
                 <Text onClick={() => setPieChart(!pieChart)} my={5} ta="center" c="dimmed" fs="italic"
@@ -98,7 +158,7 @@ export function UmpireManagerGraphs({
                               withTooltip
                               mx="auto"
                               series={[
-                                  {label: 'Games Umpire Managed', name: 'value'}
+                                  {label: 'Games Umpired', name: 'value'}
                               ]}
                               dataKey="name"
                               h={300}
@@ -129,7 +189,7 @@ export function UmpireManagerGraphs({
                               withTooltip
                               mx="auto"
                               series={[
-                                  {label: 'Games Umpire Managed', name: 'value'}
+                                  {label: 'Games Umpired', name: 'value'}
                               ]}
                               dataKey="name"
                               h={300}
@@ -144,7 +204,7 @@ export function UmpireManagerGraphs({
                 }
             </Grid.Col>
             <Grid.Col span={{base: 12, md: 3}} p={10}>
-                <Title order={3} ta="center">Games With Umpires</Title>
+                <Title order={3} ta="center">Games With Co-Umpires</Title>
                 <Text onClick={() => setPieChart(!pieChart)} my={5} ta="center" c="dimmed" fs="italic"
                       style={{textDecoration: 'underline'}}>
                     View as {pieChart ? 'Bar' : 'Pie'} Chart
@@ -159,7 +219,7 @@ export function UmpireManagerGraphs({
                               withTooltip
                               mx="auto"
                               series={[
-                                  {label: 'Games Umpire Managed', name: 'value'}
+                                  {label: 'Games Umpired', name: 'value'}
                               ]}
                               dataKey="name"
                               h={300}
@@ -181,7 +241,7 @@ export function UmpireManagerGraphs({
                           withTooltip
                           mx="auto"
                           type="stacked"
-                          series={(selectedUM?.managerStats?.competitions ?? []).map((it, i) => ({
+                          series={(selectedUmpire?.umpireStats?.competitions ?? []).map((it, i) => ({
                               name: it.name,
                               color: COLORS[i % COLORS.length]
                           }))}

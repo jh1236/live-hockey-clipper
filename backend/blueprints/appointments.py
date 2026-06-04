@@ -71,6 +71,8 @@ async def get_games_per_umpire():
         class UmpireStats:
             games: int = 0
             games_every_week: defaultdict[int, int] = field(default_factory=lambda: defaultdict(int))
+            comps_every_week: defaultdict[int, defaultdict[str, int]] = field(
+                default_factory=lambda: defaultdict(lambda: defaultdict(int)))
             games_per_venue: defaultdict[str, int] = field(default_factory=lambda: defaultdict(int))
             years: list[int] = field(default_factory=list)
             competitions: list[Competitions] = field(default_factory=list)
@@ -81,7 +83,8 @@ async def get_games_per_umpire():
             games_with_ladder: int = 0
             games_per_team: defaultdict[str, int] = field(default_factory=lambda: defaultdict(int))
             games_with_umpire_managers: defaultdict[str, int] = field(default_factory=lambda: defaultdict(int))
-            averageGamesPerWeek: float = 0
+            games_with_umpires: defaultdict[str, int] = field(default_factory=lambda: defaultdict(int))
+            average_games_per_week: float = 0
 
         out: defaultdict[int, dict[str, UmpireStats]] = defaultdict(
             lambda: {
@@ -118,8 +121,13 @@ async def get_games_per_umpire():
                 ump_dict.games += 1
                 monday = get_monday(g.start_time)
                 monday_timestamp = 1000 * int(monday.timestamp())
+                ump_dict.comps_every_week[monday_timestamp][g.competition.name] += 1
                 ump_dict.games_every_week[monday_timestamp] += 1
                 times[monday.year].add(monday_timestamp)
+                for o2 in [g.umpire_one, g.umpire_two]:
+                    if not o2 or o == o2: continue
+                    ump_dict.games_with_umpires[o2.name] += 1
+
                 if g.home_team_score is not None:
                     # average score difference is not valid at this point
                     ump_dict.average_score_difference += abs(g.home_team_score - g.away_team_score)
@@ -147,7 +155,7 @@ async def get_games_per_umpire():
                 if g.competition.id not in [i['id'] for i in ump_dict.competitions]:
                     ump_dict.competitions.append(g.competition.format_for_frontend())
                 if g.venue:
-                    ump_dict.games_per_venue[g.venue.code] += 1
+                    ump_dict.games_per_venue[g.venue.short_name] += 1
 
         for k, v in out.items():
             if v['manager_stats'].games == 0:
@@ -168,87 +176,17 @@ async def get_games_per_umpire():
 
                 v2.average_score_difference = \
                     round(v2.average_score_difference / (v2.games_with_score or 1), 3)
+                for i in v2.years:
+                    for week in times[i]:
+                        for c in v2.competitions:
+                            if c["year"] != datetime.fromtimestamp(week / 1000).year: continue
+                            if c["name"] in v2.comps_every_week[week]: continue
+                            v2.comps_every_week[week][c["name"]] = 0
+                        if week in v2.games_every_week:
+                            continue
+                        v2.games_every_week[week] = 0
 
         ret = list(sorted(out.values(), key=lambda a: a['umpire']['name']))
         if len(ret) == 1:
             ret = ret[0]
         return jsonify({'statistic': ret})
-
-
-@appointments_bp.route('/per_email_provider_stats')
-async def get_games_per_email():
-    with (db_session()):
-        gender = request.args.get('gender', None)
-        level = request.args.get('level', None)
-        from_year = request.args.get('from_year', None)
-        to_year = request.args.get('to_year', None)
-
-        out = defaultdict(
-            lambda: {
-                'games': 0,
-                'umpires': set()
-            })
-
-        games = select(i for i in Games)
-        if gender is not None:
-            games = games.filter(lambda a: a.competition.gender == gender)
-        if level is not None and level.lower() != 'all':
-            if level.lower() == 'premier':
-                games = games.filter(lambda a: a.competition.altius_id != None)
-            else:
-                games = games.filter(lambda a: a.competition.level == level)
-        if from_year is not None:
-            games = games.filter(lambda a: a.competition.year >= int(from_year))
-        if to_year is not None:
-            games = games.filter(lambda a: a.competition.year <= int(to_year))
-
-        for g in games:
-            for o in [g.umpire_one, g.umpire_two]:
-                if not o or not o.email: continue
-                email = o.email.split('@')[1]
-                email = re.sub(r'\.com?.*', '', email)
-                email = re.sub(r'\.net.*', '', email)
-                email = re.sub(r'\.wa.*', '', email)
-                email = re.sub(r'\.au.*', '', email)
-                ump_dict = out[email]
-                ump_dict['games'] += 1
-                ump_dict['umpires'].add(o.id)
-
-        for k, v in out.items():
-            v['email_provider'] = k
-            v['umpires'] = len(v['umpires'])
-        ret = list(out.values())
-        if len(ret) == 1:
-            ret = ret[0]
-        return jsonify({'statistic': ret})
-
-
-@appointments_bp.route('/per_week_stats')
-async def get_games_per_week():
-    with db_session():
-        gender = request.args.get('gender', None)
-        level = request.args.get('level', None)
-        to_year = request.args.get('to_year', None)
-        from_year = request.args.get('from_year', None)
-        out = defaultdict(lambda: defaultdict(int))
-
-        games = select(i for i in Games)
-        if gender is not None:
-            games = games.filter(lambda a: a.competition.gender == gender)
-        if level is not None and level.lower() != 'all':
-            if level.lower() == 'premier':
-                games = games.filter(lambda a: a.competition.altius_id != None)
-            else:
-                games = games.filter(lambda a: a.competition.level == level)
-        if from_year is not None:
-            games = games.filter(lambda a: a.competition.year >= int(from_year))
-        if to_year is not None:
-            games = games.filter(lambda a: a.competition.year <= int(to_year))
-
-        for g in games:
-            for o in [g.umpire_one, g.umpire_two]:
-                if not o: continue
-                key = 1000 * int(get_monday(g.start_time).timestamp())
-                out[key][o.name] += 1
-
-        return jsonify({'statistic': out})
