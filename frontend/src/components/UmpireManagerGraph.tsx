@@ -6,8 +6,8 @@ import {Dispatch, SetStateAction, useCallback, useEffect, useMemo, useState} fro
 import {UmpireStatsResponse} from "@/serverTypes";
 import {COLORS, defs} from "@/graphUtils";
 import {levelComparer} from "@/components/AllUmpiresGraphs";
-import {AllGrades} from "@/app/appointments/page";
 import {usePathname, useRouter, useSearchParams} from "next/navigation";
+import {AllGrades} from "@/components/pages/StatisticsPage";
 
 
 interface UmpireMangerGraphsParams {

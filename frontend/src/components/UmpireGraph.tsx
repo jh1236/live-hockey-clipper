@@ -6,9 +6,9 @@ import {Dispatch, SetStateAction, useCallback, useMemo} from "react";
 import {UmpireStatsResponse} from "@/serverTypes";
 import {COLORS, defs} from "@/graphUtils";
 import {levelComparer} from "@/components/AllUmpiresGraphs";
-import {AllGrades} from "@/app/appointments/page";
 import {urlFix} from "@/components/UmpireManagerGraph";
 import {usePathname, useRouter, useSearchParams} from "next/navigation";
+import {AllGrades} from "@/components/pages/StatisticsPage";
 
 
 interface UmpireGraphsParams {

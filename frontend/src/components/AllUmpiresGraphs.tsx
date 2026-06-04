@@ -3,7 +3,8 @@ import {Competition, UmpireStatsResponse} from "@/serverTypes";
 import {Grid, Text, Title} from "@mantine/core";
 import {AreaChart, BarChart, PieChart} from "@mantine/charts";
 import {addOtherFieldToGraph, COLORS, defs, OTHER_COLOR} from "@/graphUtils";
-import {AllGrades} from "@/app/appointments/page";
+import {AllGrades} from "@/components/pages/StatisticsPage";
+
 
 interface AllUmpiresGraphsParams {
     fromYear: number;
