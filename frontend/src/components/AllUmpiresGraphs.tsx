@@ -63,7 +63,7 @@ export function AllUmpiresGraphs({
         color: umpiresByName[it.umpire.name]?.color ?? 'pink'
     })).sort((a, b) => a.value - b.value)
 
-   
+
     const avgGamesPerWeek = relevantUmpireData?.map(it => ({
         name: it.umpire.name,
         value: it.umpireStats.averageGamesPerWeek,
@@ -78,7 +78,7 @@ export function AllUmpiresGraphs({
             (acc, it) => {
                 Object.entries(it.umpireStats.gamesEveryWeek).forEach(([epoch, value]) => {
                         if (value === 0) return;
-                        const key = new Date(+epoch).toLocaleDateString();
+                        const key = +epoch;
                         if (!(key in acc)) {
                             acc[key] = {week: key}
                         }
@@ -88,8 +88,13 @@ export function AllUmpiresGraphs({
                 )
                 return acc
             }, {} as {
-                [key: string]: { week: string, [key: string]: number | string }
-            })), [fromYear, relevantUmpireData, toYear]);
+                [key: string]: { week: number, [key: string]: number }
+            })).sort((a, b) => a.week - b.week).map(it => ({
+            ...it,
+            week: new Date(it.week).toLocaleDateString()
+        } as {
+            week: string, [key: string]: number | string
+        })), [relevantUmpireData]);
 
     const filteredGamesPerWeek = useMemo(() => (level === 'All' || (gender === '-' && level === 'Premier')) ?
             gamesPerWeek.map(it => Object.assign({week: it.week}, addOtherFieldToGraph(Object.fromEntries(Object.entries(it).filter(([k]) => k !== 'week')) as {
@@ -101,25 +106,44 @@ export function AllUmpiresGraphs({
         , [gamesPerWeek])
 
     const gamesPerGenderPerWeek = useMemo(() => {
-        const out: { [key: string]: { male: 0, total: 0 } } = {}
+        const out: { 'Games Umpired by Women': number, 'Games Umpired by Men': number, week: string }[] = []
         for (const it of gamesPerWeek) {
+            const week = it.week
+            const toAdd = {week, 'Games Umpired by Women': 0, 'Games Umpired by Men': 0}
+            for (const [name, value] of Object.entries(it)) {
+                if (name === 'week') continue;
+                if (umpiresByName[name]?.gender === 'M') {
+                    toAdd['Games Umpired by Men'] += value as number
+                } else {
+                    toAdd['Games Umpired by Women'] += value as number
+                }
+            }
+            out.push(toAdd)
+        }
+        return out
+    }, [gamesPerWeek, umpiresByName])
+
+
+    const cumulativeGamesPerGender = useMemo(() => {
+        const out: { 'Games Umpired by Women': 0, 'Games Umpired by Men': 0, week: string }[] = []
+        const accumulator: { 'Games Umpired by Women': 0, 'Games Umpired by Men': 0 } = {
+            'Games Umpired by Women': 0,
+            'Games Umpired by Men': 0
+        }
+        for (const it of gamesPerWeek) { //should theoretically be in order
             const week = it.week
             for (const [name, value] of Object.entries(it)) {
                 if (name === 'week') continue;
-                if (!(week in out)) {
-                    out[week] = {male: 0, total: 0}
-                }
-                out[week].total += value as number
+
                 if (umpiresByName[name]?.gender === 'M') {
-                    out[week].male += value as number
+                    accumulator['Games Umpired by Men'] += value as number
+                } else {
+                    accumulator['Games Umpired by Women'] += value as number
                 }
             }
+            out.push({...accumulator, week})
         }
-        return Object.entries(out).map(([k, v]) => ({
-            week: k,
-            'Games Umpired by Women': v.total - v.male,
-            'Games Umpired by Men': v.male
-        }));
+        return out;
     }, [gamesPerWeek, umpiresByName])
 
 
@@ -274,8 +298,26 @@ export function AllUmpiresGraphs({
                 </PieChart>
             </Grid.Col>
             <Grid.Col span={{base: 12, md: 3}} p={10}>
-                <Title order={3} ta="center">Gender split by week</Title>
+                <Title order={3} ta="center">Weekly Games by Gender</Title>
                 <AreaChart data={gamesPerGenderPerWeek}
+                           withGradient={false}
+                           h={300}
+                           type="percent"
+                           withTooltip
+                           dotProps={{r: 0, strokeWidth: 0}}
+                           mx="auto"
+                           series={[
+                               {name: 'Games Umpired by Women', color: '#de47de'},
+                               {name: 'Games Umpired by Men', color: '#5555ee'}
+                           ]}
+                           dataKey="week"
+                           curveType="linear">
+                    {defs}
+                </AreaChart>
+            </Grid.Col>
+            <Grid.Col span={{base: 12, md: 3}} p={10}>
+                <Title order={3} ta="center">Cumulative Gender Split over Time</Title>
+                <AreaChart data={cumulativeGamesPerGender}
                            withGradient={false}
                            h={300}
                            type="percent"

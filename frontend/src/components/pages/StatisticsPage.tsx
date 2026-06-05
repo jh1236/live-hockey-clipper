@@ -13,7 +13,7 @@ import {usePathname, useRouter, useSearchParams} from "next/navigation";
 type RealGrades = 'Prem One' | 'Prem Two' | '11/12 Div One' | '9/10 Div One'
 export type AllGrades = RealGrades | 'All' | 'Premier'
 
-const ORDER_GRADES = ['Prem One', 'Prem Two', '11/12 Div One', '9/10 Div One'] as RealGrades[]
+const ORDER_GRADES = ['Prem One', 'Prem Two', 'Prem Three', '11/12 Div One', '9/10 Div One'] as RealGrades[]
 
 export function StatisticsPage() {
     const pathname = usePathname()
@@ -65,7 +65,6 @@ export function StatisticsPage() {
             }
             setLevelsInYears(prev => Object.assign({}, prev, level))
         });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     useEffect(() => {
@@ -104,22 +103,7 @@ export function StatisticsPage() {
                     setUmpireData(it.statistic)
                 }
             })
-
-        // fetch(per_email_url)
-        //     .then(it => it.json())
-        //     .then(it => {
-        //         if (!cancelled) {
-        //             setPerEmailProviderStats(it.statistic)
-        //         }
-        //     })
-        //
-        // fetch(per_week_url)
-        //     .then(it => it.json())
-        //     .then(it => {
-        //         if (!cancelled) {
-        //             setPerWeekStats(it.statistic)
-        //         }
-        //     })
+        
         return () => {
             cancelled = true
         }
