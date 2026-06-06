@@ -7,10 +7,9 @@ from datetime import datetime, timedelta
 from pony.orm import db_session
 
 from ApiFetchers import WhistleIQFetcher
-from blueprints.clips import HOUR_IN_SEC
 from bridging import DatabaseAligner, DBCodesManager
 from database import init_db, Competitions
-from utils import sleep_for_approx
+from utils import sleep_for_approx, HOUR_IN_SEC
 
 
 def _get_comp_details(label, year) -> Competitions:

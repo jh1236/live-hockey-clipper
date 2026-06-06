@@ -78,6 +78,7 @@ def camelise(d: T) -> T:
     else:
         return d
 
+
 class SafeString(str):
     def lower(self):
         return self
@@ -87,3 +88,7 @@ class SafeString(str):
 
     def upper(self):
         return self
+
+
+HOUR_IN_SEC = 60 * 60
+DAY_IN_SEC = HOUR_IN_SEC * 24
