@@ -13,9 +13,18 @@ from pony.orm import db_session, select
 
 from bridging import DBCodesManager
 from database import Clubs, Games, Competitions, Officials, Venues, Users
+from utils import HOUR_IN_SEC
 
 THIRTY_MINUTES = 30 * 60
 
+
+@db_session
+def does_game_exist(home_team_code: str, away_team_code: str, start_time: float, competition: Competitions,):
+    team_one = get_or_create_team(home_team_code)
+    team_two = get_or_create_team(away_team_code)
+    games = list(select(i for i in Games if i.home_team == team_one and i.away_team == team_two and abs(
+        i.start_time - start_time) < THIRTY_MINUTES and i.competition == competition))
+    return len(games) > 0
 
 @db_session
 def get_or_create_game(home_team_code: str, away_team_code: str, start_time: float, competition: Competitions, source: str, *,
@@ -28,13 +37,14 @@ def get_or_create_game(home_team_code: str, away_team_code: str, start_time: flo
     if len(games) > 1:
         raise Exception('Two Games found!')
 
-    complete = start_time < (datetime.now() + timedelta(hours=1, minutes=30)).timestamp()
 
     if len(games) == 1:
         game = games[0]
+        complete = (game.stream_start_time or start_time) + 2 * HOUR_IN_SEC < datetime.now().timestamp()
         game.complete |= complete
         return games[0]
     else:
+        complete = start_time < (datetime.now() + timedelta(hours=1, minutes=30)).timestamp()
         game = Games(home_team=team_one, away_team=team_two, start_time=round(start_time), competition=competition, source=source)
         game.complete = complete
         return game

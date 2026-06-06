@@ -12,10 +12,10 @@ from sanitize_filename import sanitize
 from ApiDatabaseLinkers import LiveHockeyManager, ClipsManager
 from config import get_config
 from database import Games, Clips
+from utils import DAY_IN_SEC
 
 clips_bp = Blueprint('clips_bp', __name__, url_prefix='/clips')
-HOUR_IN_SEC = 60 * 60
-DAY_IN_SEC = HOUR_IN_SEC * 24
+
 
 
 @clips_bp.post('/edit')
@@ -161,11 +161,11 @@ async def get_recent_games():
 
         games = list(query)
 
-        recent_games = sorted([i for i in games if i.complete], key=lambda g: g.start_time, reverse=True)
+        recent_games = sorted([i for i in games if i.complete and i.start_time < datetime.now().timestamp()], key=lambda g: g.start_time, reverse=True)
         if len(recent_games) > 8:
             recent_games = recent_games[:8]
 
-        upcoming_games = sorted([i for i in games if not i.complete], key=lambda g: g.start_time)
+        upcoming_games = sorted([i for i in games if not i.complete or i.start_time >= datetime.now().timestamp()], key=lambda g: g.start_time)
         if len(upcoming_games) > 8:
             upcoming_games = upcoming_games[:8]
 
