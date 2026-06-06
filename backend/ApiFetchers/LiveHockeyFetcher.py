@@ -59,13 +59,13 @@ async def get_video_link_from_blob(blob: str, username=None,
     token = await get_live_hockey_token(username, password, force_refresh=force_refresh)
     try:
         out = (await client.get(f'https://api.livearenasports.com/broadcast/video/{blob}?video-format=HLS',
-                                headers=get_header(token))).json()['videoUrl']
-        return out
+                                headers=get_header(token))).json()
+        return out['videoUrl']
     except Exception as e:
         if force_refresh:
             raise e
         else:
-            return await get_live_hockey_token(username, password, force_refresh=True)
+            return await get_video_link_from_blob(blob, username, password, force_refresh=True)
 
 
 async def get_game_from_live_hockey(blob):

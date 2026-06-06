@@ -27,7 +27,7 @@ export interface Game {
     startTime: number
     streamStartTime: number
     teamstarId: string
-    completed: boolean
+    complete: boolean
     venue: Venue
 }
 

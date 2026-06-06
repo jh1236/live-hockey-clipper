@@ -10,9 +10,10 @@ from dateutil import parser
 from pony.orm import db_session, select
 
 from ApiFetchers import LiveHockeyFetcher
+
 from bridging import DBCodesManager, DatabaseAligner
 from database import init_db, Competitions, Games
-from utils import sleep_for_approx, NUMBERS
+from utils import sleep_for_approx, NUMBERS, HOUR_IN_SEC
 
 
 def _get_comp(comp_in) -> Competitions:
@@ -85,6 +86,13 @@ def add_live_hockey_game_to_db(game: dict[str, Any], source: str):
     competition = _get_comp(game['competition']['name'])
     stream_start: str | None = game.get('streamStart', None)
     stream_start_time = round(parser.parse(stream_start).timestamp()) if stream_start is not None else None
+    altius_game = Games.get(live_hockey_id=game['id'])
+
+    if altius_game and not DatabaseAligner.does_game_exist(home_team_code, away_team_code, start_time.timestamp(),
+                                                           competition):
+        logging.error(f"LIVE: {home_team_code = }, {away_team_code = }, {start_time = }, {competition.name = }")
+        logging.error(
+            f"DB  : {altius_game.home_team.code = }, {altius_game.away_team.code = }, {altius_game.start_time = }, {altius_game.competition.name = }")
 
     out = DatabaseAligner.get_or_create_game(
         home_team_code=home_team_code,
@@ -97,8 +105,8 @@ def add_live_hockey_game_to_db(game: dict[str, Any], source: str):
     )
 
     if (
-            game.get('streamEnd', False) or
-            start_time.timestamp() < (datetime.now() + timedelta(hours=1, minutes=30)).timestamp()
+            game.get('streamEnd', None) is not None or
+            (stream_start_time or start_time.timestamp()) + 2 * HOUR_IN_SEC < datetime.now().timestamp()
     ):
         out.complete = True
 
