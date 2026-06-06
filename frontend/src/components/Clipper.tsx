@@ -304,7 +304,7 @@ export function Clipper({id: gameId}: ClipperProps) {
                         }
                         setTimeToClip(
                             // game.complete ? '00:00:00' :
-                                secondsToHMS(Math.max(Math.round((currentTime - game?.streamStartTime) / 1000) - PRIOR_CLIP_RECORDING, 0))
+                                secondsToHMS(Math.max(Math.round((Date.now() - game?.streamStartTime) / 1000) - PRIOR_CLIP_RECORDING, 0))
                         );
                         setClipQuality(5)
                         setDurationToClip(PRIOR_CLIP_RECORDING);
