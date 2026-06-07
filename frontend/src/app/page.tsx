@@ -113,7 +113,7 @@ export default function Page() {
             </Group>
             <GamesDisplay
                 games={upcoming ?? null}
-                createLink={it => it.liveHockeyId ? `/${it.id}` : '#'}
+                createLink={it => it.liveHockeyId ? `/${it.identifier}` : '#'}
                 missingMessage={"There are currently no upcoming games."}
                 error={error}
             />
@@ -121,7 +121,7 @@ export default function Page() {
             <Title order={2} p={20}>Recent Games</Title>
             <GamesDisplay
                 games={recent ?? null}
-                createLink={it => it.liveHockeyId ? `/${it.id}` : '#'}
+                createLink={it => it.liveHockeyId ? `/${it.identifier}` : '#'}
                 missingMessage={"There are currently no recent games."}
                 error={error}/>
             <br/>

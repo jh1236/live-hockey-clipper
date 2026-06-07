@@ -1,6 +1,6 @@
 import asyncio
 import time
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 from typing import TypeVar, Iterator, Any
 
 import humps
@@ -24,7 +24,26 @@ NUMBERS = [
     'Fourteen',
     'Fifteen'
 ]
+WORDS_TO_NUMBERS = {
+    'Zero': 0,
+    'One': 1,
+    'Two': 2,
+    'Three': 3,
+    'Four': 4,
+    'Five': 5,
+    'Six': 6,
+    'Seven': 7,
+    'Eight': 8,
+    'Nine': 9,
+    'Ten': 10,
+    'Eleven': 11,
+    'Twelve': 12,
+    'Thirteen': 13,
+    'Fourteen': 14,
+    'Fifteen': 15,
+}
 
+PERTH_TIMEZONE = timezone(timedelta(hours=+8))
 
 def int_to_time(time_in: int) -> str:
     return time.strftime('%H:%M:%S', time.gmtime(time_in))
@@ -90,5 +109,6 @@ class SafeString(str):
         return self
 
 
-HOUR_IN_SEC = 60 * 60
+MINUTE_IN_SEC = 60
+HOUR_IN_SEC = 60 * MINUTE_IN_SEC
 DAY_IN_SEC = HOUR_IN_SEC * 24

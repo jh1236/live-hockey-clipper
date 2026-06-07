@@ -18,13 +18,6 @@ from utils import HOUR_IN_SEC
 THIRTY_MINUTES = 30 * 60
 
 
-@db_session
-def does_game_exist(home_team_code: str, away_team_code: str, start_time: float, competition: Competitions,):
-    team_one = get_or_create_team(home_team_code)
-    team_two = get_or_create_team(away_team_code)
-    games = list(select(i for i in Games if i.home_team == team_one and i.away_team == team_two and abs(
-        i.start_time - start_time) < THIRTY_MINUTES and i.competition == competition))
-    return len(games) > 0
 
 @db_session
 def get_or_create_game(home_team_code: str, away_team_code: str, start_time: float, competition: Competitions, source: str, *,

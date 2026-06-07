@@ -5,6 +5,7 @@ import logging
 import os
 import re
 from datetime import datetime, timedelta
+from time import time
 
 from pony.orm import db_session, select
 from sanitize_filename import sanitize
@@ -39,8 +40,9 @@ class ClipDto:
         self.id = out.id
         return out
 
+
 async def remove_old_videos():
-    #needs to be async for task managing
+    # needs to be async for task managing
     with db_session():
         two_days_ago = (datetime.now() - timedelta(days=2)).timestamp()
         clips: list[Clips] = list(select(i for i in Clips if not i.favourite and i.time_created < two_days_ago))
@@ -61,15 +63,22 @@ async def download_clip_for_game(
     clip_start_time = max(clip.start_time - 2, 0)
     clip_end_time = max(clip.start_time + clip.duration + 2, 0)
 
+    time_delta = clip.game.stream_start_time + clip_end_time - datetime.now().timestamp()
+    logger.warning(f"Waiting for {time_delta :03} seconds")
+    if time_delta > 0:
+        if time_delta > 15:
+            raise Exception('Too far in future!')
+        else:
+            await asyncio.sleep(time_delta)
     index_url = await LiveHockeyFetcher.get_video_link_from_blob(blob, username, password)
-    index_file = (await client.get(index_url)).text
 
-    files = []
-    segment_start_time = 0
-    segment_finish_time = 0
-    first_time = -1
     attempts = 0
     while attempts < 3:
+        index_file = (await client.get(index_url)).text
+        files = []
+        segment_start_time = 0
+        segment_finish_time = 0
+        first_time = -1
         for line in index_file.split('\n'):
             if line.startswith("#EXTINF:"):
                 segment_start_time = segment_finish_time
@@ -81,17 +90,19 @@ async def download_clip_for_game(
                 files.append(line)
         if segment_finish_time < clip_end_time:
             attempts += 1
-            await sleep_for_approx(3)
+            wait_time = 2 ** (attempts + 1)
+            logger.warning("Clip time was past end of video, waiting %s seconds and then trying again", wait_time)
+            await sleep_for_approx(wait_time)
         else:
             break
 
-    if attempts == 4:
+    if attempts == 3:
         raise Exception('Too far in future!')
 
     logger.warning('first time: %s', first_time)
     logger.warning('files: %s', '\n'.join([re.sub('.*/', '', i) for i in files]))
 
-    folder = os.path.join(get_config().videos_folder, f'{clip.game.id}') 
+    folder = os.path.join(get_config().videos_folder, f'{clip.game.id}')
 
     os.makedirs(folder, exist_ok=True)
     output_location = f'{folder}/{sanitize(str(clip.id))}.mp4'

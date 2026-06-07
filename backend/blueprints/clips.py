@@ -11,11 +11,10 @@ from sanitize_filename import sanitize
 
 from ApiDatabaseLinkers import LiveHockeyManager, ClipsManager
 from config import get_config
-from database import Games, Clips
-from utils import DAY_IN_SEC
+from database import Games, Clips, Competitions
+from utils import DAY_IN_SEC, HOUR_IN_SEC, MINUTE_IN_SEC
 
 clips_bp = Blueprint('clips_bp', __name__, url_prefix='/clips')
-
 
 
 @clips_bp.post('/edit')
@@ -82,7 +81,7 @@ async def add_clip():
         username = data.get('username', None)
         password = data.get('password', None)
 
-        game = Games[game_id]
+        game = Games.get_by_identifier(game_id)
         if game is None:
             return 'Game not found', 404
 
@@ -161,11 +160,18 @@ async def get_recent_games():
 
         games = list(query)
 
-        recent_games = sorted([i for i in games if i.complete and i.start_time < datetime.now().timestamp()], key=lambda g: g.start_time, reverse=True)
+        # if any(i for i in games if i.live_hockey_id and not i.stream_start_time and i.start_time - .25 * HOUR_IN_SEC < datetime.now().timestamp()):
+        #     await LiveHockeyManager.update_live_hockey()
+
+        for i in games:
+            i.complete = i.start_time + 1.5 * HOUR_IN_SEC < datetime.now().timestamp()
+        flush()
+
+        recent_games = sorted([i for i in games if i.complete], key=lambda g: g.start_time, reverse=True)
         if len(recent_games) > 8:
             recent_games = recent_games[:8]
 
-        upcoming_games = sorted([i for i in games if not i.complete or i.start_time >= datetime.now().timestamp()], key=lambda g: g.start_time)
+        upcoming_games = sorted([i for i in games if not i.complete], key=lambda g: g.start_time)
         if len(upcoming_games) > 8:
             upcoming_games = upcoming_games[:8]
 
@@ -190,10 +196,12 @@ async def get_game_by_blob(blob):
         return jsonify({'game': game.format_for_frontend(), 'clips': []}), 200
 
 
-@clips_bp.get('/games/<game_id>')
-async def get_game(game_id):
+@clips_bp.get('/games/<game_identifier>')
+async def get_game(game_identifier):
     with db_session():
-        game = Games.get(id=game_id)
+        game = Games.get_by_identifier(game_identifier)
+        if not game.stream_start_time and game.start_time - 15 * MINUTE_IN_SEC < datetime.now():
+            await LiveHockeyManager.update_game(game)
         return jsonify(
             {'game': game.format_for_frontend(),
              'clips': [i.format_for_frontend() for i in sorted(game.clips, key=lambda it: it.time_created)]}), 200
@@ -211,11 +219,3 @@ async def stream_file(clip_id):
             return await send_file(directory, as_attachment=True, attachment_filename=name)
         else:
             return await send_file(directory, as_attachment=False)
-
-
-@clips_bp.route('/get')
-async def get_clip_by_id():
-    with db_session():
-        clip_id = int(request.args.get('id'))
-        clip = Clips.get(id=clip_id).format_for_frontend()
-        return jsonify({'clip': clip}), 200

@@ -64,7 +64,7 @@ async def to_camel_case(response):
 
 
 def run_periodically():
-    if current_process() == 'MainProcess':
+    if current_process()._name == 'MainProcess':
         return
     async def work():
         config = [['Live Hockey Updater', LiveHockeyManager.update_live_hockey],

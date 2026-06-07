@@ -19,6 +19,7 @@ export interface Game {
     homeTeam: Team
     homeTeamScore: number | null
     id: number
+    identifier: string
     liveHockeyId: string
     umpires: Official[]
     reserve_umpire: Official | null
@@ -53,6 +54,7 @@ export interface Competition {
     whistleIqId: number
     gender: string
     id: number
+    identifier: string
     isPremier: boolean
     level: string
     liveHockeyId: string

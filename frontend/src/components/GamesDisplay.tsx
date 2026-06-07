@@ -6,6 +6,10 @@ import {HTMLAttributes, useEffect, useState} from "react";
 import {useInterval} from "react-use";
 import {Game} from "@/serverTypes";
 
+function isLive(game: Game, currentTime: number) {
+    return !game.complete && game.startTime < currentTime
+}
+
 function PulsingDot(props: HTMLAttributes<HTMLDivElement>) {
     return <span className={classes.statusdot} {...props}></span>
 }
@@ -77,18 +81,19 @@ function getDateString(it: number, currentTime: number): string {
 export function GamesDisplay({
                                  games,
                                  missingMessage,
-                                 createLink = it => `/${it.id}`,
+                                 createLink = it => `/${it.identifier}`,
                                  error = null
                              }: GamesDisplayProps) {
     const [currentTime, setCurrentTime] = useState<number>(-1);
     useEffect(() => {
         setCurrentTime(Date.now());
     }, [])
+    
     useInterval(
         () => {
             setCurrentTime(Date.now());
         },
-        5000
+        1000
     )
 
     if (error) {
@@ -143,7 +148,7 @@ export function GamesDisplay({
                 }}>
                     <Link href={createLink(it)}>
                         <Card shadow="sm" padding="xs" withBorder>
-                            {(it?.streamStartTime ?? 0) + 2 * HOUR_IN_MS > currentTime && <Box h={0}>
+                            {isLive(it, currentTime) && <Box h={0}>
                                 <PulsingDot style={{float: 'right', margin: 5}}/>
                             </Box>}
                             <Card.Section pt={10}>
@@ -152,7 +157,7 @@ export function GamesDisplay({
                                 <Text fz="1em"
                                       ta="center">{it.competition.name}</Text>
                                 <Text size="sm" c="dimmed" fs="italic" fz=".75em">
-                                    {(it?.streamStartTime ?? 0) + 2 * HOUR_IN_MS > currentTime ? 'Live!' : getDateString(it.startTime, currentTime)}{
+                                    {isLive(it, currentTime) ? 'Live!' : getDateString(it.startTime, currentTime)}{
                                     it.venue && ` @ ${it.venue.shortName}`
                                 }
                                 </Text>

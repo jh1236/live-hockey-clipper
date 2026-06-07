@@ -1,11 +1,12 @@
+import logging
 import os
+import re
 from datetime import datetime
 
 from pony.orm import Database, PrimaryKey, Required, Optional, Set, composite_key, db_session
-from werkzeug.utils import send_file
 
 from config import get_config
-from utils import int_to_time
+from utils import int_to_time, WORDS_TO_NUMBERS, NUMBERS, PERTH_TIMEZONE
 
 db = Database()
 
@@ -80,6 +81,33 @@ class Competitions(db.Entity):
     composite_key(gender, level, year)
 
     @property
+    def identifier(self):
+        out = f"{self.year}-"
+
+        if self.age_level in ["Juniors", "Masters"]:
+            age = self.level.split(" ")[0].replace("/", "")
+            grade = WORDS_TO_NUMBERS[self.level.split(" Div ")[1].split(" ")[0]]
+            b_or_g = ""
+            if self.level.count(" ") == 3:
+                b_or_g = self.level.split(" ")[3][0]
+            out += f"{age}D{grade}{b_or_g.lower()}"
+        elif self.is_premier:
+            grade = WORDS_TO_NUMBERS[self.level.replace("Prem ", "")]
+            out += f"P{grade}"
+        else:
+            grade = WORDS_TO_NUMBERS[self.level.split(" ")[1]]
+            b_or_g = ""
+            if self.level.count(" ") == 2:
+                b_or_g = self.level.split(" ")[2][0]
+            out += f"D{grade}{b_or_g.lower()}"
+
+        if self.age_level == "Juniors":
+            out += "-B" if self.gender == "M" else "-G"
+        else:
+            out += "-M" if self.gender == "M" else "-W"
+        return out
+
+    @property
     def name(self):
         year = ''
         if datetime.now().year != int(self.year):
@@ -94,7 +122,30 @@ class Competitions(db.Entity):
     def format_for_frontend(self):
         d = self.to_dict()
         d['name'] = self.name
+        d['identifier'] = self.identifier
         return d
+
+    @staticmethod
+    def get_by_identifier(identifier: str):
+        year, level, gender = identifier.split('-', 3)
+        gender = 'M' if gender in ['M', 'B'] else 'F'
+
+        # Account for premier grades
+        level = level.replace("P", "Prem ", 1)
+        level = level.replace("D", " Div ", 1).strip(' ')
+        if level[0].isdigit():
+            # this is a junior game, and the '/' will have been stripped 
+            level = re.sub(r"(\d\d\s)", r"/\1", level)  #
+
+        level, grade = level.rsplit(" ", 1)
+
+        if grade[-1] in ['g', 'b']:
+            grade = f" {NUMBERS[int(grade[:-1])]} {'Gold' if grade[-1] == 'g' else 'Black'}"
+        else:
+            grade = f" {NUMBERS[int(grade)]}"
+        level += grade
+        logging.warning(f"{year = } {level = } {gender = }")
+        return Competitions.get(level=level, gender=gender, year=year)
 
 
 class Venues(db.Entity):
@@ -145,6 +196,21 @@ class Games(db.Entity):
     def name(self):
         return f'{self.competition.name} - {self.home_team.code} v {self.away_team.code}'
 
+    @property
+    def identifier(self):
+        return f'{self.competition.identifier}-{self.home_team.code.upper()}v{self.away_team.code.upper()}~{datetime.fromtimestamp(self.start_time, tz=PERTH_TIMEZONE).strftime('%d.%m.%H.%M')}'
+
+    @staticmethod
+    def get_by_identifier(identifier: str):
+        comp_id, game_id = identifier.rsplit('-', 1)
+        comp = Competitions.get_by_identifier(comp_id)
+        home_team_code, away_team_code = game_id.split('~')[0].split('v', 1)
+        home_team = Clubs.get(code=home_team_code)
+        away_team = Clubs.get(code=away_team_code)
+        start = datetime.strptime(f"{comp.year}.{game_id.split('~')[1]}.+0800", '%Y.%d.%m.%H.%M.%z')
+        logging.warning(f'{home_team_code = }, {away_team_code = }, {start.timestamp() = }')
+        return Games.get(competition=comp, home_team=home_team, away_team=away_team, start_time=int(start.timestamp()))
+
     @db_session
     def format_for_frontend(self):
         game = self.to_dict()
@@ -162,6 +228,8 @@ class Games(db.Entity):
         del game['reserve_umpire']
         del game['timing_judge']
         del game['scoring_judge']
+        game['name'] = self.name
+        game['identifier'] = self.identifier
         game['competition'] = self.competition.format_for_frontend()
         game['home_team'] = self.home_team.format_for_frontend()
         game['away_team'] = self.away_team.format_for_frontend()

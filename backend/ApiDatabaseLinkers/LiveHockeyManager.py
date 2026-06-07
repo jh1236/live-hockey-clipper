@@ -77,7 +77,7 @@ def _get_comp(comp_in) -> Competitions:
 
 
 @db_session
-def add_live_hockey_game_to_db(game: dict[str, Any], source: str):
+def add_live_hockey_game_to_db(game: dict[str, Any], source: str=''):
     start_time = parser.parse(game['start'])
     home_team_code = DBCodesManager.fix_code(game['homeTeam']['shortName'], 'live_hockey',
                                              name_for_diagnostic=game['homeTeam']['longName'])
@@ -86,13 +86,6 @@ def add_live_hockey_game_to_db(game: dict[str, Any], source: str):
     competition = _get_comp(game['competition']['name'])
     stream_start: str | None = game.get('streamStart', None)
     stream_start_time = round(parser.parse(stream_start).timestamp()) if stream_start is not None else None
-    altius_game = Games.get(live_hockey_id=game['id'])
-
-    if altius_game and not DatabaseAligner.does_game_exist(home_team_code, away_team_code, start_time.timestamp(),
-                                                           competition):
-        logging.error(f"LIVE: {home_team_code = }, {away_team_code = }, {start_time = }, {competition.name = }")
-        logging.error(
-            f"DB  : {altius_game.home_team.code = }, {altius_game.away_team.code = }, {altius_game.start_time = }, {altius_game.competition.name = }")
 
     out = DatabaseAligner.get_or_create_game(
         home_team_code=home_team_code,
@@ -187,6 +180,12 @@ async def game_from_blob(blob: str):
             return game
 
         return game
+
+async def update_game(game: Games):
+    with db_session():
+        game_json = await LiveHockeyFetcher.get_game_from_live_hockey(game.live_hockey_id)
+        game = add_live_hockey_game_to_db(game_json)
+        game.flush()
 
 
 if __name__ == '__main__':
