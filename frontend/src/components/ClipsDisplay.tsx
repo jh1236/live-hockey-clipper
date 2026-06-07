@@ -41,6 +41,14 @@ const CATEGORIES = [
     'Green Card',
     'Yellow Card',
     '10 Minute Yellow Card',
+    'Ball Hit Away',
+    'Breakdown Tackle',
+    'Slide Tackle',
+    '5 Metres',
+    'PC Equipment',
+    'Management',
+    'Dissent',
+    'Crowding'
 ] as const
 
 
