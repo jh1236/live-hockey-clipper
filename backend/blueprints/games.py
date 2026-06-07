@@ -85,7 +85,7 @@ async def get_game_by_blob(blob):
 async def get_game(game_identifier):
     with db_session():
         game = Games.get_by_identifier(game_identifier)
-        if not game.stream_start_time and game.start_time - 15 * MINUTE_IN_SEC < datetime.now():
+        if not game.stream_start_time and game.start_time - 15 * MINUTE_IN_SEC < datetime.now().timestamp():
             game = await LiveHockeyManager.game_from_blob(game.blob)
         return jsonify(
             {'game': game.format_for_frontend(),
