@@ -134,10 +134,10 @@ export function Clipper({id: gameId}: ClipperProps) {
                         <Slider
                             w="70%"
                             label={it => `${it} seconds`}
-                            min={10}
+                            min={5}
                             max={30}
                             marks={[
-                                {value: 10, label: '10 Seconds'}, {value: 30, label: '30 Seconds'}
+                                {value: 5, label: '5 Seconds'}, {value: 30, label: '30 Seconds'}
                             ]}
                             value={durationToClip}
                             onChange={setDurationToClip}

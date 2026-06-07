@@ -3,6 +3,8 @@ from quart import Blueprint
 from blueprints.clips import clips_bp
 from blueprints.appointments import appointments_bp
 from blueprints.games import games_bp
+from blueprints.files import files_bp
+from blueprints.teams import team_bp
 from blueprints.test import test_bp
 from blueprints.umpires import umpire_bp
 
@@ -12,3 +14,5 @@ api.register_blueprint(clips_bp)
 api.register_blueprint(umpire_bp)
 api.register_blueprint(test_bp)
 api.register_blueprint(games_bp)
+api.register_blueprint(team_bp)
+api.register_blueprint(files_bp)

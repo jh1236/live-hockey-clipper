@@ -9,8 +9,11 @@ from pony.orm import db_session
 
 from ApiFetchers import LiveHockeyFetcher
 from bridging import DBCodesManager, DatabaseAligner
+from config import get_config
 from database import init_db, Competitions, Games, Venues
+from requester import client
 from utils import sleep_for_approx, NUMBERS, HOUR_IN_SEC
+
 
 async def get_or_create_live_hockey_venue(live_hockey_id):
     with db_session():
@@ -18,7 +21,8 @@ async def get_or_create_live_hockey_venue(live_hockey_id):
         if venue is None:
             venue_dict = await LiveHockeyFetcher.get_venue_from_live_hockey(live_hockey_id)
             turf_number = 2 if '2' in venue_dict['name'] else 1
-            venue = DatabaseAligner.get_or_create_venue(DBCodesManager.venue_name_to_code(venue_dict["name"]), turf_number)
+            venue = DatabaseAligner.get_or_create_venue(DBCodesManager.venue_name_to_code(venue_dict["name"]),
+                                                        turf_number)
             for i in venue_dict.get('extIds', []):
                 if i['origin'] == 'TEAMSTAR':
                     venue.teamstar_id = i['id']
@@ -26,6 +30,14 @@ async def get_or_create_live_hockey_venue(live_hockey_id):
                     venue.altius_id = i['id']
             venue.flush()
         return venue
+
+
+async def add_image(link, name) -> str:
+    img_data = (await client.get(link)).content
+    with open(f'{get_config().images_folder}/{name}.png', 'wb') as handler:
+        handler.write(img_data)
+    return f'/api/files/image/{name}.png'
+
 
 def _get_comp(comp_in) -> Competitions:
     this_year = datetime.now().year
@@ -87,7 +99,7 @@ def _get_comp(comp_in) -> Competitions:
     return DatabaseAligner.get_or_create_comp(this_year, comp.title(), gender)
 
 
-async def add_live_hockey_game_to_db(game: dict[str, Any], source: str=''):
+async def add_live_hockey_game_to_db(game: dict[str, Any], source: str = ''):
     with db_session():
         start_time = parser.parse(game['start'])
         home_team_code = DBCodesManager.fix_code(game['homeTeam']['shortName'], 'live_hockey',
@@ -113,7 +125,7 @@ async def add_live_hockey_game_to_db(game: dict[str, Any], source: str=''):
                 (stream_start_time or start_time.timestamp()) + 2 * HOUR_IN_SEC < datetime.now().timestamp()
         ):
             out.complete = True
-    
+
         if game['extSrc'] == 'ALT_WA':
             if not out.altius_id:
                 out.altius_id = game['extId']
@@ -122,9 +134,11 @@ async def add_live_hockey_game_to_db(game: dict[str, Any], source: str=''):
         out.live_hockey_id = game['id']
         out.stream_start_time = stream_start_time
         if not out.home_team.image_link and game['homeTeam'].get('logo', None):
-            out.home_team.image_link = f"https://files.livearenasports.com/files/{game['homeTeam']['logo']['blobId']}"
+            out.home_team.image_link = await add_image(
+                f"https://files.livearenasports.com/files/{game['homeTeam']['logo']['blobId']}", out.home_team.code)
         if not out.away_team.image_link and game['awayTeam'].get('logo', None):
-            out.away_team.image_link = f"https://files.livearenasports.com/files/{game['awayTeam']['logo']['blobId']}"
+            out.away_team.image_link = await add_image(
+                f"https://files.livearenasports.com/files/{game['awayTeam']['logo']['blobId']}", out.away_team.code)
         return out
 
 
@@ -187,8 +201,6 @@ async def game_from_blob(blob: str):
             return game
 
         return game
-
-
 
 
 if __name__ == '__main__':

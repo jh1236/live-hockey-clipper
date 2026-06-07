@@ -21,6 +21,7 @@ services:
       - db:/database
       - cache:/cache
       - videos:/videos
+      - images:/app/images
     image: hockey-clipper-backend
     container_name: hockey-clipper-backend-container
     env_file:
@@ -30,6 +31,7 @@ services:
       WORKERS: 4
       ADDRESS: "https://api.clip.jh1236.top"
       CACHE_DIRECTORY: '/cache'
+      IMAGES_DIRECTORY: '/app/images'
       VIDEO_DIRECTORY: '/videos'
       DATABASE_PATH: '/database/database.db'
     ports:
@@ -39,4 +41,5 @@ services:
 volumes:
   db:
   cache:
+  images:
   videos:

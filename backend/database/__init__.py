@@ -61,6 +61,9 @@ class Clubs(db.Entity):
     @db_session
     def format_for_frontend(self):
         d = self.to_dict()
+        if self.image_link and self.image_link.startswith('/'):
+            # this is a relative link
+            d['image_link'] = get_config().server_address + self.image_link
         return d
 
 

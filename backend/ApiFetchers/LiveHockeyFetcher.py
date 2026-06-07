@@ -60,6 +60,8 @@ async def get_video_link_from_blob(blob: str, username=None,
     try:
         out = (await client.get(f'https://api.livearenasports.com/broadcast/video/{blob}?video-format=HLS',
                                 headers=get_header(token))).json()
+        if not 'videoUrl' in out:
+            raise Exception(f'Missing video url. Body was {out}')
         return out['videoUrl']
     except Exception as e:
         if force_refresh:
@@ -72,6 +74,7 @@ async def get_game_from_live_hockey(blob):
     resp = await client.get(f'https://api.livearenasports.com/broadcast/{blob}',
                             headers=get_header())
     return resp.json()
+
 
 async def get_venue_from_live_hockey(blob):
     resp = await client.get(f'https://api.livearenasports.com/venue/{blob}',

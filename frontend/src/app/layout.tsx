@@ -3,6 +3,8 @@ import {Geist, Geist_Mono} from "next/font/google";
 import "./globals.css";
 import '@mantine/core/styles.css';
 import '@mantine/charts/styles.css';
+import '@vidstack/react/player/styles/default/theme.css';
+import '@vidstack/react/player/styles/default/layouts/video.css';
 
 import {ColorSchemeScript, MantineProvider, mantineHtmlProps} from '@mantine/core';
 import {SettingsProvider} from "@/components/settings";

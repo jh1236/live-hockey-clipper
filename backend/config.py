@@ -6,6 +6,7 @@ import os
 class Config:
     cache_folder: str = './cache'
     videos_folder: str = './videos'
+    images_folder: str = './images'
     database_path: str = './resources/database.db'
     server_address: str = 'http://localhost:5000'
     run_initial_checks: bool | None = True
@@ -27,6 +28,7 @@ def get_config() -> Config:
         raise ValueError('REMOVE_STALE_CLIPS must be true or false')
 
     args = {
+        'images_folder': os.environ.get('IMAGES_DIRECTORY', None),
         'cache_folder': os.environ.get('CACHE_DIRECTORY', None),
         'videos_folder': os.environ.get('VIDEO_DIRECTORY', None),
         'database_path': os.environ.get('DATABASE_PATH', None),

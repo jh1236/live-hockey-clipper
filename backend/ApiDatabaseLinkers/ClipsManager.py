@@ -56,6 +56,7 @@ async def download_clip_for_game(
         blob: str,
         clip: Clips,
         quality: int,
+        venue: str = None,
         username: str = None,
         password: str = None
 ):
@@ -109,20 +110,7 @@ async def download_clip_for_game(
     with contextlib.suppress(FileNotFoundError):
         os.remove(output_location)
 
-    args: list[str] = [
-        "ffmpeg",
-        "-protocol_whitelist", "file,http,https,tcp,tls,crypto,concat",
-        "-y",
-        "-i", "concat:" + "|".join(files),
-        "-ss", str(clip_start_time - first_time),
-        "-t", str(clip.duration + 4),
-        "-c:v", "libx264",
-        "-c:a", "aac",
-        "-preset", "veryfast",
-        "-crf", f"{40 - 2 * quality}",
-        "-f", "mp4",
-        output_location
-    ]
+    args = await _get_args(clip, venue, files, first_time, output_location, quality)
     logger.warning(' '.join(args))
     process = await asyncio.create_subprocess_exec(*args)
 
@@ -137,4 +125,42 @@ async def download_clip_for_game(
     if process.returncode:
         return None
 
-    return f'{get_config().server_address}/api/clips/{clip.id}'
+    return f'{get_config().server_address}/api/files/clip/{clip.id}'
+
+
+async def _get_args(clip, venue, files, first_time, output_location, quality):
+    clip_start_time = max(clip.start_time - 2, 0)
+    if venue in ['TPHC']:
+        # venues who have broken audio
+        return [
+            "ffmpeg",
+            "-protocol_whitelist", "file,http,https,tcp,tls,crypto,concat",
+            "-y",
+            "-i", "concat:" + "|".join(files),
+            "-protocol_whitelist", "file,http,https,tcp,tls,crypto,concat",
+            "-itsoffset", "-0.75",
+            "-i", "concat:" + "|".join(files),
+            "-ss", str(clip_start_time - first_time),
+            "-t", str(clip.duration + 4),
+            "-map", "0:v", "-map", "1:a",
+            "-c:v", "libx264",
+            "-c:a", "aac",
+            "-preset", "veryfast",
+            "-crf", f"{40 - 2 * quality}",
+            "-f", "mp4",
+            output_location
+        ]
+    return [
+        "ffmpeg",
+        "-protocol_whitelist", "file,http,https,tcp,tls,crypto,concat",
+        "-y",
+        "-i", "concat:" + "|".join(files),
+        "-ss", str(clip_start_time - first_time),
+        "-t", str(clip.duration + 4),
+        "-c:v", "libx264",
+        "-c:a", "aac",
+        "-preset", "veryfast",
+        "-crf", f"{40 - 2 * quality}",
+        "-f", "mp4",
+        output_location
+    ]

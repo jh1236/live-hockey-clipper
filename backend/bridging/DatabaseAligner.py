@@ -13,6 +13,7 @@ from pony.orm import db_session, select
 
 from bridging import DBCodesManager
 from database import Clubs, Games, Competitions, Officials, Venues, Users
+from requester import client
 from utils import HOUR_IN_SEC
 
 THIRTY_MINUTES = 30 * 60
