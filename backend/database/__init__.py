@@ -155,6 +155,9 @@ class Venues(db.Entity):
     short_name = NullableOptional(str)
     turf_number = Required(int)
     time_created = NullableOptional(int)
+    altius_id = NullableOptional(int)
+    live_hockey_id = NullableOptional(str)
+    teamstar_id = NullableOptional(str)
 
     games = Set('Games', reverse='venue')
     composite_key(code, turf_number)

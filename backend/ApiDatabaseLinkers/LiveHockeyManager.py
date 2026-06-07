@@ -1,20 +1,31 @@
 import asyncio
-import logging
 import os
 import re
-from datetime import datetime, timedelta
-from select import select
+from datetime import datetime
 from typing import Any, Callable
 
 from dateutil import parser
-from pony.orm import db_session, select
+from pony.orm import db_session
 
 from ApiFetchers import LiveHockeyFetcher
-
 from bridging import DBCodesManager, DatabaseAligner
-from database import init_db, Competitions, Games
+from database import init_db, Competitions, Games, Venues
 from utils import sleep_for_approx, NUMBERS, HOUR_IN_SEC
 
+async def get_or_create_live_hockey_venue(live_hockey_id):
+    with db_session():
+        venue = Venues.get(live_hockey_id=live_hockey_id)
+        if venue is None:
+            venue_dict = await LiveHockeyFetcher.get_venue_from_live_hockey(live_hockey_id)
+            turf_number = 2 if '2' in venue_dict['name'] else 1
+            venue = DatabaseAligner.get_or_create_venue(DBCodesManager.venue_name_to_code(venue_dict["name"]), turf_number)
+            for i in venue_dict.get('extIds', []):
+                if i['origin'] == 'TEAMSTAR':
+                    venue.teamstar_id = i['id']
+                if i['origin'] == 'ALT_WA':
+                    venue.altius_id = i['id']
+            venue.flush()
+        return venue
 
 def _get_comp(comp_in) -> Competitions:
     this_year = datetime.now().year
@@ -76,47 +87,45 @@ def _get_comp(comp_in) -> Competitions:
     return DatabaseAligner.get_or_create_comp(this_year, comp.title(), gender)
 
 
-@db_session
-def add_live_hockey_game_to_db(game: dict[str, Any], source: str=''):
-    start_time = parser.parse(game['start'])
-    home_team_code = DBCodesManager.fix_code(game['homeTeam']['shortName'], 'live_hockey',
-                                             name_for_diagnostic=game['homeTeam']['longName'])
-    away_team_code = DBCodesManager.fix_code(game['awayTeam']['shortName'], 'live_hockey',
-                                             name_for_diagnostic=game['awayTeam']['longName'])
-    competition = _get_comp(game['competition']['name'])
-    stream_start: str | None = game.get('streamStart', None)
-    stream_start_time = round(parser.parse(stream_start).timestamp()) if stream_start is not None else None
-
-    out = DatabaseAligner.get_or_create_game(
-        home_team_code=home_team_code,
-        home_team_long_name=game['homeTeam']['longName'],
-        away_team_code=away_team_code,
-        away_team_long_name=game['awayTeam']['longName'],
-        start_time=start_time.timestamp(),
-        competition=competition,
-        source=f'Live Hockey {source}',
-    )
-
-    if (
-            game.get('streamEnd', None) is not None or
-            (stream_start_time or start_time.timestamp()) + 2 * HOUR_IN_SEC < datetime.now().timestamp()
-    ):
-        out.complete = True
-
-    if game['extSrc'] == 'ALT_WA':
-        if not out.altius_id:
-            out.altius_id = game['extId']
-    else:
-        out.teamstar_id = game['extId']
-    out.live_hockey_id = game['id']
-    out.stream_start_time = stream_start_time
-
-    if not out.home_team.image_link and game['homeTeam'].get('logo', None):
-        out.home_team.image_link = f"https://files.livearenasports.com/files/{game['homeTeam']['logo']['blobId']}"
-    if not out.away_team.image_link and game['awayTeam'].get('logo', None):
-        out.away_team.image_link = f"https://files.livearenasports.com/files/{game['awayTeam']['logo']['blobId']}"
-
-    return out
+async def add_live_hockey_game_to_db(game: dict[str, Any], source: str=''):
+    with db_session():
+        start_time = parser.parse(game['start'])
+        home_team_code = DBCodesManager.fix_code(game['homeTeam']['shortName'], 'live_hockey',
+                                                 name_for_diagnostic=game['homeTeam']['longName'])
+        away_team_code = DBCodesManager.fix_code(game['awayTeam']['shortName'], 'live_hockey',
+                                                 name_for_diagnostic=game['awayTeam']['longName'])
+        competition = _get_comp(game['competition']['name'])
+        stream_start: str | None = game.get('streamStart', None)
+        stream_start_time = round(parser.parse(stream_start).timestamp()) if stream_start is not None else None
+        out = DatabaseAligner.get_or_create_game(
+            home_team_code=home_team_code,
+            home_team_long_name=game['homeTeam']['longName'],
+            away_team_code=away_team_code,
+            away_team_long_name=game['awayTeam']['longName'],
+            start_time=start_time.timestamp(),
+            competition=competition,
+            source=f'Live Hockey {source}',
+        )
+        if not out.venue:
+            out.venue = await get_or_create_live_hockey_venue(game['venueId'])
+        if (
+                game.get('streamEnd', None) is not None or
+                (stream_start_time or start_time.timestamp()) + 2 * HOUR_IN_SEC < datetime.now().timestamp()
+        ):
+            out.complete = True
+    
+        if game['extSrc'] == 'ALT_WA':
+            if not out.altius_id:
+                out.altius_id = game['extId']
+        else:
+            out.teamstar_id = game['extId']
+        out.live_hockey_id = game['id']
+        out.stream_start_time = stream_start_time
+        if not out.home_team.image_link and game['homeTeam'].get('logo', None):
+            out.home_team.image_link = f"https://files.livearenasports.com/files/{game['homeTeam']['logo']['blobId']}"
+        if not out.away_team.image_link and game['awayTeam'].get('logo', None):
+            out.away_team.image_link = f"https://files.livearenasports.com/files/{game['awayTeam']['logo']['blobId']}"
+        return out
 
 
 async def update_live_hockey(location: str = 'hockeywa', filter_: Callable | None = None,
@@ -131,11 +140,10 @@ async def update_live_hockey(location: str = 'hockeywa', filter_: Callable | Non
         upcoming = await LiveHockeyFetcher.get_games_from_live_hockey(competitions, 7, True, date_from_in=date,
                                                                       page=page)
         if upcoming is None or len(upcoming) == 0:
-            LiveHockeyFetcher.live_hockey_logger.debug(f'Page {page + 1} is empty!')
             # this means we are out of pages
             break
         for i in upcoming:
-            upcoming_games.append(add_live_hockey_game_to_db(i, 'Upcoming'))
+            upcoming_games.append(await add_live_hockey_game_to_db(i, 'Upcoming'))
         await sleep_for_approx(0.5)
         page += 1
 
@@ -148,11 +156,10 @@ async def update_live_hockey(location: str = 'hockeywa', filter_: Callable | Non
         recent = await LiveHockeyFetcher.get_games_from_live_hockey(competitions, -7, True, date_from_in=date,
                                                                     page=page)
         if recent is None or len(recent) == 0:
-            LiveHockeyFetcher.live_hockey_logger.debug(f'Page {page + 1} is empty!')
             # this means we are out of pages
             break
         for i in recent:
-            recent_games.append(add_live_hockey_game_to_db(i, 'Recent'))
+            recent_games.append(await add_live_hockey_game_to_db(i, 'Recent'))
         await sleep_for_approx(0.5)
         page += 1
 
@@ -175,17 +182,13 @@ async def game_from_blob(blob: str):
         game = Games.get(live_hockey_id=blob)
         if not game:
             game_json = await LiveHockeyFetcher.get_game_from_live_hockey(blob)
-            game = add_live_hockey_game_to_db(game_json)
+            game = await add_live_hockey_game_to_db(game_json)
             game.flush()
             return game
 
         return game
 
-async def update_game(game: Games):
-    with db_session():
-        game_json = await LiveHockeyFetcher.get_game_from_live_hockey(game.live_hockey_id)
-        game = add_live_hockey_game_to_db(game_json)
-        game.flush()
+
 
 
 if __name__ == '__main__':

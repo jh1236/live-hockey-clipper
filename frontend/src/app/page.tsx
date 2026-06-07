@@ -22,7 +22,7 @@ export default function Page() {
 
     useEffect(() => {
         if (includeJuniors === undefined || premierOnly === undefined || includeMasters === undefined || onlyClippable === undefined) return;
-        const url = new URL(`${SERVER_ADDRESS}/api/clips/games/recent`, window.location.origin);
+        const url = new URL(`${SERVER_ADDRESS}/api/games/recent`, window.location.origin);
         url.searchParams.append('location', 'hockeywa')
         url.searchParams.append('juniors', '' + includeJuniors)
         url.searchParams.append('premier', '' + premierOnly)
@@ -141,7 +141,7 @@ export default function Page() {
                         size="compact-sm"
                         data-disabled={!gameBlob || gameBlobError}
                         onClick={() => {
-                            fetch(`${SERVER_ADDRESS}/api/clips/games/blob/${gameBlob}`)
+                            fetch(`${SERVER_ADDRESS}/api/games/blob/${gameBlob}`)
                                 .then(it => it.json())
                                 .then((it: { game: Game }) => {
                                     redirect(`/${it.game.id}`)

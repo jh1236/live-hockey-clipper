@@ -73,6 +73,11 @@ async def get_game_from_live_hockey(blob):
                             headers=get_header())
     return resp.json()
 
+async def get_venue_from_live_hockey(blob):
+    resp = await client.get(f'https://api.livearenasports.com/venue/{blob}',
+                            headers=get_header())
+    return resp.json()
+
 
 async def get_games_from_live_hockey(competitions: list[Competitions], days_in_future: int, include_live: bool,
                                      date_from_in: int = None, page=0):

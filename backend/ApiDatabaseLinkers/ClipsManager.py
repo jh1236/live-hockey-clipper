@@ -73,7 +73,7 @@ async def download_clip_for_game(
     index_url = await LiveHockeyFetcher.get_video_link_from_blob(blob, username, password)
 
     attempts = 0
-    while attempts < 3:
+    while attempts < 5:
         index_file = (await client.get(index_url)).text
         files = []
         segment_start_time = 0
@@ -90,13 +90,13 @@ async def download_clip_for_game(
                 files.append(line)
         if segment_finish_time < clip_end_time:
             attempts += 1
-            wait_time = 2 ** (attempts + 1)
+            wait_time = 2 ** attempts
             logger.warning("Clip time was past end of video, waiting %s seconds and then trying again", wait_time)
             await sleep_for_approx(wait_time)
         else:
             break
 
-    if attempts == 3:
+    if attempts == 5:
         raise Exception('Too far in future!')
 
     logger.warning('first time: %s', first_time)

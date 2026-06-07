@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import shutil
+import traceback
 from datetime import timedelta
 from multiprocessing.process import current_process
 from threading import Thread
@@ -79,7 +80,7 @@ def run_periodically():
                 logging.info(f'Completed task "{name}"')
             except Exception as e:
                 logging.error(f'Exception {type(e).__name__} while running task "{name}"')
-                logging.error(e)
+                logging.error(traceback.format_exc())
         
 
     worker_number = int(current_process()._name.split('-')[-1])

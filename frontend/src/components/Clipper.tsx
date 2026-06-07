@@ -60,7 +60,7 @@ export function Clipper({id: gameId}: ClipperProps) {
     useEffect(() => {
         if (gameId) {
             console.log("Requesting!")
-            fetch(`${SERVER_ADDRESS}/api/clips/games/${gameId}`).then(it => it.json()).then((it: {
+            fetch(`${SERVER_ADDRESS}/api/games/${gameId}`).then(it => it.json()).then((it: {
                 game: Game,
                 clips: Clip[]
             }) => {
@@ -238,7 +238,7 @@ export function Clipper({id: gameId}: ClipperProps) {
                                         })
                                     }).then(it => it.json()).then(({clips}) => {
                                         setClips(clips)
-                                    }).catch(() => fetch(`${SERVER_ADDRESS}/api/clips/games/${gameId}`).then(it => it.json()).then((it: {
+                                    }).catch(() => fetch(`${SERVER_ADDRESS}/api/games/${gameId}`).then(it => it.json()).then((it: {
                                         clips: Clip[]
                                     }) => {
                                         setClips(it.clips)
