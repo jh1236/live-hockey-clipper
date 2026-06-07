@@ -180,7 +180,7 @@ export function Clipper({id: gameId}: ClipperProps) {
                             <Button bg="green"
                                     disabled={timeToClipError}
                                     onClick={() => {
-                                        const newClip: Omit<Clip, 'link'> = {
+                                        const newClip: Omit<Clip, 'link' |'game'> = {
                                             name: `Unsaved Clip ${unnamedCount}`,
                                             startTime: timeToClip,
                                             duration: secondsToHMS(durationToClip),

@@ -1,6 +1,7 @@
 export const SERVER_ADDRESS = process.env.NEXT_PUBLIC_BACKEND_ADDRESS ?? 'http://localhost:5003'
 
 export type Clip = {
+    game: Game;
     startTime: string,
     duration: string,
     name: string,

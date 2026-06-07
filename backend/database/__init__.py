@@ -278,6 +278,7 @@ class Clips(db.Entity):
     def format_for_frontend(self):
         d = self.to_dict()
         d['game_id'] = self.game.id
+        d['game'] = self.game.format_for_frontend()
         d['start_time'] = int_to_time(self.start_time)
         d['duration'] = int_to_time(self.duration)
         d['categories'] = [i for i in self.comment.split(';') if i.strip()]

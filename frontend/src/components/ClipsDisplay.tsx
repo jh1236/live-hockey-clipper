@@ -337,9 +337,7 @@ function SingleClipDisplay({clip, setEditingClipIndex, clipIndex, setClips, link
 
 interface ClipsDisplayProps {
     clips: (Clip | undefined)[] | null,
-    setClips
-        :
-        Dispatch<SetStateAction<(Clip | undefined)[] | null>>,
+    setClips: Dispatch<SetStateAction<(Clip | undefined)[] | null>>,
     error?: string,
     noClipMessage
         :
