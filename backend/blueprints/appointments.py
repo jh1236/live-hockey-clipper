@@ -73,6 +73,12 @@ async def get_games_per_umpire():
             games_every_week: defaultdict[int, int] = field(default_factory=lambda: defaultdict(int))
             comps_every_week: defaultdict[int, defaultdict[str, int]] = field(
                 default_factory=lambda: defaultdict(lambda: defaultdict(int)))
+            ladder_pos_every_week: dict[int, float] = field(
+                default_factory=lambda: defaultdict(float))
+            ladder_difference_every_week: dict[int, float] = field(
+                default_factory=lambda: defaultdict(float))
+            games_with_ladder_every_week: defaultdict[int, int] = field(
+                default_factory=lambda: defaultdict(int))
             games_per_venue: defaultdict[str, int] = field(default_factory=lambda: defaultdict(int))
             years: list[int] = field(default_factory=list)
             competitions: list[Competitions] = field(default_factory=list)
@@ -143,9 +149,14 @@ async def get_games_per_umpire():
                     ([i for i in g.away_team.ladder_positions if i.competition == g.competition] + [None])[0]
 
                 if away_team_pos and home_team_pos:
-                    ump_dict.average_ladder_difference += abs(home_team_pos.position - away_team_pos.position)
-                    ump_dict.average_ladder_position += home_team_pos.position + away_team_pos.position
+                    diff = abs(home_team_pos.position - away_team_pos.position)
+                    sum = home_team_pos.position + away_team_pos.position
+                    ump_dict.average_ladder_difference += diff
+                    ump_dict.average_ladder_position += sum
                     ump_dict.games_with_ladder += 1
+                    ump_dict.ladder_pos_every_week[monday_timestamp] += sum
+                    ump_dict.ladder_difference_every_week[monday_timestamp] += diff
+                    ump_dict.games_with_ladder_every_week[monday_timestamp] += 1
 
                 if g.umpire_manager:
                     ump_dict.games_with_umpire_managers[g.umpire_manager.name] += 1
@@ -162,29 +173,33 @@ async def get_games_per_umpire():
                 del v['manager_stats']
             if v['umpire_stats'].games == 0:
                 del v['umpire_stats']
-            for k2, v2 in v.items():
-                if k2 == 'umpire': continue
-                v2.average_games_per_week = round(
-                    v2.games / (sum([len(times[i]) for i in v2.years]) or 1), 2)
-                v2.average_ladder_difference = \
-                    round(v2.average_ladder_difference / (v2.games_with_ladder or 1), 3)
-                v2.average_games_per_week = round(
-                    sum(v2.games_every_week.values()) / sum([len(times[i]) for i in v2.years]), 2)
+            for ump_or_manager, stats in v.items():
+                if ump_or_manager == 'umpire': continue
+                stats.average_games_per_week = round(
+                    stats.games / (sum([len(times[i]) for i in stats.years]) or 1), 2)
+                stats.average_ladder_difference = \
+                    round(stats.average_ladder_difference / (stats.games_with_ladder or 1), 3)
+                stats.average_games_per_week = round(
+                    sum(stats.games_every_week.values()) / sum([len(times[i]) for i in stats.years]), 2)
                 # times two as two teams per game
-                v2.average_ladder_position = \
-                    round(v2.average_ladder_position / ((v2.games_with_ladder or 1) * 2), 3)
+                stats.average_ladder_position = \
+                    round(stats.average_ladder_position / ((stats.games_with_ladder or 1) * 2), 3)
 
-                v2.average_score_difference = \
-                    round(v2.average_score_difference / (v2.games_with_score or 1), 3)
-                for i in v2.years:
+                stats.average_score_difference = \
+                    round(stats.average_score_difference / (stats.games_with_score or 1), 3)
+                stats.ladder_difference_every_week = {k: v / stats.games_with_ladder_every_week[k] for k, v in
+                                                      stats.ladder_difference_every_week.items()}
+                stats.ladder_pos_every_week = {k: v / stats.games_with_ladder_every_week[k] for k, v in
+                                               stats.ladder_pos_every_week.items()}
+                for i in stats.years:
                     for week in times[i]:
-                        for c in v2.competitions:
+                        for c in stats.competitions:
                             if c["year"] != datetime.fromtimestamp(week / 1000).year: continue
-                            if c["name"] in v2.comps_every_week[week]: continue
-                            v2.comps_every_week[week][c["name"]] = 0
-                        if week in v2.games_every_week:
+                            if c["name"] in stats.comps_every_week[week]: continue
+                            stats.comps_every_week[week][c["name"]] = 0
+                        if week in stats.games_every_week:
                             continue
-                        v2.games_every_week[week] = 0
+                        stats.games_every_week[week] = 0
 
         ret = list(sorted(out.values(), key=lambda a: a['umpire']['name']))
         if len(ret) == 1:
