@@ -7,7 +7,8 @@ import {
     Button,
     Card,
     Center,
-    Checkbox, Dialog,
+    Checkbox,
+    Dialog,
     Flex,
     Grid,
     Group,
@@ -29,8 +30,6 @@ import {FaEllipsisH, FaFileDownload, FaShareAlt} from "react-icons/fa";
 import {Dispatch, SetStateAction, useMemo, useState} from "react";
 import {useSetting} from "@/components/settings";
 import {useBoolean, useCopyToClipboard} from "react-use";
-import {MediaPlayer, MediaProvider} from "@vidstack/react";
-import {defaultLayoutIcons, DefaultVideoLayout} from "@vidstack/react/player/layouts/default";
 
 const CATEGORIES = [
     'Stick Obstruction',
