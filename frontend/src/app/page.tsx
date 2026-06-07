@@ -144,7 +144,7 @@ export default function Page() {
                             fetch(`${SERVER_ADDRESS}/api/games/blob/${gameBlob}`)
                                 .then(it => it.json())
                                 .then((it: { game: Game }) => {
-                                    redirect(`/${it.game.id}`)
+                                    redirect(`/${it.game.identifier}`)
                                 })
                         }}>
                     Begin

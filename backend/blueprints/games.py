@@ -85,6 +85,10 @@ async def get_game_by_blob(blob):
 async def get_game(game_identifier):
     with db_session():
         game = Games.get_by_identifier(game_identifier)
+        if not game:
+            start = datetime.strptime(f"{game_identifier.split('-')[0]}.{game_identifier.split('~')[1]}.+0800", '%Y.%d.%m.%H.%M.%z')
+            await LiveHockeyManager.update_live_hockey(date=int(start.timestamp()))
+            game = Games.get_by_identifier(game_identifier)
         if not game.stream_start_time and game.start_time - 15 * MINUTE_IN_SEC < datetime.now().timestamp():
             game = await LiveHockeyManager.game_from_blob(game.live_hockey_id)
         return jsonify(
