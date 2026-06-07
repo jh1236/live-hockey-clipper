@@ -17,7 +17,14 @@ interface TagSelectorProps {
     activeClips: (Clip | undefined)[] | null;
 }
 
-function TagSelector({selectedTags, setSelectedTags, clips, activeClips}: TagSelectorProps) {
+function TagSelector({
+                         selectedTags,
+                         setSelectedTags,
+                         selectedComps,
+                         setSelectedComps,
+                         clips,
+                         activeClips
+                     }: TagSelectorProps) {
     const allTags = useMemo(() => {
         const out: string[] = []
         for (const i of clips ?? []) {
@@ -69,13 +76,13 @@ function TagSelector({selectedTags, setSelectedTags, clips, activeClips}: TagSel
     }
 
     return <>
-        <Title order={3}>Tags</Title>
-        <Checkbox.Group value={selectedTags} onChange={setSelectedTags}>
+        <Title order={3}>Filter</Title>
+        <Checkbox.Group label="Grade" value={selectedComps} onChange={setSelectedComps} mt={20}>
             {comps.map(([tag, count], i) => <Checkbox key={i} my={5} value={tag} label={<Group justify="left">
                 <Text inline>{tag}</Text><Text inline c="dimmed">({count})</Text>
             </Group>}></Checkbox>)}
         </Checkbox.Group>
-        <Checkbox.Group value={selectedTags} onChange={setSelectedTags}>
+        <Checkbox.Group label="Tags" value={selectedTags} onChange={setSelectedTags} mt={20}>
             {tags.map(([tag, count], i) => <Checkbox key={i} my={5} value={tag} label={<Group justify="left">
                 <Text inline>{tag}</Text><Text inline c="dimmed">({count})</Text>
             </Group>}></Checkbox>)}
@@ -146,10 +153,12 @@ export default function Page() {
         </Group>
         <Group align="flex-start">
             <Box w={{base: '100%', md: '80%'}}>
-                <ClipsDisplay clips={activeClips} setClips={setClips as Dispatch<SetStateAction<(Clip | undefined)[] | null>>} linkToGame noClipMessage={
-                    <>There are no clips saved. <br/> Save a clip by
-                        pressing the star button in the top right!</>
-                }/>
+                <ClipsDisplay clips={activeClips}
+                              setClips={setClips as Dispatch<SetStateAction<(Clip | undefined)[] | null>>} linkToGame
+                              noClipMessage={
+                                  <>There are no clips saved. <br/> Save a clip by
+                                      pressing the star button in the top right!</>
+                              }/>
             </Box>
             <Box visibleFrom='md'>
                 <TagSelector selectedTags={selectedTags} setSelectedTags={setSelectedTags} activeClips={activeClips}
