@@ -130,8 +130,8 @@ async def download_clip_for_game(
 
 async def _get_args(clip, venue, files, first_time, output_location, quality):
     clip_start_time = max(clip.start_time - 2, 0)
-    if venue in ['TPHC']:
-        # venues who have broken audio
+    if venue in ['TPHC', 'MELV']:
+        # venues that have broken audio
         return [
             "ffmpeg",
             "-protocol_whitelist", "file,http,https,tcp,tls,crypto,concat",
