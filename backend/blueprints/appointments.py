@@ -164,6 +164,7 @@ async def get_games_per_umpire():
                     ump_dict.games_with_ladder_every_week[monday_timestamp] += 1
 
                 for i in g.cards:
+                    if not is_umpire_manager and not i.official.id == o.id: continue
                     ump_dict.cards[i.color] += 1
                     ump_dict.cards_every_week[monday_timestamp][i.color] += 1
                     ump_dict.cards_per_team[i.team.code][i.color] += 1

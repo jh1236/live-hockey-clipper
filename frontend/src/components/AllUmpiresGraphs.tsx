@@ -4,6 +4,7 @@ import {Grid, Text, Title} from "@mantine/core";
 import {AreaChart, BarChart, PieChart} from "@mantine/charts";
 import {addOtherFieldToGraph, COLORS, defs, OTHER_COLOR} from "@/graphUtils";
 import {AllGrades} from "@/components/pages/StatisticsPage";
+import {colorFromCardType} from "@/components/UmpireGraph";
 
 
 interface AllUmpiresGraphsParams {
@@ -21,6 +22,8 @@ export function levelComparer(level: AllGrades, comp: Competition) {
     if (level === 'Premier') return comp.isPremier
     return level === comp.level
 }
+
+type PerWeekKey = { games: number, cards: { [color: string]: number } };
 
 export function AllUmpiresGraphs({
                                      fromYear,
@@ -73,55 +76,105 @@ export function AllUmpiresGraphs({
     const totalGames = relevantUmpireData.reduce((a, b) => a + b.umpireStats.games, 0)
     const gamesByMen = Math.round(100 * relevantUmpireData?.filter(it => it.umpire.gender === 'M').reduce((a, b) => a + b.umpireStats.games, 0) / totalGames)
 
-    const gamesPerWeek = useMemo(() =>
+    const perWeekData = useMemo(() =>
         Object.values(relevantUmpireData.reduce(
             (acc, it) => {
                 Object.entries(it.umpireStats.gamesEveryWeek).forEach(([epoch, value]) => {
                         if (value === 0) return;
                         const key = +epoch;
-                        if (!(key in acc)) {
-                            acc[key] = {week: key}
-                        }
                         acc[key] =
-                            Object.assign({}, acc[key] ?? {}, {[it.umpire.name]: value})
+                            Object.assign({}, acc[key] ?? {week: key}, {
+                                [it.umpire.name]: {
+                                    games: value,
+                                    cards: it.umpireStats.cardsEveryWeek[epoch]
+                                }
+                            })
                     }
                 )
                 return acc
             }, {} as {
-                [key: string]: { week: number, [key: string]: number }
+                [key: string]: {
+                    week: number,
+                    [key: string]: PerWeekKey | number
+                }
             })).sort((a, b) => a.week - b.week).map(it => ({
             ...it,
             week: new Date(it.week).toLocaleDateString()
         } as {
-            week: string, [key: string]: number | string
+            week: string, [key: string]: PerWeekKey | string
         })), [relevantUmpireData]);
 
+    console.log(perWeekData)
+
     const filteredGamesPerWeek = useMemo(() => (level === 'All' || (gender === '-' && level === 'Premier')) ?
-            gamesPerWeek.map(it => Object.assign({week: it.week}, addOtherFieldToGraph(Object.fromEntries(Object.entries(it).filter(([k]) => k !== 'week')) as {
+            perWeekData.map(it => Object.assign({week: it.week}, addOtherFieldToGraph(Object.fromEntries(Object.entries(it).filter(([k]) => k !== 'week').map(([k, v]) => [k, (v as PerWeekKey).games])) as {
                 [key: string]: number
             }, 0, false, 2)))
-            : gamesPerWeek
+            : perWeekData.map(it => Object.assign({week: it.week}, it.games))
         // we don't want this to recalculate twice for performance reasons.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        , [gamesPerWeek])
+        , [perWeekData])
 
     const gamesPerGenderPerWeek = useMemo(() => {
         const out: { 'Games Umpired by Women': number, 'Games Umpired by Men': number, week: string }[] = []
-        for (const it of gamesPerWeek) {
+        for (const it of perWeekData) {
             const week = it.week
             const toAdd = {week, 'Games Umpired by Women': 0, 'Games Umpired by Men': 0}
             for (const [name, value] of Object.entries(it)) {
                 if (name === 'week') continue;
                 if (umpiresByName[name]?.gender === 'M') {
-                    toAdd['Games Umpired by Men'] += value as number
+                    toAdd['Games Umpired by Men'] += (value as PerWeekKey).games
                 } else {
-                    toAdd['Games Umpired by Women'] += value as number
+                    toAdd['Games Umpired by Women'] += (value as PerWeekKey).games
                 }
             }
             out.push(toAdd)
         }
         return out
-    }, [gamesPerWeek, umpiresByName])
+    }, [perWeekData, umpiresByName])
+
+    const cardsPerWeek = useMemo(() => {
+        const out: { [color: string]: number | string, week: string }[] = []
+        for (const it of perWeekData) {
+            const week = it.week
+            const toAdd: { [color: string]: number | string, week: string } = {week}
+            for (const [name, value] of Object.entries(it)) {
+                if (name === 'week') continue;
+                for (const [color, count] of Object.entries((value as PerWeekKey).cards)) {
+                    if (!(color in toAdd)) {
+                        toAdd[color] = 0
+                    }
+                    (toAdd[color] as number) += count as number
+                }
+            }
+            out.push(toAdd)
+        }
+        return out
+    }, [perWeekData])
+
+    const cardsPerGamePerWeek = useMemo(() => {
+        const out: { [color: string]: number | string, week: string }[] = []
+        for (const it of perWeekData) {
+            const week = it.week
+            const toAdd: { [color: string]: number | string, week: string, games: number } = {week, games: 0}
+            for (const [name, value] of Object.entries(it)) {
+                if (name === 'week') continue;
+                toAdd.games += (value as PerWeekKey).games
+                for (const [color, count] of Object.entries((value as PerWeekKey).cards)) {
+                    if (!(color in toAdd)) {
+                        toAdd[color] = 0
+                    }
+                    (toAdd[color] as number) += count as number
+                }
+            }
+
+            out.push(Object.fromEntries(Object.entries(toAdd).filter(([k]) => k !== 'games').map(([k, v]) => k === 'week' ? [k, v] : [k, Math.round(100 * (v as number) / toAdd.games) / 100])) as {
+                [color: string]: number | string,
+                week: string
+            })
+        }
+        return out
+    }, [perWeekData])
 
 
     const cumulativeGamesPerGender = useMemo(() => {
@@ -130,21 +183,21 @@ export function AllUmpiresGraphs({
             'Games Umpired by Women': 0,
             'Games Umpired by Men': 0
         }
-        for (const it of gamesPerWeek) { //should theoretically be in order
+        for (const it of perWeekData) { //should theoretically be in order
             const week = it.week
             for (const [name, value] of Object.entries(it)) {
                 if (name === 'week') continue;
 
                 if (umpiresByName[name]?.gender === 'M') {
-                    accumulator['Games Umpired by Men'] += value as number
+                    accumulator['Games Umpired by Men'] += (value as PerWeekKey).games
                 } else {
-                    accumulator['Games Umpired by Women'] += value as number
+                    accumulator['Games Umpired by Women'] += (value as PerWeekKey).games
                 }
             }
             out.push({...accumulator, week})
         }
         return out;
-    }, [gamesPerWeek, umpiresByName])
+    }, [perWeekData, umpiresByName])
 
 
     const averageLadderForUmpire = relevantUmpireData?.filter(it => it.umpireStats.games >= gamesTillRelevant && it.umpireStats.averageLadderPosition > 0)
@@ -171,7 +224,7 @@ export function AllUmpiresGraphs({
     const cardsPerUmpirePerGame = relevantUmpireData
         ?.map(it => ({
             name: it.umpire.name,
-            value: Object.values(it.umpireStats.cards).reduce((a, b) => a + b, 0) / it.umpireStats.games,
+            value: Math.round(Object.values(it.umpireStats.cards).reduce((a, b) => a + b, 0) / it.umpireStats.games * 100) / 100,
             color: umpiresByName[it.umpire.name]?.color ?? 'pink'
         })).sort((a, b) => a.value - b.value);
 
@@ -294,7 +347,7 @@ export function AllUmpiresGraphs({
                                   ]}>{defs}</BarChart>
                     }
                 </Grid.Col></>}
-            
+
             <Grid.Col span={{base: 12, md: 3}} p={10}>
                 <Title order={3} ta="center">Games by Gender</Title>
                 <PieChart data={[{
@@ -479,6 +532,60 @@ export function AllUmpiresGraphs({
                     series={[{
                         name: 'value',
                         label: 'Average Score Difference'
+                    }]}
+                    tickLine="y"
+                >{defs}</BarChart>
+            </Grid.Col>
+            <Grid.Col span={{base: 12, md: 3}} p={10}>
+                <Title order={3} ta="center">Cards Per Week</Title>
+                <BarChart
+                    h={300}
+                    data={cardsPerWeek}
+                    dataKey="week"
+                    type='stacked'
+                    series={[{
+                        name: 'G',
+                        label: 'Green Cards',
+                        color: colorFromCardType('G')
+                    }, {
+                        name: 'Y',
+                        label: 'Yellow Cards',
+                        color: colorFromCardType('Y')
+                    }, {
+                        name: '10Y',
+                        label: '10 Minute Yellow',
+                        color: colorFromCardType('10')
+                    }, {
+                        name: 'R',
+                        label: 'Red Cards',
+                        color: colorFromCardType('R')
+                    }]}
+                    tickLine="y"
+                >{defs}</BarChart>
+            </Grid.Col>
+            <Grid.Col span={{base: 12, md: 3}} p={10}>
+                <Title order={3} ta="center">Cards Per Game Week</Title>
+                <BarChart
+                    h={300}
+                    data={cardsPerGamePerWeek}
+                    dataKey="week"
+                    type='stacked'
+                    series={[{
+                        name: 'G',
+                        label: 'Green Cards',
+                        color: colorFromCardType('G')
+                    }, {
+                        name: 'Y',
+                        label: 'Yellow Cards',
+                        color: colorFromCardType('Y')
+                    }, {
+                        name: '10Y',
+                        label: '10 Minute Yellow',
+                        color: colorFromCardType('10')
+                    }, {
+                        name: 'R',
+                        label: 'Red Cards',
+                        color: colorFromCardType('R')
                     }]}
                     tickLine="y"
                 >{defs}</BarChart>
