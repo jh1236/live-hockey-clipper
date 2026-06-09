@@ -418,7 +418,7 @@ export function AllUmpiresGraphs({
                               withTooltip
                               mx="auto"
                               series={[
-                                  {label: 'Games Umpired', name: 'value'}
+                                  {label: 'Cards Given', name: 'value'}
                               ]}
                               dataKey="name"
                               h={300}
@@ -448,7 +448,7 @@ export function AllUmpiresGraphs({
                               withTooltip
                               mx="auto"
                               series={[
-                                  {label: 'Games Umpired', name: 'value'}
+                                  {label: 'Cards Given', name: 'value'}
                               ]}
                               dataKey="name"
                               h={300}
