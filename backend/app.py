@@ -18,6 +18,7 @@ from ApiDatabaseLinkers import ClipsManager, AltiusManager, WhistleIQManager, Li
 from blueprints import api
 from config import get_config
 from database import init_db
+from populate_database import update_database
 from utils import camelise
 
 logging.getLogger('httpx').setLevel(logging.WARNING)
@@ -71,7 +72,7 @@ def run_periodically():
 
     worker_number = int(current_process()._name.split('-')[-1])
     if worker_number == 1:
-        Thread(target=lambda: asyncio.run(work()), daemon=True).start()
+        Thread(target=lambda: asyncio.run(update_database()), daemon=True).start()
 
 
 @tasks.periodic(timedelta(hours=12))
