@@ -207,9 +207,10 @@ async def get_games_per_umpire():
                             if c["year"] != datetime.fromtimestamp(week / 1000).year: continue
                             if c["name"] in stats.comps_every_week[week]: continue
                             stats.comps_every_week[week][c["name"]] = 0
-                        if week in stats.games_every_week:
-                            continue
-                        stats.games_every_week[week] = 0
+                        if week not in stats.games_every_week:
+                            stats.games_every_week[week] = 0
+                        if week not in stats.cards_every_week:
+                            stats.cards_every_week[week] = {'G': 0, 'Y': 0}
 
         ret = list(sorted(out.values(), key=lambda a: a['umpire']['name']))
         if len(ret) == 1:
