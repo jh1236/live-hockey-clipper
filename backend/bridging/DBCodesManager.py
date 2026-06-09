@@ -215,6 +215,7 @@ def fix_human_name(name: str):
         'Mel': 'Melissa',
         'Sam': 'Samuel'
     }
+    name = re.sub(r'\s+', ' ', name).strip()
     first_name, last_name = name.split(' ', 1)
     if first_name in first_name_fixes:
         first_name = first_name_fixes[first_name]

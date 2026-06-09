@@ -122,7 +122,7 @@ async def update_umpires(officials_to_update: Collection[tuple[int, int]], *, fo
         for (tournament, match_official), html in htmls.items():
             soup = BeautifulSoup(html, "html.parser")
             official_name = DBCodesManager.fix_human_name(
-                fix_last_first_name(soup.find('h3').contents[0].text.split(' (')[0]))
+                fix_last_first_name(soup.find('h3').contents[0].text.split(' (')[0]).replace('\n', ''))
 
             official = DatabaseAligner.get_or_create_official(official_name)
 
@@ -161,7 +161,7 @@ async def update_umpires(officials_to_update: Collection[tuple[int, int]], *, fo
                         else:
                             color = f'{time}Y'
                     team = game.home_team if team_one == team_code else game.away_team
-                    player_name = re.sub(r'\([^)]*\)$', '', player_name).strip()
+                    player_name = re.sub(r'\([^)]*\)$', '', player_name.replace('\n', ''))
                     try:
                         player_name = DBCodesManager.fix_human_name(fix_last_first_name(player_name))
                     except:
