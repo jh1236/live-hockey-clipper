@@ -198,7 +198,7 @@ def fix_code(code: str, source: Literal['altius'] | Literal['live_hockey'] | Lit
             pass
 
 
-def fix_official_name(name: str):
+def fix_human_name(name: str):
     first_name_fixes = {
         'Matt': 'Matthew',
         'Lachie': 'Lachlan',
@@ -226,4 +226,4 @@ if __name__ == '__main__':
     init_db()
     with db_session():
         for i in Officials.select():
-            i.name = fix_official_name(i.name)
+            i.name = fix_human_name(i.name)

@@ -75,6 +75,11 @@ async def get_games_per_umpire():
                 default_factory=lambda: defaultdict(lambda: defaultdict(int)))
             ladder_pos_every_week: dict[int, float] = field(
                 default_factory=lambda: defaultdict(float))
+            cards: dict[int, int] = field(default_factory=lambda: defaultdict(int))
+            cards_every_week: dict[int, dict[str, int]] = field(
+                default_factory=lambda: defaultdict(lambda: defaultdict(int)))
+            cards_per_team: dict[str, dict[str, int]] = field(
+                default_factory=lambda: defaultdict(lambda: defaultdict(int)))
             ladder_difference_every_week: dict[int, float] = field(
                 default_factory=lambda: defaultdict(float))
             games_with_ladder_every_week: defaultdict[int, int] = field(
@@ -157,6 +162,11 @@ async def get_games_per_umpire():
                     ump_dict.ladder_pos_every_week[monday_timestamp] += sum
                     ump_dict.ladder_difference_every_week[monday_timestamp] += diff
                     ump_dict.games_with_ladder_every_week[monday_timestamp] += 1
+
+                for i in g.cards:
+                    ump_dict.cards[i.color] += 1
+                    ump_dict.cards_every_week[monday_timestamp][i.color] += 1
+                    ump_dict.cards_per_team[i.team.code][i.color] += 1
 
                 if g.umpire_manager:
                     ump_dict.games_with_umpire_managers[g.umpire_manager.name] += 1

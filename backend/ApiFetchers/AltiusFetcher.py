@@ -1,6 +1,7 @@
 import os
 from collections import defaultdict
-from typing import Literal, Callable
+from datetime import datetime
+from typing import Literal, Callable, Iterable, Sized, Collection
 
 import httpx
 import logging
@@ -8,7 +9,7 @@ from getuseragent import UserAgent
 
 from config import get_config
 from requester import client
-from utils import sleep_for_approx
+from utils import sleep_for_approx, int_to_time
 
 all_tournaments = [57, 58, 59, 60, 52, 51, 54, 53, 45, 46, 43, 44, 39, 40, 33, 34, 25, 26, 17, 18, 12, 11, 7, 8, 3, 4]
 
@@ -32,21 +33,21 @@ def get_header(token: None | str = None):
 async def _get_officials_from_altius(tournament, force_regen=False, *, attempts=3) -> tuple[str, bool]:
     if attempts == 0:
         raise Exception('Too many attempts to fetch from altius, and cache is empty!')
-    cache_folder = get_config().cache_folder
+    cache_folder = f'{get_config().cache_folder}/officials'
     os.makedirs(cache_folder, exist_ok=True)
-    if os.path.exists(f'{cache_folder}/{tournament}_officials.html') and not force_regen:
-        with open(f'{cache_folder}/{tournament}_officials.html', 'r') as f:
+    if os.path.exists(f'{cache_folder}/{tournament}.html') and not force_regen:
+        with open(f'{cache_folder}/{tournament}.html', 'r') as f:
             return f.read(), True
     try:
         page = await client.get(f"{base_url}/{tournament}/officials")
         html = page.read().decode("utf-8")
-        with open(f'{cache_folder}/{tournament}_officials.html', 'w+') as f:
+        with open(f'{cache_folder}/{tournament}.html', 'w+') as f:
             f.write(html)
         return html, False
     except httpx.HTTPError as e:
         altius_logger.error(f'Altius API returned HTTP error "{type(e).__name__}"')
-        if os.path.exists(f'{cache_folder}/{tournament}_officials.html') and force_regen:
-            with open(f'{cache_folder}/{tournament}_officials.html', 'r') as f:
+        if os.path.exists(f'{cache_folder}/{tournament}.html') and force_regen:
+            with open(f'{cache_folder}/{tournament}.html', 'r') as f:
                 return f.read(), False
         else:
             await sleep_for_approx(1)
@@ -57,21 +58,21 @@ async def _get_officials_from_altius(tournament, force_regen=False, *, attempts=
 async def _get_ladder_from_altius(tournament, force_regen=False, *, attempts=3) -> tuple[str, bool]:
     if attempts == 0:
         raise Exception('Too many attempts to fetch from altius, and cache is empty!')
-    cache_folder = get_config().cache_folder
+    cache_folder = f'{get_config().cache_folder}/ladder'
     os.makedirs(cache_folder, exist_ok=True)
-    if os.path.exists(f'{cache_folder}/{tournament}_ladder.html') and not force_regen:
-        with open(f'{cache_folder}/{tournament}_ladder.html', 'r') as f:
+    if os.path.exists(f'{cache_folder}/{tournament}.html') and not force_regen:
+        with open(f'{cache_folder}/{tournament}.html', 'r') as f:
             return f.read(), True
     try:
         page = await client.get(f"{base_url}/{tournament}/pools")
         html = page.read().decode("utf-8")
-        with open(f'{cache_folder}/{tournament}_ladder.html', 'w+') as f:
+        with open(f'{cache_folder}/{tournament}.html', 'w+') as f:
             f.write(html)
         return html, False
     except httpx.HTTPError as e:
         altius_logger.error(f'Altius API returned HTTP error "{type(e).__name__}"')
-        if os.path.exists(f'{cache_folder}/{tournament}_ladder.html') and force_regen:
-            with open(f'{cache_folder}/{tournament}_ladder.html', 'r') as f:
+        if os.path.exists(f'{cache_folder}/{tournament}.html') and force_regen:
+            with open(f'{cache_folder}/{tournament}.html', 'r') as f:
                 return f.read(), False
         else:
             await sleep_for_approx(1)
@@ -82,21 +83,46 @@ async def _get_ladder_from_altius(tournament, force_regen=False, *, attempts=3) 
 async def _get_games_from_altius(tournament, force_regen=False, *, attempts=3) -> tuple[str, bool]:
     if attempts == 0:
         raise Exception('Too many attempts to fetch from altius, and cache is empty!')
-    cache_folder = get_config().cache_folder
+    cache_folder = f'{get_config().cache_folder}/matches'
     os.makedirs(cache_folder, exist_ok=True)
-    if os.path.exists(f'{cache_folder}/{tournament}_games.html') and not force_regen:
-        with open(f'{cache_folder}/{tournament}_games.html', 'r') as f:
+    if os.path.exists(f'{cache_folder}/{tournament}.html') and not force_regen:
+        with open(f'{cache_folder}/{tournament}.html', 'r') as f:
             return f.read(), True
     try:
         page = await client.get(f"{base_url}/{tournament}/matches")
         html = page.read().decode("utf-8")
-        with open(f'{cache_folder}/{tournament}_games.html', 'w+') as f:
+        with open(f'{cache_folder}/{tournament}.html', 'w+') as f:
             f.write(html)
         return html, False
     except httpx.HTTPError as e:
         altius_logger.error(f'Altius API returned HTTP error "{type(e).__name__}"')
-        if os.path.exists(f'{cache_folder}/{tournament}_games.html') and force_regen:
-            with open(f'{cache_folder}/{tournament}_games.html', 'r') as f:
+        if os.path.exists(f'{cache_folder}/{tournament}.html') and force_regen:
+            with open(f'{cache_folder}/{tournament}.html', 'r') as f:
+                return f.read(), False
+        else:
+            await sleep_for_approx(1)
+            return await _get_ladder_from_altius(tournament=tournament, force_regen=True,
+                                                 attempts=attempts - 1)
+
+
+async def _get_official_from_altius(tournament, match_official, force_regen=False, *, attempts=3) -> tuple[str, bool]:
+    if attempts == 0:
+        raise Exception('Too many attempts to fetch from altius, and cache is empty!')
+    cache_folder = f'{get_config().cache_folder}/officials/{tournament}'
+    os.makedirs(cache_folder, exist_ok=True)
+    if os.path.exists(f'{cache_folder}/{match_official}.html') and not force_regen:
+        with open(f'{cache_folder}/{match_official}.html', 'r') as f:
+            return f.read(), True
+    try:
+        page = await client.get(f"{base_url}/{tournament}/matchofficial/{match_official}")
+        html = page.read().decode("utf-8")
+        with open(f'{cache_folder}/{match_official}.html', 'w+') as f:
+            f.write(html)
+        return html, False
+    except httpx.HTTPError as e:
+        altius_logger.error(f'Altius API returned HTTP error "{type(e).__name__}"')
+        if os.path.exists(f'{cache_folder}/{match_official}.html') and force_regen:
+            with open(f'{cache_folder}/{match_official}.html', 'r') as f:
                 return f.read(), False
         else:
             await sleep_for_approx(1)
@@ -121,4 +147,31 @@ async def get_from_altius(tournaments: list[int], *fields: altius_data, force_re
             out[tournament][field], cache_hit = await _fetchers[field](tournament, force_regen=force_regen)
             if not cache_hit:
                 await sleep_for_approx(1)
+    return out
+
+
+async def get_match_officials_from_altius(officials: Collection[tuple[int, int]], force_regen=False) -> dict[
+    tuple[int, int], str]:
+    out: dict[tuple[int, int], str] = {}
+    wait_time = 2 if len(officials) < 20 else 4
+    print(f'Total of {len(officials)} umpires to get')
+    fetch_times = []
+    hits = 0
+    for i, key in enumerate(officials):
+        start = datetime.now()
+        out[key], cache_hit = await _get_official_from_altius(
+            key[0],
+            key[1],
+            force_regen=force_regen
+        )
+        fetch_times.append((datetime.now() - start).total_seconds())
+        if cache_hit:
+            hits += 1
+        if i % 5 == 0 and hits < i + 1:
+            time = (wait_time + sum(fetch_times) / len(fetch_times)) * (len(officials) - i + 1) * (1 - hits / (i + 1))
+            print(f'Estimated time: {int_to_time(time)} ({time: .0f} seconds)')
+            print(f'\t{i + 1}/{len(officials)} ({(i + 1) / len(officials):.1%}) ({hits / (i + 1):.1%} cache hits) ')
+        if not cache_hit:
+            await sleep_for_approx(wait_time)
+        
     return out

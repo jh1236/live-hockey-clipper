@@ -86,6 +86,9 @@ interface UmpireStats {
     averageLadderPosition: number
     averageScoreDifference: number
     gamesPerTeam: { [team: string]: number }
+    cardsPerTeam: { [team: string]: { [color: string]: number } }
+    cardsPerWeek: { [epoch: string]: { [color: string]: number } }
+    cards: { [color: string]: number }
     games: number
     gamesEveryWeek: { [epoch: string]: number }
     compsEveryWeek: { [epoch: string]: { [comp: string]: number } }

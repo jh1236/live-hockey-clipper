@@ -39,7 +39,7 @@ async def update_umpires(org=None):
     out = []
     with db_session():
         for i in org["users"]:
-            name = DBCodesManager.fix_official_name(f"{i['firstName']} {i['lastName']}")
+            name = DBCodesManager.fix_human_name(f"{i['firstName']} {i['lastName']}")
             gender = i['sex'].strip() or '?'
             umpire = DatabaseAligner.get_or_create_official(name, gender_if_new=gender)
             umpire.email = i['email'].strip() or None
@@ -47,7 +47,7 @@ async def update_umpires(org=None):
                 umpire.phone_number = i['mobile'].strip() or None
         for i in sorted(org["events"], key=lambda it: ('Rising' in it['name'], '2025' in it['name'])):
             for a in i['assignments']:
-                name = DBCodesManager.fix_official_name(f"{a['firstName']} {a['lastName']}")
+                name = DBCodesManager.fix_human_name(f"{a['firstName']} {a['lastName']}")
                 gender = a['sex'].strip() or '?'
                 umpire = DatabaseAligner.get_or_create_official(name, gender_if_new=gender)
                 is_um = a['roleCode'] == 'UM'
@@ -100,7 +100,7 @@ async def update_appointments(org=None):
                 umpires = []
                 umpire_manager = None
                 for i in game['assignments']:
-                    name = DBCodesManager.fix_official_name(f"{i['firstName']} {i['lastName']}")
+                    name = DBCodesManager.fix_human_name(f"{i['firstName']} {i['lastName']}")
                     official = DatabaseAligner.get_or_create_official(name)
                     match i['roleCode']:
                         case 'U1' | 'U2':

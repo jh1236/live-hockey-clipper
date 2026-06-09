@@ -22,6 +22,16 @@ interface UmpireGraphsParams {
 }
 
 
+function colorFromCardType(color: string) {
+    if (color.includes('G')) {
+        return '#187200'
+    } else if (color.includes('Y')) {
+        return '#dd8e06'
+    } else {
+        return '#dd1f06'
+    }
+}
+
 export function UmpireGraphs({
                                  fromYear,
                                  toYear,
@@ -69,6 +79,10 @@ export function UmpireGraphs({
     ).toSorted((a, b) => a.value - b.value)
 
     const gamesPerWeek = Object.entries(selectedUmpire?.umpireStats.compsEveryWeek ?? {}).map(([k, v]) =>
+        Object.assign({week: new Date(+k).toLocaleDateString()}, ...Object.entries(v).map(([k, v]) => ({[k]: v})))
+    )
+    
+    const cardsPerWeek = Object.entries(selectedUmpire?.umpireStats.cardsPerWeek ?? {}).map(([k, v]) =>
         Object.assign({week: new Date(+k).toLocaleDateString()}, ...Object.entries(v).map(([k, v]) => ({[k]: v})))
     )
 
@@ -136,7 +150,7 @@ export function UmpireGraphs({
                                 Years Umpired
                             </Table.Th>
                             <Table.Td>
-                                {Math.max(...(selectedUmpire?.umpireStats?.years ?? [0])) - Math.min(...(selectedUmpire?.umpireStats?.years ?? [0])) + 1}
+                                {selectedUmpire?.umpireStats?.years.length}
                             </Table.Td>
                         </Table.Tr>
                     </Table.Tbody>
@@ -250,6 +264,30 @@ export function UmpireGraphs({
                           referenceLines={[
                               {
                                   y: gamesPerWeek.map(it => it.value).reduce((a, b) => a + b, 0) / gamesPerWeek.length,
+                                  color: 'dimmed',
+                                  label: 'Average',
+                                  labelPosition: 'insideTopLeft',
+                              },
+                          ]}>{defs}</BarChart>
+
+            </Grid.Col>
+            <Grid.Col span={{base: 12, md: 3}} p={10}>
+                <Title order={3} ta="center">Cards Per Week</Title>
+
+
+                <BarChart data={cardsPerWeek}
+                          withTooltip
+                          mx="auto"
+                          type="stacked"
+                          series={Object.keys(selectedUmpire?.umpireStats?.cards).map((it) => ({
+                              name: it,
+                              color: colorFromCardType(it)
+                          }))}
+                          dataKey="week"
+                          h={300}
+                          referenceLines={[
+                              {
+                                  y: cardsPerWeek.map(it => it.value).reduce((a, b) => a + b, 0) / cardsPerWeek.length,
                                   color: 'dimmed',
                                   label: 'Average',
                                   labelPosition: 'insideTopLeft',

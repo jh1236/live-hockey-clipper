@@ -66,20 +66,7 @@ async def to_camel_case(response):
 def run_periodically():
     if current_process()._name == 'MainProcess':
         return
-    async def work():
-        config = [['Live Hockey Updater', LiveHockeyManager.update_live_hockey],
-                  ['Altius Updater', AltiusManager.update_altius_pages],
-                  ['Whistle IQ Updater', WhistleIQManager.update_whistle_iq],
-                  ['Stale Clip remover', ClipsManager.remove_old_videos]]
-        for [name, task] in config:
-            logging.info(f'Beginning task "{name}"')
-            try:
-                await task()
-                flush()
-                logging.info(f'Completed task "{name}"')
-            except Exception as e:
-                logging.error(f'Exception {type(e).__name__} while running task "{name}"')
-                logging.error(traceback.format_exc())
+    
         
 
     worker_number = int(current_process()._name.split('-')[-1])

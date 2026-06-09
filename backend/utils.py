@@ -1,4 +1,5 @@
 import asyncio
+import re
 import time
 from datetime import datetime, timedelta, date, timezone
 from typing import TypeVar, Iterator, Any
@@ -79,7 +80,7 @@ def chunks(lst: list[T], n: int) -> Iterator[list[T]]:
 
 
 def fix_last_first_name(str):
-    return ' '.join(reversed([j for j in str.split(" (")[0].rsplit(' ', 1)]))
+    return ' '.join(reversed([j for j in re.sub(r'[()\[\]]', '', str).rsplit(' ', 1)]))
 
 
 def get_monday(timestamp: int) -> datetime:

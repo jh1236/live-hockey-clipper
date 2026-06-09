@@ -161,6 +161,20 @@ export function AllUmpiresGraphs({
             color: umpiresByName[it.umpire.name]?.color ?? 'pink'
         })).sort((a, b) => a.value - b.value);
 
+    const cardsPerUmpire = relevantUmpireData
+        ?.map(it => ({
+            name: it.umpire.name,
+            value: Object.values(it.umpireStats.cards).reduce((a, b) => a + b, 0),
+            color: umpiresByName[it.umpire.name]?.color ?? 'pink'
+        })).sort((a, b) => a.value - b.value);
+
+    const cardsPerUmpirePerGame = relevantUmpireData
+        ?.map(it => ({
+            name: it.umpire.name,
+            value: Object.values(it.umpireStats.cards).reduce((a, b) => a + b, 0) / it.umpireStats.games,
+            color: umpiresByName[it.umpire.name]?.color ?? 'pink'
+        })).sort((a, b) => a.value - b.value);
+
     const averageScoreDeltaForUmpire = relevantUmpireData?.filter(it => it.umpireStats.games >= gamesTillRelevant)
         .map(it => ({
             name: it.umpire.name,
@@ -254,31 +268,33 @@ export function AllUmpiresGraphs({
                                       },
                                   ]}>{defs}</BarChart>
                     }
-                </Grid.Col><Grid.Col span={{base: 12, md: 3}} p={10}>
-                <Title order={3} ta="center">Average Games per Year</Title>
-                {pieChart ?
-                    <PieChart data={addOtherFieldToGraph(gamesPerUmpirePerYear, 0, true)} withTooltip
-                              tooltipDataSource="segment"
-                              mx="auto" size={250}
-                              startAngle={90} endAngle={360 + 90} strokeWidth={0}>{defs}</PieChart> :
-                    <BarChart data={addOtherFieldToGraph(gamesPerUmpirePerYear, 0, true)}
-                              withTooltip
-                              mx="auto"
-                              series={[
-                                  {label: 'Games Umpired Per Year', name: 'value'}
-                              ]}
-                              dataKey="name"
-                              h={300}
-                              referenceLines={[
-                                  {
-                                      y: gamesPerUmpirePerYear.map(it => it.value).reduce((a, b) => a + b, 0) / gamesPerUmpirePerYear.length,
-                                      color: 'dimmed',
-                                      label: 'Average',
-                                      labelPosition: 'insideTopLeft',
-                                  },
-                              ]}>{defs}</BarChart>
-                }
-            </Grid.Col></>}
+                </Grid.Col>
+                <Grid.Col span={{base: 12, md: 3}} p={10}>
+                    <Title order={3} ta="center">Average Games per Year</Title>
+                    {pieChart ?
+                        <PieChart data={addOtherFieldToGraph(gamesPerUmpirePerYear, 0, true)} withTooltip
+                                  tooltipDataSource="segment"
+                                  mx="auto" size={250}
+                                  startAngle={90} endAngle={360 + 90} strokeWidth={0}>{defs}</PieChart> :
+                        <BarChart data={addOtherFieldToGraph(gamesPerUmpirePerYear, 0, true)}
+                                  withTooltip
+                                  mx="auto"
+                                  series={[
+                                      {label: 'Games Umpired Per Year', name: 'value'}
+                                  ]}
+                                  dataKey="name"
+                                  h={300}
+                                  referenceLines={[
+                                      {
+                                          y: gamesPerUmpirePerYear.map(it => it.value).reduce((a, b) => a + b, 0) / gamesPerUmpirePerYear.length,
+                                          color: 'dimmed',
+                                          label: 'Average',
+                                          labelPosition: 'insideTopLeft',
+                                      },
+                                  ]}>{defs}</BarChart>
+                    }
+                </Grid.Col></>}
+            
             <Grid.Col span={{base: 12, md: 3}} p={10}>
                 <Title order={3} ta="center">Games by Gender</Title>
                 <PieChart data={[{
@@ -332,6 +348,66 @@ export function AllUmpiresGraphs({
                            curveType="linear">
                     {defs}
                 </AreaChart>
+            </Grid.Col>
+            <Grid.Col span={{base: 12, md: 3}} p={10}>
+                <Title order={3} ta="center">Cards Given by Umpire</Title>
+                <Text onClick={() => setPieChart(!pieChart)} my={5} ta="center" c="dimmed" fs="italic"
+                      style={{textDecoration: 'underline'}}>
+                    View as {pieChart ? 'Bar' : 'Pie'} Chart
+                </Text>
+
+                {pieChart ?
+                    <PieChart data={addOtherFieldToGraph(cardsPerUmpire, 0, false)} withTooltip
+                              tooltipDataSource="segment"
+                              mx="auto" size={250}
+                              startAngle={90} endAngle={360 + 90} strokeWidth={0}>{defs}</PieChart> :
+                    <BarChart data={addOtherFieldToGraph(cardsPerUmpire, 0, false)}
+                              withTooltip
+                              mx="auto"
+                              series={[
+                                  {label: 'Games Umpired', name: 'value'}
+                              ]}
+                              dataKey="name"
+                              h={300}
+                              referenceLines={[
+                                  {
+                                      y: cardsPerUmpire.map(it => it.value).reduce((a, b) => a + b, 0) / cardsPerUmpire.length,
+                                      color: 'dimmed',
+                                      label: 'Average',
+                                      labelPosition: 'insideTopLeft',
+                                  },
+                              ]}>{defs}</BarChart>
+                }
+            </Grid.Col>
+            <Grid.Col span={{base: 12, md: 3}} p={10}>
+                <Title order={3} ta="center">Average Cards Given by Umpire per Game</Title>
+                <Text onClick={() => setPieChart(!pieChart)} my={5} ta="center" c="dimmed" fs="italic"
+                      style={{textDecoration: 'underline'}}>
+                    View as {pieChart ? 'Bar' : 'Pie'} Chart
+                </Text>
+
+                {pieChart ?
+                    <PieChart data={addOtherFieldToGraph(cardsPerUmpirePerGame, 0, true)} withTooltip
+                              tooltipDataSource="segment"
+                              mx="auto" size={250}
+                              startAngle={90} endAngle={360 + 90} strokeWidth={0}>{defs}</PieChart> :
+                    <BarChart data={addOtherFieldToGraph(cardsPerUmpirePerGame, 0, true)}
+                              withTooltip
+                              mx="auto"
+                              series={[
+                                  {label: 'Games Umpired', name: 'value'}
+                              ]}
+                              dataKey="name"
+                              h={300}
+                              referenceLines={[
+                                  {
+                                      y: cardsPerUmpirePerGame.map(it => it.value).reduce((a, b) => a + b, 0) / cardsPerUmpirePerGame.length,
+                                      color: 'dimmed',
+                                      label: 'Average',
+                                      labelPosition: 'insideTopLeft',
+                                  },
+                              ]}>{defs}</BarChart>
+                }
             </Grid.Col>
             <Grid.Col span={{base: 12, md: 3}} p={10}>
                 <Title order={3} ta="center">Average Ladder Position of Game</Title>

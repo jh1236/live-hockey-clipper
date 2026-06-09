@@ -24,13 +24,14 @@ def NullableOptional(a, *args, **kwargs):
 class Officials(db.Entity):
     id = PrimaryKey(int, auto=True)
     name = Required(str, unique=True)
+    altius_id = NullableOptional(int, unique=True)
     gender = Required(str)
     time_created = NullableOptional(int)
     panel = NullableOptional(str)
     role = NullableOptional(str)
     email = NullableOptional(str)
     phone_number = NullableOptional(str)
-
+    
     games_first_umpire = Set('Games', reverse='umpire_one')
     games_second_umpire = Set('Games', reverse='umpire_two')
     games_reserve_umpire = Set('Games', reverse='reserve_umpire')
@@ -38,6 +39,7 @@ class Officials(db.Entity):
     games_scoring_judge = Set('Games', reverse='scoring_judge')
     games_timing_judge = Set('Games', reverse='timing_judge')
     games_umpire_manager = Set('Games', reverse='umpire_manager')
+    cards = Set('GameCards', reverse='official')
 
     @db_session
     def format_for_frontend(self):
@@ -55,6 +57,7 @@ class Clubs(db.Entity):
     time_created = NullableOptional(int)
     ladder_positions = Set('LadderPosition', reverse='team')
 
+    cards = Set('GameCards', reverse='team')
     home_games = Set('Games', reverse='home_team')
     away_games = Set('Games', reverse='away_team')
 
@@ -183,6 +186,7 @@ class Games(db.Entity):
     complete = Required(bool, default=False)
     time_created = NullableOptional(int)
     source = NullableOptional(str)
+    altius_cards_populated = Required(bool, default=False)
 
     venue = NullableOptional(Venues, column='venue_id')
     home_team = Required(Clubs, column='home_team_id')
@@ -196,6 +200,7 @@ class Games(db.Entity):
     timing_judge = NullableOptional(Officials, column='timing_judge_id')
     umpire_manager = NullableOptional(Officials, column='umpire_manager_id')
 
+    cards = Set('GameCards', reverse='game')
     clips = Set('Clips', reverse='game')
 
     @property
@@ -284,6 +289,19 @@ class Clips(db.Entity):
         d['categories'] = [i for i in self.comment.split(';') if i.strip()]
         del d['comment']
         return d
+
+
+class GameCards(db.Entity):
+    _table_ = 'game_cards'
+    id = PrimaryKey(int, auto=True)
+    game = Required(Games, column="game_id")
+    team = Required(Clubs, column="team_id")
+    official = Required(Officials, column="official_id")
+    color = Required(str)
+    minute = Required(int)
+    player = NullableOptional(str)
+
+    composite_key(team, official, color, minute, player, game)
 
 
 class Users(db.Entity):
