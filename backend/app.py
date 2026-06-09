@@ -3,18 +3,15 @@ import json
 import logging
 import os
 import shutil
-import traceback
 from datetime import timedelta
 from multiprocessing.process import current_process
 from threading import Thread
 
-from pony.orm import flush
 from quart import Quart
 from quart.wrappers.response import DataBody
 from quart_cors import cors
 from quart_tasks import QuartTasks
 
-from ApiDatabaseLinkers import ClipsManager, AltiusManager, WhistleIQManager, LiveHockeyManager
 from blueprints import api
 from config import get_config
 from database import init_db

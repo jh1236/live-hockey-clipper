@@ -155,11 +155,11 @@ async def get_games_per_umpire():
 
                 if away_team_pos and home_team_pos:
                     diff = abs(home_team_pos.position - away_team_pos.position)
-                    sum = home_team_pos.position + away_team_pos.position
+                    added = home_team_pos.position + away_team_pos.position
                     ump_dict.average_ladder_difference += diff
-                    ump_dict.average_ladder_position += sum
+                    ump_dict.average_ladder_position += added
                     ump_dict.games_with_ladder += 1
-                    ump_dict.ladder_pos_every_week[monday_timestamp] += sum
+                    ump_dict.ladder_pos_every_week[monday_timestamp] += added
                     ump_dict.ladder_difference_every_week[monday_timestamp] += diff
                     ump_dict.games_with_ladder_every_week[monday_timestamp] += 1
 
