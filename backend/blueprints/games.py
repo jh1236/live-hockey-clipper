@@ -77,7 +77,7 @@ async def get_recent_games():
             i = live_hockey_missing_games[0]
             logging.warning(
                 f'Getting games from {datetime.fromtimestamp(i.start_time)} ({len(live_hockey_missing_games)} games remain).')
-            await LiveHockeyManager.update_live_hockey(date=i.start_time, date_window=3, target=1)
+            await LiveHockeyManager.update_live_hockey(date=i.start_time, date_window=7, target=1)
             live_hockey_missing_games = [i for i in live_hockey_missing_games[1:] if not i.live_hockey_id]
     
         recent = [
