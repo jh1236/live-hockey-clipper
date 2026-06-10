@@ -71,11 +71,11 @@ async def get_appointments_web():  # put application's code here
 @appointments_bp.route('/per_umpire_stats')
 async def get_games_per_umpire():
     with (db_session()):
-        umpire = None  # request.args.get('umpire', None)
-        gender = None  # request.args.get('gender', None)
-        level = None  # request.args.get('level', None)
-        from_year = None  # request.args.get('from_year', None)
-        to_year = None  # request.args.get('to_year', None)
+        umpire = request.args.get('umpire', None)
+        gender = request.args.get('gender', None)
+        level = request.args.get('level', None)
+        from_year = request.args.get('from_year', None)
+        to_year = request.args.get('to_year', None)
 
         @dataclass
         class UmpireStats:
