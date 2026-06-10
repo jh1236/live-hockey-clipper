@@ -1,3 +1,6 @@
+import asyncio
+import json
+import os
 import re
 from collections import defaultdict
 from dataclasses import field, dataclass
@@ -7,7 +10,7 @@ from fastapi.encoders import jsonable_encoder
 from pony.orm import db_session, select
 from quart import Blueprint, jsonify, request
 
-from database import Competitions, Games, Officials, LadderPosition, Venues
+from database import Competitions, Games, Officials, LadderPosition, Venues, init_db
 from utils import get_monday
 
 appointments_bp = Blueprint('appointments_bp', __name__, url_prefix='/appointments')
@@ -42,12 +45,12 @@ async def get_available():
 async def get_umpires():
     with db_session():
         return jsonify({'umpires': [i.format_for_frontend() for i in Officials.select()]})
-    
+
+
 @appointments_bp.route('/venues')
 async def get_venues():
     with db_session():
         return jsonify({'venues': [i.format_for_frontend() for i in Venues.select()]})
-
 
 
 @appointments_bp.route('/umpire_managers')
@@ -68,11 +71,11 @@ async def get_appointments_web():  # put application's code here
 @appointments_bp.route('/per_umpire_stats')
 async def get_games_per_umpire():
     with (db_session()):
-        umpire = request.args.get('umpire', None)
-        gender = request.args.get('gender', None)
-        level = request.args.get('level', None)
-        from_year = request.args.get('from_year', None)
-        to_year = request.args.get('to_year', None)
+        umpire = None  # request.args.get('umpire', None)
+        gender = None  # request.args.get('gender', None)
+        level = None  # request.args.get('level', None)
+        from_year = None  # request.args.get('from_year', None)
+        to_year = None  # request.args.get('to_year', None)
 
         @dataclass
         class UmpireStats:
@@ -85,8 +88,8 @@ async def get_games_per_umpire():
             cards: dict[int, int] = field(default_factory=lambda: defaultdict(int))
             cards_every_week: dict[int, dict[str, int]] = field(
                 default_factory=lambda: defaultdict(lambda: defaultdict(int)))
-            cards_per_game_every_week: dict[int, dict[str, int]] = field(
-                default_factory=lambda: defaultdict(lambda: defaultdict(int)))
+            cards_per_game_every_week: dict[int, dict[str, float]] = field(
+                default_factory=lambda: defaultdict(lambda: defaultdict(float)))
             games_with_cards_every_week: dict[int, int] = field(
                 default_factory=lambda: defaultdict(int))
             cards_per_team: dict[str, dict[str, int]] = field(
@@ -235,4 +238,12 @@ async def get_games_per_umpire():
         ret = list(sorted(out.values(), key=lambda a: a['umpire']['name']))
         if len(ret) == 1:
             ret = ret[0]
+        print(jsonable_encoder(ret))
         return jsonify({'statistic': jsonable_encoder(ret)})
+
+
+if __name__ == "__main__":
+    os.environ['DATABASE_PATH'] = '../resources/database.db'
+    os.environ['CACHE_DIRECTORY'] = '../cache'
+    init_db()
+    asyncio.run(get_games_per_umpire())
