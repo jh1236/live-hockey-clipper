@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from datetime import datetime
 
 from pony.orm import db_session, flush, select
@@ -58,14 +59,13 @@ async def get_recent_games():
         this_year = datetime.now().year
         
         live_hockey_missing_games = [i for i in games if i.competition.year == this_year and i.live_hockey_id == None and i.venue.has_video]
-        
-        tasks = []
+        logging.warning(f'Games "{[i.name for i in live_hockey_missing_games]}" have not been populated.')
         while len(live_hockey_missing_games) > 0:
             i = live_hockey_missing_games[0]
+            logging.warning(f'Getting games from {datetime.fromtimestamp(i.start_time)} ({len(live_hockey_missing_games)} games remain).')
             await LiveHockeyManager.update_live_hockey(date=i.start_time, date_window=3)
             live_hockey_missing_games = [i for i in live_hockey_missing_games[1:] if not i.live_hockey_id]
     
-        await asyncio.gather(*tasks)
     
         for i in games:
             i.complete |= i.start_time + 1.5 * HOUR_IN_SEC < datetime.now().timestamp()
