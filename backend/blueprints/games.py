@@ -58,7 +58,6 @@ async def get_recent_games():
 
         for i in games:
             i.complete |= i.start_time + 1.5 * HOUR_IN_SEC < datetime.now().timestamp()
-        flush()
 
         recent_games = sorted([i for i in games if i.complete], key=lambda g: g.start_time, reverse=True)
         if len(recent_games) > 8:
@@ -67,29 +66,29 @@ async def get_recent_games():
         upcoming_games = sorted([i for i in games if not i.complete], key=lambda g: g.start_time)
         if len(upcoming_games) > 8:
             upcoming_games = upcoming_games[:8]
-            
-        this_year = datetime.now().year
 
+        this_year = datetime.now().year
         live_hockey_missing_games = [i for i in upcoming_games + recent_games if
                                      i.competition.year == this_year and i.live_hockey_id == None and i.venue.has_video]
-        logging.warning(f'Games "{[i.name for i in live_hockey_missing_games]}" have not been populated.')
-        while len(live_hockey_missing_games) > 0:
-            i = live_hockey_missing_games[0]
-            logging.warning(
-                f'Getting games from {datetime.fromtimestamp(i.start_time)} ({len(live_hockey_missing_games)} games remain).')
-            await LiveHockeyManager.update_live_hockey(date=i.start_time, date_window=3)
-            live_hockey_missing_games = [i for i in live_hockey_missing_games[1:] if not i.live_hockey_id]
-            
-            
-        recent = [
-            i.format_for_frontend() for i in recent_games
-        ]
-        upcoming = [
-            i.format_for_frontend() for i in
-            upcoming_games
-        ]
 
-        return jsonify({'upcoming': upcoming, 'recent': recent})
+
+    logging.warning(f'Games "{[i.name for i in live_hockey_missing_games]}" have not been populated.')
+    while len(live_hockey_missing_games) > 0:
+        i = live_hockey_missing_games[0]
+        logging.warning(
+            f'Getting games from {datetime.fromtimestamp(i.start_time)} ({len(live_hockey_missing_games)} games remain).')
+        await LiveHockeyManager.update_live_hockey(date=i.start_time, date_window=3)
+        live_hockey_missing_games = [i for i in live_hockey_missing_games[1:] if not i.live_hockey_id]
+
+    recent = [
+        i.format_for_frontend() for i in recent_games
+    ]
+    upcoming = [
+        i.format_for_frontend() for i in
+        upcoming_games
+    ]
+
+    return jsonify({'upcoming': upcoming, 'recent': recent})
 
 
 @games_bp.get('/blob/<blob>')
