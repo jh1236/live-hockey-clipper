@@ -68,7 +68,7 @@ async def get_recent_games():
             upcoming_games = upcoming_games[:8]
 
         this_year = datetime.now().year
-        live_hockey_missing_games = [i for i in upcoming_games + recent_games if
+        live_hockey_missing_games = [i for i in recent_games if
                                      i.competition.year == this_year and i.live_hockey_id == None and i.venue.has_video]
 
     
