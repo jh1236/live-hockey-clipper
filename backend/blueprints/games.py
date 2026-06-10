@@ -32,13 +32,13 @@ async def get_recent_games():
         query = select(
             i for i in Games
         )
-        
+
         for u in umpires:
             query = query.filter(lambda i: i.umpire_one.name == u or i.umpire_two.name == u)
 
         for t in teams:
             query = query.filter(lambda i: i.home_team.code == t or i.away_team.code == t)
-        
+
         if venue is not None:
             query = query.filter(lambda i: i.venue.short_name == venue)
 
@@ -55,18 +55,7 @@ async def get_recent_games():
             query = query.filter(lambda i: i.competition.age_level != 'Juniors')
 
         games = list(query)
-        
-        this_year = datetime.now().year
-        
-        live_hockey_missing_games = [i for i in games if i.competition.year == this_year and i.live_hockey_id == None and i.venue.has_video]
-        logging.warning(f'Games "{[i.name for i in live_hockey_missing_games]}" have not been populated.')
-        while len(live_hockey_missing_games) > 0:
-            i = live_hockey_missing_games[0]
-            logging.warning(f'Getting games from {datetime.fromtimestamp(i.start_time)} ({len(live_hockey_missing_games)} games remain).')
-            await LiveHockeyManager.update_live_hockey(date=i.start_time, date_window=3)
-            live_hockey_missing_games = [i for i in live_hockey_missing_games[1:] if not i.live_hockey_id]
-    
-    
+
         for i in games:
             i.complete |= i.start_time + 1.5 * HOUR_IN_SEC < datetime.now().timestamp()
         flush()
@@ -78,7 +67,20 @@ async def get_recent_games():
         upcoming_games = sorted([i for i in games if not i.complete], key=lambda g: g.start_time)
         if len(upcoming_games) > 8:
             upcoming_games = upcoming_games[:8]
+            
+        this_year = datetime.now().year
 
+        live_hockey_missing_games = [i for i in upcoming_games + recent_games if
+                                     i.competition.year == this_year and i.live_hockey_id == None and i.venue.has_video]
+        logging.warning(f'Games "{[i.name for i in live_hockey_missing_games]}" have not been populated.')
+        while len(live_hockey_missing_games) > 0:
+            i = live_hockey_missing_games[0]
+            logging.warning(
+                f'Getting games from {datetime.fromtimestamp(i.start_time)} ({len(live_hockey_missing_games)} games remain).')
+            await LiveHockeyManager.update_live_hockey(date=i.start_time, date_window=3)
+            live_hockey_missing_games = [i for i in live_hockey_missing_games[1:] if not i.live_hockey_id]
+            
+            
         recent = [
             i.format_for_frontend() for i in recent_games
         ]
@@ -105,7 +107,8 @@ async def get_game(game_identifier):
     with db_session():
         game = Games.get_by_identifier(game_identifier)
         if not game:
-            start = datetime.strptime(f"{game_identifier.split('-')[0]}.{game_identifier.split('~')[1]}.+0800", '%Y.%d.%m.%H.%M.%z')
+            start = datetime.strptime(f"{game_identifier.split('-')[0]}.{game_identifier.split('~')[1]}.+0800",
+                                      '%Y.%d.%m.%H.%M.%z')
             await LiveHockeyManager.update_live_hockey(date=int(start.timestamp()))
             game = Games.get_by_identifier(game_identifier)
         if not game.stream_start_time and game.start_time - 15 * MINUTE_IN_SEC < datetime.now().timestamp():
