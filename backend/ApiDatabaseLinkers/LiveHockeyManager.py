@@ -143,7 +143,7 @@ async def add_live_hockey_game_to_db(game: dict[str, Any], source: str = ''):
 
 
 async def update_live_hockey(location: str = 'hockeywa', filter_: Callable | None = None,
-                             date: int | None = None, target=-1):
+                             date: int | None = None, target=-1, date_window = 7):
     competitions = await get_or_update_comps(location)
     filter_ = filter_ or (lambda a: True)
     page = 0
@@ -151,7 +151,7 @@ async def update_live_hockey(location: str = 'hockeywa', filter_: Callable | Non
     LiveHockeyFetcher.live_hockey_logger.info('Fetching Upcoming Games')
     while target == -1 or len([i for i in upcoming_games if filter_(i)]) < target:
         LiveHockeyFetcher.live_hockey_logger.debug(f'Fetching page {page + 1}')
-        upcoming = await LiveHockeyFetcher.get_games_from_live_hockey(competitions, 7, True, date_from_in=date,
+        upcoming = await LiveHockeyFetcher.get_games_from_live_hockey(competitions, date_window, True, date_from_in=date,
                                                                       page=page)
         if upcoming is None or len(upcoming) == 0:
             # this means we are out of pages
@@ -167,7 +167,7 @@ async def update_live_hockey(location: str = 'hockeywa', filter_: Callable | Non
     while target == -1 or len([i for i in recent_games if filter_(i)]) < target:
         LiveHockeyFetcher.live_hockey_logger.debug(f'Fetching page {page + 1}')
 
-        recent = await LiveHockeyFetcher.get_games_from_live_hockey(competitions, -7, True, date_from_in=date,
+        recent = await LiveHockeyFetcher.get_games_from_live_hockey(competitions, -date_window, True, date_from_in=date,
                                                                     page=page)
         if recent is None or len(recent) == 0:
             # this means we are out of pages
