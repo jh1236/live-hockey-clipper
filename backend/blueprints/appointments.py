@@ -232,14 +232,13 @@ async def get_games_per_umpire():
                             stats.cards_per_game_every_week[week] = {'G': 0, 'Y': 0}
                         else:
                             stats.cards_per_game_every_week[week] = {
-                                k: round(v / (stats.games_with_cards_every_week[k] or 1), 2) for
+                                k: round(v / (stats.games_with_cards_every_week[week] or 1), 2) for
                                 k, v in stats.cards_every_week[week].items()}
 
         ret = list(sorted(out.values(), key=lambda a: a['umpire']['name']))
         if len(ret) == 1:
             ret = ret[0]
-        print(jsonable_encoder(ret))
-        return jsonify({'statistic': jsonable_encoder(ret)})
+        return jsonify({'statistic': ret})
 
 
 if __name__ == "__main__":
