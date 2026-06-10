@@ -67,11 +67,12 @@ async def update_umpires(org=None):
 
 async def update_appointments(org=None):
     events = (org or await WhistleIQFetcher.get_hwa_organisation())["events"]
-    with db_session():
-        for event in events:
-            year = event['startDateSQL'].split('-')[0]
-            games = await WhistleIQFetcher.get_event_games(event['guid'])
-            await sleep_for_approx(1)
+    
+    for event in events:
+        year = event['startDateSQL'].split('-')[0]
+        games = await WhistleIQFetcher.get_event_games(event['guid'])
+        await sleep_for_approx(1)
+        with db_session():
             for game in games:
                 label = game['competitionName']
                 if not label.strip():
