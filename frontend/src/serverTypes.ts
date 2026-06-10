@@ -66,6 +66,7 @@ export interface Competition {
 
 
 export interface Venue {
+    hasVideo: boolean;
     id: number
     code: string
     shortName: string;

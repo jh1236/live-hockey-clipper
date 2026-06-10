@@ -61,7 +61,9 @@ function getDateString(it: number, currentTime: number): string {
             return `${deltaHours} hours ago`;
         }
     }
-
+    if (dateToRender.getFullYear() !== today.getFullYear()) {
+        return dateToRender.toLocaleString('en-GB')
+    }
     const s = dateToRender.toLocaleTimeString().replace(/:\d\d\s/, '');
     if (dateToRender.getDate() === today.getDate() - 1) {
         return `Yesterday, ${s}`
@@ -88,7 +90,7 @@ export function GamesDisplay({
     useEffect(() => {
         setCurrentTime(Date.now());
     }, [])
-    
+
     useInterval(
         () => {
             setCurrentTime(Date.now());

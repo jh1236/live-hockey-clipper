@@ -22,7 +22,7 @@ THIRTY_MINUTES = 30 * 60
 @db_session
 def get_or_create_game(home_team_code: str, away_team_code: str, start_time: float, competition: Competitions,
                        source: str, *,
-                       home_team_long_name: str = None, away_team_long_name: str = None) -> Games:
+                       home_team_long_name: str = None, away_team_long_name: str = None, strict=False) -> Games:
     team_one = get_or_create_team(home_team_code, long_name_if_new=home_team_long_name)
     team_two = get_or_create_team(away_team_code, long_name_if_new=away_team_long_name)
     games = list(select(i for i in Games if i.home_team == team_one and i.away_team == team_two and abs(
@@ -36,12 +36,14 @@ def get_or_create_game(home_team_code: str, away_team_code: str, start_time: flo
         complete = (game.stream_start_time or start_time) + 2 * HOUR_IN_SEC < datetime.now().timestamp()
         game.complete |= complete
         return games[0]
-    else:
+    elif not strict or not competition.level in ['Prem One', 'Prem Two']:
         complete = start_time < (datetime.now() + timedelta(hours=1, minutes=30)).timestamp()
         game = Games(home_team=team_one, away_team=team_two, start_time=round(start_time), competition=competition,
                      source=source)
         game.complete = complete
         return game
+    else:
+        raise Exception('Game does not exist on altius!')
 
 
 @db_session

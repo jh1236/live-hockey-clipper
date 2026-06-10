@@ -67,7 +67,7 @@ async def update_umpires(org=None):
 
 async def update_appointments(org=None):
     events = (org or await WhistleIQFetcher.get_hwa_organisation())["events"]
-    
+
     for event in events:
         year = event['startDateSQL'].split('-')[0]
         games = await WhistleIQFetcher.get_event_games(event['guid'])
@@ -87,8 +87,11 @@ async def update_appointments(org=None):
 
                 start_time = int(game['fixtureDateUNIX']) - 8 * HOUR_IN_SEC
 
-                db_game = DatabaseAligner.get_or_create_game(home_team, away_team, start_time, competition,
-                                                             source='WhistleIQ appointments')
+                try:
+                    db_game = DatabaseAligner.get_or_create_game(home_team, away_team, start_time, competition,
+                                                                 source='WhistleIQ appointments', strict=True)
+                except Exception:
+                    continue
 
                 if start_time < (datetime.now() + timedelta(hours=1, minutes=30)).timestamp():
                     db_game.complete = True

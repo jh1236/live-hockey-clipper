@@ -13,6 +13,8 @@ interface TagSelectorProps {
     setSelectedTags: Dispatch<SetStateAction<string[]>>;
     selectedComps: string[];
     setSelectedComps: Dispatch<SetStateAction<string[]>>;
+    selectedUmpires: string[];
+    setSelectedUmpires: Dispatch<SetStateAction<string[]>>;
     clips: (Clip | undefined)[] | null;
     activeClips: (Clip | undefined)[] | null;
 }
@@ -22,6 +24,8 @@ function TagSelector({
                          setSelectedTags,
                          selectedComps,
                          setSelectedComps,
+                         setSelectedUmpires,
+                         selectedUmpires,
                          clips,
                          activeClips
                      }: TagSelectorProps) {
@@ -71,12 +75,44 @@ function TagSelector({
         return Object.entries(out).sort()
     }, [activeClips, allComps])
 
+    const allUmps = useMemo(() => {
+        const out: string[] = []
+        for (const i of clips ?? []) {
+            if (!i) continue;
+            for (const ump of i.game.umpires) {
+                if (!out.includes(ump.name)) {
+                    out.push(ump.name)
+                }
+            }
+        }
+        return out
+    }, [clips])
+
+    const umps = useMemo(() => {
+        const out: { [tag: string]: number } = Object.fromEntries(allUmps.map(it => [it, 0]))
+        for (const i of activeClips ?? []) {
+            if (!i) continue;
+            for (const ump of i.game.umpires) {
+                if (!(ump.name in out)) {
+                    out[ump.name] = 0
+                }
+                out[ump.name]++;
+            }
+        }
+        return Object.entries(out).sort()
+    }, [activeClips, allUmps])
+
     if (!clips) {
         return undefined;
     }
 
     return <>
         <Title order={3}>Filter</Title>
+        <Checkbox.Group label="Umpires" value={selectedUmpires} onChange={setSelectedUmpires} mt={20}>
+            {umps.map(([tag, count], i) => <Checkbox key={i} my={5} value={tag} label={<Group justify="left">
+                <Text inline>{tag}</Text><Text inline c="dimmed">({count})</Text>
+            </Group>}></Checkbox>)}
+        </Checkbox.Group>
         <Checkbox.Group label="Grade" value={selectedComps} onChange={setSelectedComps} mt={20}>
             {comps.map(([tag, count], i) => <Checkbox key={i} my={5} value={tag} label={<Group justify="left">
                 <Text inline>{tag}</Text><Text inline c="dimmed">({count})</Text>
@@ -92,6 +128,7 @@ function TagSelector({
 
 export default function Page() {
     const [clips, setClips] = useState<(Clip | undefined)[]>([]);
+    const [selectedUmpires, setSelectedUmpires] = useState<string[]>([])
     const [selectedComps, setSelectedComps] = useState<string[]>([])
     const [selectedTags, setSelectedTags] = useState<string[]>([])
 
@@ -107,17 +144,30 @@ export default function Page() {
                         break;
                     }
                 }
+                
                 if (failed) continue;
                 if (selectedComps.length > 0) {
                     if (!selectedComps.includes(i.game.competition.level)) {
                         continue
                     }
                 }
+                
+                if (selectedUmpires.length > 0) {
+                    const umpires = i.game.umpires.map(it => it.name);
+                    failed = true;
+                    for (const t of umpires) {
+                        if (selectedUmpires?.includes(t)) {
+                            failed = false;
+                            break;
+                        }
+                    }
+                    if (failed) continue;
+                }
                 out.push(i)
             }
             return out
         },
-        [clips, selectedComps, selectedTags]
+        [clips, selectedComps, selectedTags, selectedUmpires]
     )
 
     useEffect(() => {
@@ -146,7 +196,8 @@ export default function Page() {
                     </ActionIcon>
                 </Popover.Target>
                 <Popover.Dropdown>
-                    <TagSelector selectedTags={selectedTags} setSelectedTags={setSelectedTags} activeClips={activeClips}
+                    <TagSelector selectedUmpires={selectedUmpires} setSelectedUmpires={setSelectedUmpires}
+                                 selectedTags={selectedTags} setSelectedTags={setSelectedTags} activeClips={activeClips}
                                  clips={clips} selectedComps={selectedComps} setSelectedComps={setSelectedComps}/>
                 </Popover.Dropdown>
             </Popover>
@@ -161,7 +212,8 @@ export default function Page() {
                               }/>
             </Box>
             <Box visibleFrom='md'>
-                <TagSelector selectedTags={selectedTags} setSelectedTags={setSelectedTags} activeClips={activeClips}
+                <TagSelector selectedUmpires={selectedUmpires} setSelectedUmpires={setSelectedUmpires}
+                             selectedTags={selectedTags} setSelectedTags={setSelectedTags} activeClips={activeClips}
                              clips={clips} selectedComps={selectedComps} setSelectedComps={setSelectedComps}/>
             </Box>
         </Group>
