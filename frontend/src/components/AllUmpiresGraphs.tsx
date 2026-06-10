@@ -169,7 +169,8 @@ export function AllUmpiresGraphs({
                 }
             }
 
-            out.push(Object.fromEntries(Object.entries(toAdd).filter(([k]) => k !== 'games').map(([k, v]) => k === 'week' ? [k, v] : [k, Math.round(100 * (v as number) / toAdd.count) / 100])) as {
+            //200 as 2 umpires per game, so each game counted twice
+            out.push(Object.fromEntries(Object.entries(toAdd).filter(([k]) => k !== 'games').map(([k, v]) => k === 'week' ? [k, v] : [k, Math.round(200 * (v as number) / toAdd.count) / 100])) as {
                 [color: string]: number | string,
                 week: string
             })
