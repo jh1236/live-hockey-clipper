@@ -88,6 +88,7 @@ interface UmpireStats {
     gamesPerTeam: { [team: string]: number }
     cardsPerTeam: { [team: string]: { [color: string]: number } }
     cardsEveryWeek: { [epoch: string]: { [color: string]: number } }
+    cardsPerGameEveryWeek: { [epoch: string]: { [color: string]: number } }
     cards: { [color: string]: number }
     games: number
     gamesEveryWeek: { [epoch: string]: number }

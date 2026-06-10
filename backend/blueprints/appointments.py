@@ -78,6 +78,10 @@ async def get_games_per_umpire():
             cards: dict[int, int] = field(default_factory=lambda: defaultdict(int))
             cards_every_week: dict[int, dict[str, int]] = field(
                 default_factory=lambda: defaultdict(lambda: defaultdict(int)))
+            cards_per_game_every_week: dict[int, dict[str, int]] = field(
+                default_factory=lambda: defaultdict(lambda: defaultdict(int)))
+            games_with_cards_every_week: dict[int, int] = field(
+                default_factory=lambda: defaultdict(int))
             cards_per_team: dict[str, dict[str, int]] = field(
                 default_factory=lambda: defaultdict(lambda: defaultdict(int)))
             ladder_difference_every_week: dict[int, float] = field(
@@ -163,6 +167,9 @@ async def get_games_per_umpire():
                     ump_dict.ladder_difference_every_week[monday_timestamp] += diff
                     ump_dict.games_with_ladder_every_week[monday_timestamp] += 1
 
+                if g.altius_cards_populated:
+                    ump_dict.games_with_cards_every_week[monday_timestamp] += 1
+
                 for i in g.cards:
                     if not is_umpire_manager and i.official != o: continue
                     ump_dict.cards[i.color] += 1
@@ -212,6 +219,11 @@ async def get_games_per_umpire():
                             stats.games_every_week[week] = 0
                         if week not in stats.cards_every_week:
                             stats.cards_every_week[week] = {'G': 0, 'Y': 0}
+                            stats.cards_per_game_every_week[week] = {'G': 0, 'Y': 0}
+                        else:
+                            stats.cards_per_game_every_week[week] = {
+                                k: round(v / stats.games_with_cards_every_week[k], 2) for
+                                k, v in stats.cards_every_week[week].items()}
 
         ret = list(sorted(out.values(), key=lambda a: a['umpire']['name']))
         if len(ret) == 1:

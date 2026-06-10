@@ -223,7 +223,11 @@ export function UmpireGraphs({
     ).toSorted((a, b) => a.value - b.value)
 
     const cardsPerTeamPerGame = Object.entries(selectedUmpire?.umpireStats.cardsPerTeam ?? {}).map(([k, v], i) =>
-        ({name: k, value: Math.round(100 * Object.values(v).reduce((a, b) => a + b, 0) / selectedUmpire.umpireStats.gamesPerTeam[k]) / 100, color: colorClub(k, i)})
+        ({
+            name: k,
+            value: Math.round(100 * Object.values(v).reduce((a, b) => a + b, 0) / selectedUmpire.umpireStats.gamesPerTeam[k]) / 100,
+            color: colorClub(k, i)
+        })
     ).toSorted((a, b) => a.value - b.value)
 
     const gamesPerUmpire = Object.entries(selectedUmpire?.umpireStats.gamesWithUmpires ?? {}).map(([k, v], i) =>
@@ -238,8 +242,8 @@ export function UmpireGraphs({
         Object.assign({week: new Date(+k).toLocaleDateString()}, ...Object.entries(v).map(([k, v]) => ({[k]: v})))
     )
 
-    const cardsPerGamePerWeek = Object.entries(selectedUmpire?.umpireStats.cardsEveryWeek ?? {}).map(([k, v]) =>
-        Object.assign({week: new Date(+k).toLocaleDateString()}, ...Object.entries(v).map(([k2, v]) => ({[k2]: v / (selectedUmpire.umpireStats.gamesEveryWeek[k] || 1)})))
+    const cardsPerGamePerWeek = Object.entries(selectedUmpire?.umpireStats.cardsPerGameEveryWeek ?? {}).map(([k, v]) =>
+        Object.assign({week: new Date(+k).toLocaleDateString()}, ...Object.entries(v).map(([k2, v]) => ({[k2]: v})))
     )
 
     console.log(cardsPerGamePerWeek)

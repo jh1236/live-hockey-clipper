@@ -23,7 +23,7 @@ export function levelComparer(level: AllGrades, comp: Competition) {
     return level === comp.level
 }
 
-type PerWeekKey = { games: number, cards: { [color: string]: number } };
+type PerWeekKey = { games: number, cards: { [color: string]: number }, cardsPerGame: { [color: string]: number } };
 
 export function AllUmpiresGraphs({
                                      fromYear,
@@ -86,7 +86,8 @@ export function AllUmpiresGraphs({
                             Object.assign({}, acc[key] ?? {week: key}, {
                                 [it.umpire.name]: {
                                     games: value,
-                                    cards: it.umpireStats.cardsEveryWeek[epoch]
+                                    cards: it.umpireStats.cardsEveryWeek[epoch],
+                                    cardsPerGame: it.umpireStats.cardsEveryWeek[epoch]
                                 }
                             })
                     }
@@ -95,7 +96,7 @@ export function AllUmpiresGraphs({
             }, {} as {
                 [key: string]: {
                     week: number,
-                    [key: string]: PerWeekKey | number
+                    [key: string]: PerWeekKey | number,
                 }
             })).sort((a, b) => a.week - b.week).map(it => ({
             ...it,
@@ -156,19 +157,19 @@ export function AllUmpiresGraphs({
         const out: { [color: string]: number | string, week: string }[] = []
         for (const it of perWeekData) {
             const week = it.week
-            const toAdd: { [color: string]: number | string, week: string, games: number } = {week, games: 0}
+            const toAdd: { [color: string]: number | string, week: string, count: number } = {week, count: 0}
             for (const [name, value] of Object.entries(it)) {
                 if (name === 'week') continue;
-                toAdd.games += (value as PerWeekKey).games
-                for (const [color, count] of Object.entries((value as PerWeekKey).cards)) {
+                for (const [color, count] of Object.entries((value as PerWeekKey).cardsPerGame)) {
                     if (!(color in toAdd)) {
                         toAdd[color] = 0
                     }
+                    toAdd.count += 1;
                     (toAdd[color] as number) += count as number
                 }
             }
 
-            out.push(Object.fromEntries(Object.entries(toAdd).filter(([k]) => k !== 'games').map(([k, v]) => k === 'week' ? [k, v] : [k, Math.round(100 * (v as number) / toAdd.games) / 100])) as {
+            out.push(Object.fromEntries(Object.entries(toAdd).filter(([k]) => k !== 'games').map(([k, v]) => k === 'week' ? [k, v] : [k, Math.round(100 * (v as number) / toAdd.count) / 100])) as {
                 [color: string]: number | string,
                 week: string
             })
