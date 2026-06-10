@@ -3,6 +3,7 @@ from collections import defaultdict
 from dataclasses import field, dataclass
 from datetime import datetime
 
+from fastapi.encoders import jsonable_encoder
 from pony.orm import db_session, select
 from quart import Blueprint, jsonify, request
 
@@ -234,4 +235,4 @@ async def get_games_per_umpire():
         ret = list(sorted(out.values(), key=lambda a: a['umpire']['name']))
         if len(ret) == 1:
             ret = ret[0]
-        return jsonify({'statistic': ret})
+        return jsonify({'statistic': jsonable_encoder(ret)})
