@@ -223,8 +223,8 @@ export function AllUmpiresGraphs({
             color: umpiresByName[it.umpire.name]?.color ?? 'pink'
         })).sort((a, b) => a.value - b.value);
 
-    const cardsPerUmpirePerGame = relevantUmpireData
-        ?.map(it => ({
+    const cardsPerUmpirePerGame = relevantUmpireData?.filter(it => it.umpireStats.games >= gamesTillRelevant)
+        .map(it => ({
             name: it.umpire.name,
             value: Math.round(Object.values(it.umpireStats.cards).reduce((a, b) => a + b, 0) / it.umpireStats.games * 100) / 100,
             color: umpiresByName[it.umpire.name]?.color ?? 'pink'
@@ -436,6 +436,8 @@ export function AllUmpiresGraphs({
             </Grid.Col>
             <Grid.Col span={{base: 12, md: 3}} p={10}>
                 <Title order={3} ta="center">Average Cards Given by Umpire per Game</Title>
+                <Text my={5} ta="center" c="dimmed" fs="italic">For people who have umpired {gamesTillRelevant}+
+                    games</Text>
                 <Text onClick={() => setPieChart(!pieChart)} my={5} ta="center" c="dimmed" fs="italic"
                       style={{textDecoration: 'underline'}}>
                     View as {pieChart ? 'Bar' : 'Pie'} Chart
