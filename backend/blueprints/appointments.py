@@ -6,7 +6,7 @@ from datetime import datetime
 from pony.orm import db_session, select
 from quart import Blueprint, jsonify, request
 
-from database import Competitions, Games, Officials, LadderPosition
+from database import Competitions, Games, Officials, LadderPosition, Venues
 from utils import get_monday
 
 appointments_bp = Blueprint('appointments_bp', __name__, url_prefix='/appointments')
@@ -41,6 +41,12 @@ async def get_available():
 async def get_umpires():
     with db_session():
         return jsonify({'umpires': [i.format_for_frontend() for i in Officials.select()]})
+    
+@appointments_bp.route('/venues')
+async def get_venues():
+    with db_session():
+        return jsonify({'venues': [i.format_for_frontend() for i in Venues.select()]})
+
 
 
 @appointments_bp.route('/umpire_managers')

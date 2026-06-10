@@ -16,6 +16,9 @@ async def get_recent_games():
         juniors = request.args.get('juniors') == 'true'
         premier_only = request.args.get('premier') == 'true'
         masters = request.args.get('masters') == 'true'
+        umpires = request.args.getlist('umpire')
+        venue = request.args.get('venue', None)
+        teams = request.args.getlist('team')
         only_clippable = request.args.get('clippable') == 'true'
 
         acceptable_ages = ['Seniors']
@@ -23,13 +26,19 @@ async def get_recent_games():
             acceptable_ages.append('Masters')
         if juniors:
             acceptable_ages.append('Juniors')
-        now = datetime.now().timestamp()
 
         query = select(
             i for i in Games
-            if now + 7 * DAY_IN_SEC > i.start_time
-            and i.start_time > now - 7 * DAY_IN_SEC
         )
+        
+        for u in umpires:
+            query = query.filter(lambda i: i.umpire_one.name == u or i.umpire_two.name == u)
+
+        for t in teams:
+            query = query.filter(lambda i: i.home_team.code == t or i.away_team.code == t)
+        
+        if venue is not None:
+            query = query.filter(lambda i: i.venue.short_name == venue)
 
         if premier_only:
             query = query.filter(lambda i: i.competition.is_premier == True)
